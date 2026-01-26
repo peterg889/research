@@ -41,5 +41,6 @@ cache/
 *.pth
 *.safetensors
 
-# Submodule repos (tracked separately)
-curriculum_learning/
+# Large cache directories (keep code, skip data)
+*/cache/
+*/results/
