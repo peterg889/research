@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environments
+*_env/
+venv/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Experiment outputs
+*.png
+*.json
+results/
+cache/
+*_cache/
+
+# Model weights and large files
+*.bin
+*.pt
+*.pth
+*.safetensors
+
+# Submodule repos (tracked separately)
+curriculum_learning/
