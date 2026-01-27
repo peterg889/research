@@ -1,152 +1,98 @@
-# Streamlined Curriculum Learning Framework
+# Curriculum Learning for Language Models
 
-A clean, production-ready system for testing whether **training data order** affects language model learning performance.
+## Hypothesis
 
-## 🚀 Quick Start
+**Does the order in which training data is presented affect the speed and quality of language model training?**
+
+Curriculum learning theory (Bengio et al., 2009) suggests that presenting training examples in a meaningful order—typically easy-to-hard—can accelerate convergence and improve final model performance. This experiment tests whether strategic data ordering provides measurable benefits for BERT-style masked language model training.
+
+## Experimental Design
+
+### Conditions
+
+We compare **9 curriculum strategies** across two main axes:
+
+| Axis | Strategies | Description |
+|------|------------|-------------|
+| **Reading Level** | `reading_level_easy_to_hard` | Simple texts first, complex texts later |
+| | `reading_level_hard_to_easy` | Complex texts first |
+| | `reading_level_staged` | Discrete difficulty tiers |
+| **Semantic Topic** | `topic_sequential` | Complete each topic before moving on |
+| | `topic_interleaved` | Evenly interleave topics |
+| | `topic_largest_first` | Largest topic clusters first |
+| **Hybrid** | `hybrid_reading_topic` | Reading level, then topic |
+| | `hybrid_topic_reading` | Topic, then reading level |
+| **Baseline** | `random` | Random ordering (control) |
+
+### Metrics
+
+- **Primary**: Final validation loss and accuracy after fixed training steps
+- **Secondary**: Convergence speed (steps to reach threshold), learning efficiency (area under loss curve)
+- **Statistical**: Effect sizes (Cohen's d), paired t-tests, confidence intervals
+
+### Data
+
+Real text data from WikiText, AG News, and IMDB. Each sample is automatically labeled with:
+- **Reading level**: Flesch-Kincaid grade score
+- **Topic**: BERTopic-derived semantic cluster
+
+## Quick Start
 
 ```bash
-# Debug experiment (1K samples, quick test)
+# Quick test (1K samples, 2 epochs)
 python experiment.py --scale=debug
 
-# Full research experiment (50K samples) 
+# Research experiment (50K samples, 15 epochs)
 python experiment.py --scale=scientific --use-wandb
 
-# Custom experiment
-python experiment.py --scale=pilot --model-size=bert-base --strategies random reading_level_easy_to_hard
+# Custom run
+python experiment.py --scale=pilot --strategies random reading_level_easy_to_hard topic_sequential
 ```
 
-## 📊 Research Questions
+## Programmatic API
 
-- **Does curriculum learning improve language model training?**
-- **Which curriculum axis is more effective: reading level or semantic topics?**
-- **How much improvement does strategic data ordering provide?**
-
-## 🏗️ Architecture
-
-**6 Core Files:**
-- **`config.py`** - Single configuration system (debug → large scale)
-- **`data_pipeline.py`** - Real data loading with curriculum strategies  
-- **`model.py`** - Scalable BERT (mini → base) using HuggingFace
-- **`evaluation.py`** - Statistical analysis with publication rigor
-- **`experiment.py`** - Main experiment runner (CLI + programmatic)
-- **`tracking.py`** - Experiment logging with optional W&B
-
-## 🎯 Curriculum Strategies
-
-**9 strategies across 2 main axes:**
-
-**Reading Level Axis:**
-- `reading_level_easy_to_hard` - Simple → complex texts
-- `reading_level_hard_to_easy` - Complex → simple texts  
-- `reading_level_staged` - Present each difficulty tier completely
-
-**Semantic Topic Axis:**
-- `topic_sequential` - Present each topic completely
-- `topic_interleaved` - Evenly interleave topics
-- `topic_largest_first` - Largest topics first
-
-**Hybrid Approaches:**
-- `hybrid_reading_topic` - Reading level first, then topic
-- `hybrid_topic_reading` - Topic first, then reading level
-- `random` - Baseline random ordering
-
-## 📈 Experiment Scales
-
-| Scale | Samples | Epochs | Use Case |
-|-------|---------|--------|----------|
-| `debug` | 1K | 2 | Quick testing |
-| `pilot` | 10K | 5 | Initial validation |
-| `scientific` | 50K | 15 | Publication-ready |
-| `large` | 100K | 25 | Comprehensive study |
-
-## 🔬 Scientific Features
-
-- **Real Data**: WikiText + AG News + IMDB (not synthetic)
-- **Automatic Labeling**: Flesch-Kincaid reading levels + BERTopic semantic topics
-- **Statistical Rigor**: Effect sizes, significance testing, confidence intervals
-- **Comprehensive Caching**: Avoids re-computation of expensive operations
-- **Resource Monitoring**: Memory usage, training time estimation
-- **Reproducibility**: Fixed seeds, configuration tracking
-
-## 💻 Usage Examples
-
-### Programmatic API
 ```python
 from config import scientific_config
-from experiment import Experiment
+from experiment import UnifiedExperiment
 
-# Full research experiment
 config = scientific_config(
     model_size="bert-base",
-    strategies=["random", "reading_level_easy_to_hard", "topic_sequential"],
-    use_wandb=True
+    strategies=["random", "reading_level_easy_to_hard", "topic_sequential"]
 )
 
-experiment = Experiment(config)
-results = experiment.run()
-
-print(f"Best strategy: {results['report']['best_strategies']['by_final_performance']}")
-```
-
-### Quick Testing
-```python
-from config import debug_config
-from experiment import Experiment
-
-# Quick test
-experiment = Experiment(debug_config())
+experiment = UnifiedExperiment(config)
 results = experiment.run()
 ```
 
-## 📊 Output & Results
+## Experiment Scales
 
-**Automatic Generation:**
-- Statistical analysis report (JSON)
-- Training curves and metrics
-- Resource usage statistics
-- Recommendations for best strategies
+| Scale | Samples | Epochs | Purpose |
+|-------|---------|--------|---------|
+| `debug` | 1K | 2 | Verify code works |
+| `pilot` | 10K | 5 | Initial validation |
+| `scientific` | 50K | 15 | Publication-ready results |
+| `large` | 100K | 25 | Comprehensive study |
 
-**Example Output:**
+## File Structure
+
 ```
-🏆 Best strategy: reading_level_easy_to_hard
-✅ Effective strategies: reading_level_easy_to_hard, topic_sequential
-💡 Recommendations:
-   1. reading_level_easy_to_hard shows 12.3% improvement over random
-   2. Topic-based strategies show moderate benefits
-   3. Consider hybrid approaches for maximum effect
+curriculum_learning/
+├── config.py          # Experiment configuration (scales, strategies, hyperparameters)
+├── experiment.py      # Main experiment runner
+├── data_pipeline.py   # Data loading and curriculum ordering
+├── model.py           # BERT model implementation
+├── evaluation.py      # Statistical analysis
+├── tracking.py        # Logging and W&B integration
+└── requirements.txt   # Dependencies
 ```
 
-## 🛠️ Requirements
+## Requirements
 
 ```bash
-pip install torch transformers datasets bertopic textstat scipy tqdm
-pip install wandb  # Optional for experiment tracking
+pip install -r requirements.txt
 ```
 
-## 🎓 Research Applications
+## Key References
 
-This framework enables research into:
-- **Curriculum Learning**: Strategic data ordering for better learning
-- **Language Model Training**: Effects of data presentation order
-- **Educational Technology**: Optimal content sequencing
-- **Transfer Learning**: Curriculum effects in domain adaptation
-
-## 📚 Key Papers
-
-- Bengio et al. (2009): Curriculum Learning
-- Platanios et al. (2019): Competence-based Curriculum Learning  
-- Recent work on curriculum learning for NLP
-
-## 🔧 Configuration Options
-
-**Model Sizes:** `bert-mini` (11M), `bert-small` (41M), `bert-base` (110M)
-
-**Data Sources:** WikiText, AG News, IMDB (automatically balanced)
-
-**Training:** Masked Language Modeling with proper MLM head and loss
-
-**Evaluation:** Convergence speed, final performance, learning efficiency
-
----
-
-**Simple. Scalable. Scientific.** 🚀
+- Bengio, Y., et al. (2009). Curriculum Learning. ICML.
+- Platanios, E., et al. (2019). Competence-based Curriculum Learning. NAACL.

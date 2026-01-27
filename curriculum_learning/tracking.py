@@ -302,6 +302,80 @@ def load_experiment_metrics(log_dir: str) -> Dict[str, Any]:
     return results
 
 
+class EarlyStopping:
+    """Early stopping utility to prevent overtraining."""
+
+    def __init__(self, patience: int = 7, min_delta: float = 0.001, restore_best_weights: bool = True):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.restore_best_weights = restore_best_weights
+        self.best_loss = float('inf')
+        self.counter = 0
+        self.best_weights = None
+
+    def __call__(self, val_loss: float, model: torch.nn.Module) -> bool:
+        """
+        Check if training should stop.
+
+        Returns:
+            True if training should stop, False otherwise
+        """
+        if val_loss < self.best_loss - self.min_delta:
+            self.best_loss = val_loss
+            self.counter = 0
+            if self.restore_best_weights:
+                self.best_weights = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+        else:
+            self.counter += 1
+
+        if self.counter >= self.patience:
+            if self.restore_best_weights and self.best_weights:
+                model.load_state_dict(self.best_weights)
+                print(f"Early stopping triggered. Restored best weights from {self.patience} steps ago.")
+            return True
+        return False
+
+
+def compute_enhanced_mlm_metrics(logits: torch.Tensor, labels: torch.Tensor) -> Dict[str, float]:
+    """Compute comprehensive MLM metrics including top-5 accuracy and confidence."""
+    mask = (labels != -100)
+
+    if mask.sum() == 0:
+        return {
+            'accuracy': 0.0,
+            'top_5_accuracy': 0.0,
+            'prediction_confidence': 0.0,
+            'prediction_entropy': 0.0
+        }
+
+    # Standard accuracy
+    predictions = torch.argmax(logits, dim=-1)
+    correct = (predictions == labels) & mask
+    accuracy = correct.sum().float() / mask.sum().float()
+
+    # Top-5 accuracy
+    _, top_5_preds = torch.topk(logits, 5, dim=-1)
+    labels_expanded = labels.unsqueeze(-1).expand_as(top_5_preds)
+    top_5_correct = (top_5_preds == labels_expanded) & mask.unsqueeze(-1)
+    top_5_accuracy = top_5_correct.any(dim=-1).sum().float() / mask.sum().float()
+
+    # Prediction confidence and entropy
+    probs = torch.softmax(logits, dim=-1)
+    max_probs, _ = torch.max(probs, dim=-1)
+    entropy = -torch.sum(probs * torch.log(probs + 1e-8), dim=-1)
+
+    # Average over masked tokens only
+    masked_max_probs = max_probs[mask]
+    masked_entropy = entropy[mask]
+
+    return {
+        'accuracy': accuracy.item(),
+        'top_5_accuracy': top_5_accuracy.item(),
+        'prediction_confidence': masked_max_probs.mean().item(),
+        'prediction_entropy': masked_entropy.mean().item()
+    }
+
+
 if __name__ == "__main__":
     # Test the tracking system
     from config import debug_config

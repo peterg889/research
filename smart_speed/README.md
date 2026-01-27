@@ -1,44 +1,44 @@
 # Entropy-Based Speculative Decoding
 
-A comprehensive experimental framework for evaluating entropy-based speculative decoding, where the drafter model continues generating tokens until its output entropy exceeds a threshold, indicating reduced confidence.
+## Hypothesis
 
-## Key Innovation
+**Can entropy-based stopping criteria achieve better efficiency than fixed-k speculative decoding by dynamically adjusting draft length based on model confidence?**
 
-Unlike traditional speculative decoding with fixed k-token windows, this approach:
-- Dynamically adjusts draft length based on model confidence
-- Uses entropy as a proxy for prediction uncertainty
-- Potentially achieves better efficiency when drafter confidence varies
+In standard speculative decoding, a small "drafter" model generates a fixed number (k) of tokens that a larger "verifier" model then accepts or rejects. This experiment tests whether using the drafter's output entropy as a dynamic stopping criterion can outperform fixed-k approaches by:
 
-## Architecture Overview
+1. Generating more tokens when the drafter is confident (low entropy)
+2. Stopping earlier when the drafter is uncertain (high entropy)
 
-### 1. Core Implementation (`implementation_architecture.py`)
-- **EntropyComputer**: Supports Shannon, Rényi, and top-k entropy calculations
-- **StoppingCriterion**: Multiple strategies (absolute, relative, window, adaptive)
-- **EntropyBasedDrafter**: Generates tokens until entropy threshold exceeded
-- **EntropyBasedSpeculativeDecoder**: Main decoder with verification logic
+## Experimental Design
 
-### 2. Evaluation Metrics (`evaluation_metrics.py`)
-- **SpeculativeDecodingEvaluator**: Tracks generation metrics
-- **ComparativeEvaluator**: Compares different methods
-- Comprehensive metrics: TPS, acceptance rates, latency distributions, entropy correlations
+### Conditions
 
-### 3. Experiment Runner (`experiment_runner.py`)
-- Automated experiment execution
-- Hyperparameter grid search
-- Ablation studies
-- Baseline comparisons
+| Method | Description |
+|--------|-------------|
+| **Fixed-k baseline** | Standard speculative decoding with k=4, 6, 8, 10 |
+| **Entropy-absolute** | Stop when entropy exceeds absolute threshold θ |
+| **Entropy-relative** | Stop when entropy increases by factor r over initial |
+| **Entropy-window** | Stop when entropy over sliding window exceeds threshold |
+| **Entropy-combined** | Multiple criteria combined |
+| **Entropy-adaptive** | Threshold adapts based on running statistics |
 
-### 4. Analysis Pipeline (`data_analysis_pipeline.py`)
-- Statistical analysis
-- Performance clustering
-- Visualization generation
-- Comprehensive reporting
+### Metrics
+
+- **Primary**: Tokens per second (TPS), acceptance rate
+- **Secondary**: Draft length distribution, latency (P50/P90/P99)
+- **Diagnostic**: Entropy-acceptance correlation, position-wise acceptance
+
+### Success Criteria
+
+- **H1**: EBSD achieves >10% speedup over best fixed-k baseline on ≥50% of tasks
+- **H2**: Optimal entropy threshold correlates with task complexity
+- **H3**: Relative entropy stopping is more robust than absolute threshold
 
 ## Quick Start
 
 ```python
-from implementation_architecture import EntropyConfig, EntropyBasedSpeculativeDecoder
-from experiment_runner import ExperimentConfig, ExperimentRunner
+from speculative_decoding import EntropyConfig, EntropyBasedSpeculativeDecoder
+from experiment import ExperimentConfig, ExperimentRunner
 
 # Configure experiment
 config = ExperimentConfig(
@@ -49,7 +49,7 @@ config = ExperimentConfig(
     num_samples=1000,
     max_sequence_length=512,
     experiment_name="entropy_exp_v1",
-    output_dir="./experiments/entropy_exp_v1"
+    output_dir="./results/entropy_exp_v1"
 )
 
 # Run experiments
@@ -57,53 +57,36 @@ runner = ExperimentRunner(config)
 runner.run_full_experiment()
 
 # Analyze results
-from data_analysis_pipeline import AnalysisPipeline
+from analysis import AnalysisPipeline
 pipeline = AnalysisPipeline(
-    experiment_dir="./experiments/entropy_exp_v1",
+    experiment_dir="./results/entropy_exp_v1",
     output_dir="./analysis/entropy_exp_v1"
 )
 pipeline.run_full_analysis()
 ```
 
-## Experiment Plan Details
+## Hyperparameters
 
-See `entropy_speculative_decoding_plan.md` for:
-- Theoretical foundation
-- Detailed methodology
-- Expected outcomes
-- Timeline
+| Parameter | Description | Typical Range |
+|-----------|-------------|---------------|
+| `theta_abs` | Absolute entropy threshold | 0.5 - 2.5 |
+| `theta_rel` | Relative entropy ratio | 1.2 - 2.5 |
+| `max_draft_len` | Maximum draft tokens | 4 - 24 |
+| `entropy_type` | Entropy calculation | shannon, renyi, topk |
+| `strategy` | Stopping strategy | absolute, relative, window, combined, adaptive |
 
-## Key Hyperparameters
-
-- `theta_abs`: Absolute entropy threshold (e.g., 1.5)
-- `theta_rel`: Relative entropy increase ratio (e.g., 1.5)
-- `strategy`: Stopping strategy (absolute, relative, window, combined, adaptive)
-- `entropy_type`: Entropy calculation method (shannon, renyi, topk)
-- `max_draft_len`: Maximum draft sequence length
-
-## Results Structure
+## File Structure
 
 ```
-experiments/
-├── configs/          # Experiment configurations
-├── results/          # Metrics JSON files
-├── plots/           # Generated visualizations
-└── checkpoints/     # Intermediate results
-
-analysis/
-├── processed_data.csv
-├── entropy_analysis.png
-├── performance_analysis.png
-├── comparison_analysis.png
-└── final_report.md
+smart_speed/
+├── speculative_decoding.py  # Core entropy-based decoding implementation
+├── experiment.py            # Experiment runner with ablations
+├── evaluation.py            # Metrics and evaluation
+├── analysis.py              # Statistical analysis and visualization
+└── README.md
 ```
 
-## Citation
+## Key References
 
-If you use this framework, please cite:
-```
-@software{entropy_speculative_decoding,
-  title={Entropy-Based Speculative Decoding},
-  year={2024}
-}
-```
+- Leviathan, Y., et al. (2023). Fast Inference from Transformers via Speculative Decoding.
+- Chen, C., et al. (2023). Accelerating Large Language Model Decoding with Speculative Sampling.

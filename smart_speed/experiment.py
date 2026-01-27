@@ -15,11 +15,11 @@ from tqdm import tqdm
 import pandas as pd
 from datetime import datetime
 
-from implementation_architecture import (
+from speculative_decoding import (
     EntropyConfig, EntropyBasedSpeculativeDecoder,
     StoppingStrategy, EntropyType
 )
-from evaluation_metrics import (
+from evaluation import (
     SpeculativeDecodingEvaluator, ComparativeEvaluator
 )
 
