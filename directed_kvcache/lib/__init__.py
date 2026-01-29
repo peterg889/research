@@ -6,8 +6,10 @@ from .kv_cache import (
     build_kv_cache,
     score_answer_with_cache,
     extract_and_truncate_cache,
+    extract_and_truncate_cache_with_bos,
     build_truncated_kv_cache,
     correct_rope_positions,
+    correct_rope_positions_with_bos,
     build_truncated_kv_cache_corrected,
 )
 from .surrogate import (
@@ -33,8 +35,10 @@ __all__ = [
     'build_kv_cache',
     'score_answer_with_cache',
     'extract_and_truncate_cache',
+    'extract_and_truncate_cache_with_bos',
     'build_truncated_kv_cache',
     'correct_rope_positions',
+    'correct_rope_positions_with_bos',
     'build_truncated_kv_cache_corrected',
     # Surrogate
     'TOP_5_SURROGATE_TEMPLATES',
