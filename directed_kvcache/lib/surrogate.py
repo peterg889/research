@@ -154,7 +154,7 @@ def generate_surrogate_with_template(
             max_new_tokens=config.surrogate_max_tokens,
             temperature=config.surrogate_temperature,
             do_sample=config.surrogate_temperature > 0,
-            pad_token_id=tokenizer.pad_token_id,
+            pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )
 

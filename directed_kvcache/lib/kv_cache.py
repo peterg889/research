@@ -2,8 +2,9 @@
 KV Cache utilities for building, manipulating, and scoring with KV caches.
 """
 
-from typing import Tuple, Any
+from typing import Tuple, Any, Optional
 import torch
+import math
 from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache
 
 from .config import ExperimentConfig
@@ -224,3 +225,142 @@ def score_answer_with_cache(
 
     num_scored = answer_len - 1
     return nll / num_scored if num_scored > 0 else 0.0
+
+
+def correct_rope_positions(
+    cache: DynamicCache,
+    offset: int,
+    model: AutoModelForCausalLM,
+) -> DynamicCache:
+    """
+    Apply inverse RoPE rotation to shift cached key positions by -offset.
+
+    When a KV cache is built from [surrogate (S tokens)][document (D tokens)],
+    document token i has its key stored as RoPE(K_i, S+i). After truncating
+    the surrogate entries, queries at position j compute attention using
+    relative position j - (S+i) instead of the correct j - i.
+
+    This function corrects by applying RoPE(-offset) to each key, yielding
+    RoPE(K_i, S+i-S) = RoPE(K_i, i).
+
+    Args:
+        cache: DynamicCache with key vectors to correct
+        offset: Number of positions to shift back (typically surrogate length)
+        model: The model (used to read RoPE config parameters)
+
+    Returns:
+        The same DynamicCache, modified in-place (also returned for convenience)
+    """
+    if offset == 0:
+        return cache
+
+    config = model.config
+    head_dim = config.hidden_size // config.num_attention_heads
+    rope_theta = getattr(config, 'rope_theta', 10000.0)
+
+    # Precompute inverse rotation frequencies
+    inv_freq = 1.0 / (rope_theta ** (torch.arange(0, head_dim, 2, dtype=torch.float32) / head_dim))
+    # Angle to rotate back by: -offset for each frequency
+    angles = -offset * inv_freq  # shape: (head_dim // 2,)
+    cos_angles = torch.cos(angles)
+    sin_angles = torch.sin(angles)
+
+    for layer_idx in range(len(cache)):
+        # keys shape: (batch, num_heads, seq_len, head_dim)
+        keys = cache.key_cache[layer_idx] if hasattr(cache, 'key_cache') else cache.layers[layer_idx].keys
+        device = keys.device
+        dtype = keys.dtype
+
+        cos_a = cos_angles.to(device=device, dtype=dtype)
+        sin_a = sin_angles.to(device=device, dtype=dtype)
+
+        # Split into even/odd pairs for RoPE rotation
+        k_even = keys[..., 0::2]  # (batch, heads, seq, head_dim//2)
+        k_odd = keys[..., 1::2]
+
+        # Apply rotation: [cos, -sin; sin, cos] but inverse (negative angle)
+        new_even = k_even * cos_a - k_odd * sin_a
+        new_odd = k_even * sin_a + k_odd * cos_a
+
+        # Interleave back
+        new_keys = torch.stack([new_even, new_odd], dim=-1).flatten(-2)
+        if hasattr(cache, 'key_cache'):
+            cache.key_cache[layer_idx] = new_keys
+        else:
+            cache.layers[layer_idx].keys = new_keys
+
+    return cache
+
+
+def build_truncated_kv_cache_corrected(
+    surrogate: str,
+    document: str,
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    config: ExperimentConfig,
+    surrogate_prefix_template: Optional[str] = None,
+    document_template: Optional[str] = None,
+) -> Tuple[int, DynamicCache]:
+    """
+    Build a truncated KV cache with RoPE position correction.
+
+    Like build_truncated_kv_cache but applies inverse RoPE rotation after
+    truncation so that document key positions are correct (as if the document
+    started at position 0).
+
+    Args:
+        surrogate: The surrogate query text
+        document: The document text
+        model: The language model
+        tokenizer: The tokenizer
+        config: Experiment configuration
+        surrogate_prefix_template: Optional custom prefix template (must contain {surrogate}).
+            Defaults to "This document may be relevant to queries like: {surrogate}\n\n"
+        document_template: Optional custom document template (must contain {document}).
+            Defaults to "Document:\n{document}"
+
+    Returns:
+        Tuple of (document_length, corrected_DynamicCache)
+    """
+    if surrogate_prefix_template is None:
+        surrogate_prefix = f"This document may be relevant to queries like: {surrogate}\n\n"
+    else:
+        surrogate_prefix = surrogate_prefix_template.format(surrogate=surrogate)
+
+    if document_template is None:
+        document_text = f"Document:\n{document}"
+    else:
+        document_text = document_template.format(document=document)
+
+    # Tokenize document alone to get exact length (without special tokens)
+    doc_encoding = tokenizer(
+        document_text, return_tensors="pt", add_special_tokens=False,
+        padding=False, truncation=False
+    )
+    doc_len = doc_encoding['input_ids'].shape[1]
+
+    # Tokenize full context
+    full_context = surrogate_prefix + document_text
+    full_encoding = tokenizer(
+        full_context, return_tensors="pt", add_special_tokens=True,
+        padding=False, truncation=False
+    )
+    full_ids = full_encoding['input_ids'].to(config.device)
+    surrogate_len = full_ids.shape[1] - doc_len
+
+    # Generate full KV cache
+    with torch.no_grad():
+        outputs = model(
+            input_ids=full_ids,
+            attention_mask=torch.ones_like(full_ids),
+            use_cache=True,
+            return_dict=True
+        )
+
+    # Truncate: keep only document portion
+    truncated_cache = extract_and_truncate_cache(outputs.past_key_values, doc_len)
+
+    # Correct RoPE positions: shift back by surrogate_len
+    correct_rope_positions(truncated_cache, surrogate_len, model)
+
+    return doc_len, truncated_cache
