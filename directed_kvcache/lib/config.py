@@ -20,6 +20,7 @@ class ExperimentConfig:
 
     # ===== Model Settings =====
     model_name: str = "mistralai/Mistral-7B-Instruct-v0.2"
+    model_type: str = "mistral"  # "mistral" or "chatglm"
     use_4bit: bool = True
 
     # ===== Dataset Settings =====

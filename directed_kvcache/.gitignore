@@ -1,0 +1,14 @@
+# Model weights (too large for git)
+models/chatglm-6b/*.bin
+models/chatglm-6b/ice_text.model
+
+# Python
+__pycache__/
+*.pyc
+
+# Checkpoints and results
+*_checkpoint.json
+*_results.json
+
+# Jupyter
+.ipynb_checkpoints/

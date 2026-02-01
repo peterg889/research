@@ -116,6 +116,93 @@ STATIC_SURROGATE_QUERIES = {
 # Surrogate Generation Functions
 # =============================================================================
 
+def generate_surrogate_with_template_chatglm(
+    doc_text: str,
+    template_prompt: str,
+    model,
+    tokenizer,
+    config: ExperimentConfig,
+) -> str:
+    """
+    Generate a surrogate query using ChatGLM's chat interface.
+
+    ChatGLM doesn't support apply_chat_template; instead use model.chat()
+    or manual tokenization with [gMASK] + BOS.
+
+    Args:
+        doc_text: The document text to generate a surrogate for
+        template_prompt: The prompt template to use
+        model: ChatGLM model
+        tokenizer: ChatGLM tokenizer
+        config: Experiment configuration
+
+    Returns:
+        Generated surrogate query string
+    """
+    prompt = f"{template_prompt}\n\nText:\n{doc_text}"
+    response, _ = model.chat(
+        tokenizer,
+        prompt,
+        history=[],
+        max_length=config.surrogate_max_tokens + len(tokenizer.encode(prompt)),
+        temperature=max(config.surrogate_temperature, 0.01),
+        do_sample=config.surrogate_temperature > 0,
+    )
+    surrogate = response.strip().strip('"\'')
+    surrogate = surrogate.split('\n')[0].strip()
+    return surrogate
+
+
+def generate_all_5_surrogates_chatglm(
+    doc_text: str,
+    model,
+    tokenizer,
+    config: ExperimentConfig,
+) -> Dict[str, str]:
+    """Generate all 5 surrogates for a document using ChatGLM."""
+    surrogates = {}
+    for key, template in TOP_5_SURROGATE_TEMPLATES.items():
+        surrogates[key] = generate_surrogate_with_template_chatglm(
+            doc_text, template['prompt'], model, tokenizer, config
+        )
+    return surrogates
+
+
+def generate_surrogate_chatglm(
+    doc_text: str,
+    model,
+    tokenizer,
+    config: ExperimentConfig,
+) -> str:
+    """Generate a single surrogate query using ChatGLM."""
+    return generate_surrogate_with_template_chatglm(
+        doc_text, config.surrogate_generation_prompt, model, tokenizer, config
+    )
+
+
+def generate_summary_chatglm(
+    passage: str,
+    model,
+    tokenizer,
+    config: ExperimentConfig,
+) -> str:
+    """Generate a 2-sentence summary using ChatGLM."""
+    prompt = (
+        "Summarize the following text in exactly 2 concise sentences. "
+        "Output only the summary, nothing else.\n\n"
+        f"Text:\n\n{passage}"
+    )
+    response, _ = model.chat(
+        tokenizer,
+        prompt,
+        history=[],
+        max_length=80 + len(tokenizer.encode(prompt)),
+        temperature=max(config.surrogate_temperature, 0.01),
+        do_sample=config.surrogate_temperature > 0,
+    )
+    return response.strip()
+
+
 def generate_surrogate_with_template(
     doc_text: str,
     template_prompt: str,
@@ -215,6 +302,59 @@ def generate_surrogate(
     return generate_surrogate_with_template(
         doc_text, config.surrogate_generation_prompt, model, tokenizer, config
     )
+
+
+# =============================================================================
+# Summary Generation
+# =============================================================================
+
+def generate_summary(
+    passage: str,
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    config: ExperimentConfig,
+) -> str:
+    """
+    Generate a 2-sentence summary of a passage.
+
+    Used as a suffix condition to test whether distilled content
+    (summary) works differently from query-shaped suffixes.
+
+    Args:
+        passage: The document text to summarize
+        model: The language model
+        tokenizer: The tokenizer
+        config: Experiment configuration
+
+    Returns:
+        A 2-sentence summary string
+    """
+    prompt_text = (
+        "Summarize the following text in exactly 2 concise sentences. "
+        "Output only the summary, nothing else.\n\n"
+        "Text:"
+    )
+    messages = [
+        {"role": "user", "content": f"{prompt_text}\n\n{passage}"}
+    ]
+    prompt = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+    inputs = tokenizer(prompt, return_tensors="pt").to(config.device)
+
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=80,
+            temperature=config.surrogate_temperature,
+            do_sample=config.surrogate_temperature > 0,
+            pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+        )
+
+    generated_tokens = outputs[0][inputs['input_ids'].shape[1]:]
+    summary = tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
+    return summary
 
 
 # =============================================================================

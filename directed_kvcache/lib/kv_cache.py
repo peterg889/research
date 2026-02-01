@@ -317,6 +317,37 @@ def score_answer_with_cache(
     return nll / num_scored if num_scored > 0 else 0.0
 
 
+def build_suffix_kv_cache(
+    passage: str,
+    suffix_text: str,
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    config: ExperimentConfig,
+    separator: str = "\n\nRelated question: ",
+) -> Tuple[int, Any]:
+    """
+    Build a KV cache with a suffix appended AFTER the passage.
+
+    In a causal model, passage tokens never attend to suffix tokens, so
+    passage KV entries are byte-identical to the bare cache. Any scoring
+    improvement must come from query tokens attending to suffix KV entries
+    that have "read" the full passage — a clean semantic signal.
+
+    Args:
+        passage: The document/passage text
+        suffix_text: Text to append as suffix (e.g., surrogate query)
+        model: The language model
+        tokenizer: The tokenizer
+        config: Experiment configuration
+        separator: Text between passage and suffix
+
+    Returns:
+        Tuple of (context_length, past_key_values)
+    """
+    full_context = passage + separator + suffix_text
+    return build_kv_cache(full_context, model, tokenizer, config)
+
+
 def _rotate_half(x: torch.Tensor) -> torch.Tensor:
     """Identical to HuggingFace's rotate_half: split first/second half."""
     x1 = x[..., : x.shape[-1] // 2]

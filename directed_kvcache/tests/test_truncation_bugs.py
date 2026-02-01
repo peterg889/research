@@ -562,3 +562,29 @@ class TestEdgeCases:
         # -0 == 0, so key[:,:,0:,:] returns all 5 positions, plus BOS concat = 6
         # This documents the unintuitive behavior
         assert keys.shape[2] == 6  # BOS + all 5 (because -0 slice returns everything)
+
+    def test_keep_last_n_greater_than_seq_len(self):
+        """keep_last_n > seq_len: slice returns entire tensor (no error)."""
+        cache = _make_sequential_cache(num_layers=1, seq_len=5)
+        truncated = extract_and_truncate_cache(cache, keep_last_n=100)
+        keys = get_keys(truncated, 0)
+        # key[:,:,-100:,:] when seq_len=5 returns all 5
+        assert keys.shape[2] == 5
+
+    def test_keep_last_n_zero_returns_empty(self):
+        """keep_last_n=0: key[:,:,-0:,:] returns full tensor (same -0 bug)."""
+        cache = _make_sequential_cache(num_layers=1, seq_len=5)
+        truncated = extract_and_truncate_cache(cache, keep_last_n=0)
+        keys = get_keys(truncated, 0)
+        # -0 == 0, so key[:,:,0:,:] returns everything
+        assert keys.shape[2] == 5  # returns all, not empty
+
+    def test_single_layer_single_head(self):
+        """Minimal cache: 1 layer, 1 head."""
+        cache = _make_sequential_cache(num_layers=1, seq_len=4, num_heads=1, head_dim=2)
+        truncated = extract_and_truncate_cache_with_bos(cache, doc_len=2)
+        keys = get_keys(truncated, 0)
+        assert keys.shape == (1, 1, 3, 2)  # BOS + 2 doc
+        assert keys[0, 0, 0, 0].item() == 0.0  # BOS
+        assert keys[0, 0, 1, 0].item() == 2.0   # doc start
+        assert keys[0, 0, 2, 0].item() == 3.0   # doc end
