@@ -9,7 +9,7 @@ This module provides:
 - Cache copying and hybrid cache construction
 """
 
-from typing import Tuple, Any, Optional
+from typing import Tuple, Union, Any, Optional
 import torch
 import torch.nn.functional as F
 import math
@@ -298,7 +298,8 @@ def score_answer_with_cache(
     answer: str,
     model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
-    config: ExperimentConfig
+    config: ExperimentConfig,
+    position_offset: int = 0,
 ) -> float:
     """
     Score an answer using a pre-built KV cache.
@@ -314,6 +315,18 @@ def score_answer_with_cache(
         model: The language model
         tokenizer: The tokenizer
         config: Experiment configuration
+        position_offset: Extra positional offset for anchor-preserved caches.
+            When > 0, explicit position_ids are passed to the model so that
+            query/answer tokens get positions starting at
+            context_len + position_offset (accounting for the positional gap
+            left by the removed prefix). Default 0 preserves existing behavior.
+
+            Gemma3 compatibility: position_ids controls RoPE (logical positions),
+            while cache_position (auto-computed from physical cache size) controls
+            attention mask creation. For hybrid models with sliding window layers,
+            the sliding window mask checks physical proximity (|q_phys - kv_phys|),
+            which is correct because the truncated cache is physically compact.
+            Global (full attention) layers see all cached tokens including BOS.
 
     Returns:
         Mean negative log-likelihood (lower is better)
@@ -338,28 +351,44 @@ def score_answer_with_cache(
     combined_len = context_len + query_len
     attention_mask = torch.ones((1, combined_len), device=config.device)
 
+    query_kwargs = dict(
+        input_ids=query_ids,
+        attention_mask=attention_mask,
+        past_key_values=past_key_values,
+        use_cache=True,
+        return_dict=True,
+    )
+    if position_offset > 0:
+        query_kwargs['position_ids'] = torch.arange(
+            context_len + position_offset,
+            context_len + position_offset + query_len,
+            device=config.device,
+        ).unsqueeze(0)
+
     with torch.no_grad():
-        query_outputs = model(
-            input_ids=query_ids,
-            attention_mask=attention_mask,
-            past_key_values=past_key_values,
-            use_cache=True,
-            return_dict=True
-        )
+        query_outputs = model(**query_kwargs)
         extended_cache = query_outputs.past_key_values
 
     # Score answer
     combined_len_final = context_len + query_len + answer_len
     attention_mask_final = torch.ones((1, combined_len_final), device=config.device)
 
+    answer_kwargs = dict(
+        input_ids=answer_ids,
+        attention_mask=attention_mask_final,
+        past_key_values=extended_cache,
+        use_cache=False,
+        return_dict=True,
+    )
+    if position_offset > 0:
+        answer_kwargs['position_ids'] = torch.arange(
+            context_len + position_offset + query_len,
+            context_len + position_offset + query_len + answer_len,
+            device=config.device,
+        ).unsqueeze(0)
+
     with torch.no_grad():
-        answer_outputs = model(
-            input_ids=answer_ids,
-            attention_mask=attention_mask_final,
-            past_key_values=extended_cache,
-            use_cache=False,
-            return_dict=True
-        )
+        answer_outputs = model(**answer_kwargs)
 
     # Compute NLL
     logits = answer_outputs.logits
@@ -585,6 +614,7 @@ def score_answer_with_cache_and_attention(
     model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
     config: ExperimentConfig,
+    position_offset: int = 0,
 ) -> Tuple[float, Any]:
     """
     Like score_answer_with_cache but also returns attention weights.
@@ -597,6 +627,10 @@ def score_answer_with_cache_and_attention(
         model: The language model
         tokenizer: The tokenizer
         config: Experiment configuration
+        position_offset: Extra positional offset for anchor-preserved caches.
+            When > 0, explicit position_ids are passed to the model.
+            Default 0 preserves existing behavior.
+            See score_answer_with_cache docstring for Gemma3 compatibility notes.
 
     Returns:
         Tuple of (mean_nll, attentions) where attentions is a tuple of
@@ -620,29 +654,45 @@ def score_answer_with_cache_and_attention(
     combined_len = context_len + query_len
     attention_mask = torch.ones((1, combined_len), device=config.device)
 
+    query_kwargs = dict(
+        input_ids=query_ids,
+        attention_mask=attention_mask,
+        past_key_values=past_key_values,
+        use_cache=True,
+        return_dict=True,
+    )
+    if position_offset > 0:
+        query_kwargs['position_ids'] = torch.arange(
+            context_len + position_offset,
+            context_len + position_offset + query_len,
+            device=config.device,
+        ).unsqueeze(0)
+
     with torch.no_grad():
-        query_outputs = model(
-            input_ids=query_ids,
-            attention_mask=attention_mask,
-            past_key_values=past_key_values,
-            use_cache=True,
-            return_dict=True
-        )
+        query_outputs = model(**query_kwargs)
         extended_cache = query_outputs.past_key_values
 
     # Score answer with attention outputs
     combined_len_final = context_len + query_len + answer_len
     attention_mask_final = torch.ones((1, combined_len_final), device=config.device)
 
+    answer_kwargs = dict(
+        input_ids=answer_ids,
+        attention_mask=attention_mask_final,
+        past_key_values=extended_cache,
+        use_cache=False,
+        return_dict=True,
+        output_attentions=True,
+    )
+    if position_offset > 0:
+        answer_kwargs['position_ids'] = torch.arange(
+            context_len + position_offset + query_len,
+            context_len + position_offset + query_len + answer_len,
+            device=config.device,
+        ).unsqueeze(0)
+
     with torch.no_grad():
-        answer_outputs = model(
-            input_ids=answer_ids,
-            attention_mask=attention_mask_final,
-            past_key_values=extended_cache,
-            use_cache=False,
-            return_dict=True,
-            output_attentions=True,
-        )
+        answer_outputs = model(**answer_kwargs)
 
     # Compute NLL
     logits = answer_outputs.logits
@@ -908,6 +958,7 @@ def build_truncated_cache_variable_prefix(
     model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
     config: ExperimentConfig,
+    preserve_anchor: bool = False,
 ) -> Tuple[int, DynamicCache, int]:
     """
     Build a truncated+corrected cache using arbitrary raw prefix text.
@@ -922,6 +973,9 @@ def build_truncated_cache_variable_prefix(
         model: The language model
         tokenizer: The tokenizer
         config: Experiment configuration
+        preserve_anchor: If True, skip RoPE correction so document tokens
+            retain their original positions (anchor preservation).
+            Caller should compute position_offset = prefix_len - 1.
 
     Returns:
         Tuple of (keep_len, corrected_DynamicCache, prefix_token_len)
@@ -962,9 +1016,10 @@ def build_truncated_cache_variable_prefix(
         outputs.past_key_values, doc_len
     )
 
-    # RoPE correction
-    surrogate_offset = prefix_len - 1
-    correct_rope_positions_with_bos(truncated_cache, surrogate_offset, model)
+    if not preserve_anchor:
+        # Default: RoPE correction so positions become [0, 1, ..., doc_len]
+        surrogate_offset = prefix_len - 1
+        correct_rope_positions_with_bos(truncated_cache, surrogate_offset, model)
 
     return keep_len, truncated_cache, prefix_len
 
@@ -1132,7 +1187,8 @@ def build_truncated_kv_cache_corrected(
     config: ExperimentConfig,
     surrogate_prefix_template: Optional[str] = None,
     document_template: Optional[str] = None,
-) -> Tuple[int, DynamicCache]:
+    preserve_anchor: bool = False,
+) -> Union[Tuple[int, DynamicCache], Tuple[int, DynamicCache, int]]:
     """
     Build a truncated KV cache with RoPE position correction.
 
@@ -1150,9 +1206,17 @@ def build_truncated_kv_cache_corrected(
             Defaults to "This document may be relevant to queries like: {surrogate}\n\n"
         document_template: Optional custom document template (must contain {document}).
             Defaults to "Document:\n{document}"
+        preserve_anchor: If True, skip RoPE correction so document tokens retain
+            their original positions (anchor preservation for attention sink).
+            Returns a 3-tuple (keep_len, cache, position_offset) instead of 2-tuple.
 
     Returns:
-        Tuple of (document_length, corrected_DynamicCache)
+        When preserve_anchor=False (default):
+            Tuple of (document_length, corrected_DynamicCache)
+        When preserve_anchor=True:
+            Tuple of (document_length, DynamicCache, position_offset) where
+            position_offset = prefix_len - 1 (the positional gap to account for
+            when scoring with this cache)
     """
     if surrogate_prefix_template is None:
         surrogate_prefix = f"This document may be relevant to queries like: {surrogate}\n\n"
@@ -1202,11 +1266,16 @@ def build_truncated_kv_cache_corrected(
         outputs.past_key_values, doc_len
     )
 
-    # The surrogate-only offset is prefix_len - 1 (prefix tokens minus BOS,
-    # since BOS stays at position 0 and doesn't need correction).
-    # We correct the document tokens (positions prefix_len .. full_len-1)
-    # so they behave as if at positions 1 .. doc_len.
     surrogate_offset = prefix_len - 1
-    correct_rope_positions_with_bos(truncated_cache, surrogate_offset, model)
 
-    return keep_len, truncated_cache
+    if preserve_anchor:
+        # Skip RoPE correction: document keys retain their original positions
+        # [prefix_len, prefix_len+1, ..., prefix_len+doc_len-1].
+        # BOS stays at position 0 as the attention sink anchor.
+        # Callers must pass position_offset to scoring functions so query
+        # tokens start at the correct position (keep_len + position_offset).
+        return keep_len, truncated_cache, surrogate_offset
+    else:
+        # Default: correct RoPE so document positions become [1, 2, ..., doc_len]
+        correct_rope_positions_with_bos(truncated_cache, surrogate_offset, model)
+        return keep_len, truncated_cache
