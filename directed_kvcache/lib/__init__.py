@@ -12,6 +12,13 @@ from .kv_cache import (
     correct_rope_positions_with_bos,
     build_truncated_kv_cache_corrected,
     build_suffix_kv_cache,
+    build_hybrid_cache,
+    swap_bos_entry,
+    apply_rope_roundtrip_noise,
+    score_answer_with_cache_and_attention,
+    replace_values_at_layers,
+    build_truncated_cache_variable_prefix,
+    _ensure_dynamic_cache,
 )
 from .chatglm_kv_cache import (
     load_chatglm,
@@ -56,6 +63,13 @@ __all__ = [
     'correct_rope_positions_with_bos',
     'build_truncated_kv_cache_corrected',
     'build_suffix_kv_cache',
+    'build_hybrid_cache',
+    'swap_bos_entry',
+    'apply_rope_roundtrip_noise',
+    'score_answer_with_cache_and_attention',
+    'replace_values_at_layers',
+    'build_truncated_cache_variable_prefix',
+    '_ensure_dynamic_cache',
     # KV Cache (ChatGLM)
     'load_chatglm',
     'build_kv_cache_chatglm',

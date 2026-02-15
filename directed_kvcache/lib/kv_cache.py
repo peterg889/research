@@ -1,9 +1,17 @@
 """
 KV Cache utilities for building, manipulating, and scoring with KV caches.
+
+This module provides:
+- Cache building (with optional custom attention masks)
+- Cache truncation and manipulation
+- RoPE position correction
+- Answer scoring with pre-built caches
+- Cache copying and hybrid cache construction
 """
 
 from typing import Tuple, Any, Optional
 import torch
+import torch.nn.functional as F
 import math
 from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache
 
@@ -43,6 +51,54 @@ def build_kv_cache(
         )
 
     return context_ids.shape[1], outputs.past_key_values
+
+
+def build_cache_with_mask(
+    text: str,
+    tokenizer: AutoTokenizer,
+    model: AutoModelForCausalLM,
+    attention_mask: Optional[torch.Tensor] = None,
+) -> Tuple[DynamicCache, int]:
+    """
+    Build KV cache with optional custom attention mask.
+
+    This is a lower-level function that allows custom attention patterns
+    (e.g., block-diagonal attention for prefix repetitions).
+
+    Args:
+        text: The text to encode and cache
+        tokenizer: The tokenizer
+        model: The language model
+        attention_mask: Optional 4D attention mask (1, 1, seq_len, seq_len).
+            If None, uses standard causal attention.
+            For additive masks: 0 = attend, -inf = block.
+            The mask will be cast to model.dtype automatically.
+
+    Returns:
+        Tuple of (DynamicCache, sequence_length)
+
+    Example:
+        # Standard causal attention
+        cache, seq_len = build_cache_with_mask(text, tokenizer, model)
+
+        # Block-diagonal attention (prefix reps can't see each other)
+        from lib.block_attention import create_block_diagonal_prefix_mask
+        mask = create_block_diagonal_prefix_mask(prefix_len, n_reps, passage_len,
+                                                  dtype=model.dtype, device=model.device)
+        cache, seq_len = build_cache_with_mask(text, tokenizer, model, mask)
+    """
+    ids = tokenizer.encode(text, return_tensors='pt').to(model.device)
+    seq_len = ids.shape[1]
+
+    with torch.no_grad():
+        if attention_mask is not None:
+            # Cast mask to model's dtype for SDPA compatibility
+            attention_mask = attention_mask.to(device=model.device, dtype=model.dtype)
+            out = model(ids, attention_mask=attention_mask, use_cache=True)
+        else:
+            out = model(ids, use_cache=True)
+
+    return out.past_key_values, seq_len
 
 
 def extract_and_truncate_cache(past_key_values: Any, keep_last_n: int) -> DynamicCache:
@@ -146,7 +202,7 @@ def correct_rope_positions_with_bos(
 
     config = model.config
     head_dim = config.hidden_size // config.num_attention_heads
-    rope_theta = getattr(config, 'rope_theta', 10000.0)
+    rope_theta = _get_rope_theta(config)
 
     cos_a, sin_a = _build_rope_correction(offset, head_dim, rope_theta)
 
@@ -317,6 +373,474 @@ def score_answer_with_cache(
     return nll / num_scored if num_scored > 0 else 0.0
 
 
+def _ensure_dynamic_cache(cache: Any) -> DynamicCache:
+    """Convert any cache format (tuple, list, DynamicCache) to DynamicCache.
+
+    Returns a DynamicCache regardless of input format.
+    """
+    if isinstance(cache, DynamicCache):
+        return cache
+
+    # Convert from tuple/list/legacy format
+    if hasattr(cache, 'to_legacy_cache'):
+        legacy = cache.to_legacy_cache()
+    elif isinstance(cache, (tuple, list)):
+        legacy = cache
+    else:
+        legacy = tuple(cache)
+
+    new_cache = DynamicCache()
+    for layer_idx, layer_kv in enumerate(legacy):
+        new_cache.update(layer_kv[0].clone(), layer_kv[1].clone(), layer_idx)
+    return new_cache
+
+
+def _get_cache_keys(cache: DynamicCache, layer_idx: int) -> torch.Tensor:
+    """Get key tensor from a DynamicCache layer (handles both API versions)."""
+    if hasattr(cache, 'key_cache'):
+        return cache.key_cache[layer_idx]
+    return cache.layers[layer_idx].keys
+
+
+def _set_cache_keys(cache: DynamicCache, layer_idx: int, keys: torch.Tensor):
+    """Set key tensor on a DynamicCache layer (handles both API versions)."""
+    if hasattr(cache, 'key_cache'):
+        cache.key_cache[layer_idx] = keys
+    else:
+        cache.layers[layer_idx].keys = keys
+
+
+def _get_cache_values(cache: DynamicCache, layer_idx: int) -> torch.Tensor:
+    """Get value tensor from a DynamicCache layer (handles both API versions)."""
+    if hasattr(cache, 'value_cache'):
+        return cache.value_cache[layer_idx]
+    return cache.layers[layer_idx].values
+
+
+def _set_cache_values(cache: DynamicCache, layer_idx: int, values: torch.Tensor):
+    """Set value tensor on a DynamicCache layer (handles both API versions)."""
+    if hasattr(cache, 'value_cache'):
+        cache.value_cache[layer_idx] = values
+    else:
+        cache.layers[layer_idx].values = values
+
+
+def deepcopy_cache(cache: Any) -> DynamicCache:
+    """
+    Create a deep copy of a KV cache.
+
+    This function handles different transformers versions and cache formats.
+    Use this instead of copy.deepcopy() for DynamicCache objects, as the
+    iteration API varies across versions.
+
+    Args:
+        cache: A DynamicCache, tuple, or list of (key, value) tensors
+
+    Returns:
+        New DynamicCache with cloned tensors (independent from original)
+    """
+    cache = _ensure_dynamic_cache(cache)
+    new_cache = DynamicCache()
+    n_layers = len(cache)
+
+    for layer_idx in range(n_layers):
+        k = _get_cache_keys(cache, layer_idx).clone()
+        v = _get_cache_values(cache, layer_idx).clone()
+        new_cache.update(k, v, layer_idx)
+
+    return new_cache
+
+
+def build_hybrid_cache(keys_source: Any, values_source: Any) -> DynamicCache:
+    """
+    Build a hybrid cache mixing keys from one source and values from another.
+
+    Both caches must have the same number of layers and matching tensor shapes.
+
+    Args:
+        keys_source: Cache to take key tensors from
+        values_source: Cache to take value tensors from
+
+    Returns:
+        New DynamicCache with keys from keys_source and values from values_source
+    """
+    keys_source = _ensure_dynamic_cache(keys_source)
+    values_source = _ensure_dynamic_cache(values_source)
+
+    new_cache = DynamicCache()
+    n_layers = len(keys_source)
+    assert len(values_source) == n_layers, "Caches must have same number of layers"
+
+    for layer_idx in range(n_layers):
+        k = _get_cache_keys(keys_source, layer_idx).clone()
+        v = _get_cache_values(values_source, layer_idx).clone()
+        new_cache.update(k, v, layer_idx)
+
+    return new_cache
+
+
+def swap_bos_entry(target_cache: Any, source_cache: Any) -> DynamicCache:
+    """
+    Replace the BOS (position 0) KV entry in target_cache with the one from source_cache.
+
+    Args:
+        target_cache: Cache whose BOS entry will be replaced
+        source_cache: Cache to copy BOS entry from
+
+    Returns:
+        New DynamicCache with BOS from source, rest from target
+    """
+    target_cache = _ensure_dynamic_cache(target_cache)
+    source_cache = _ensure_dynamic_cache(source_cache)
+
+    new_cache = DynamicCache()
+    n_layers = len(target_cache)
+
+    for layer_idx in range(n_layers):
+        tk = _get_cache_keys(target_cache, layer_idx).clone()
+        tv = _get_cache_values(target_cache, layer_idx).clone()
+        sk = _get_cache_keys(source_cache, layer_idx)
+        sv = _get_cache_values(source_cache, layer_idx)
+
+        tk[:, :, :1, :] = sk[:, :, :1, :]
+        tv[:, :, :1, :] = sv[:, :, :1, :]
+
+        new_cache.update(tk, tv, layer_idx)
+
+    return new_cache
+
+
+def apply_rope_roundtrip_noise(
+    cache: DynamicCache,
+    offset: int,
+    model: AutoModelForCausalLM,
+) -> DynamicCache:
+    """
+    Apply RoPE(+offset) then RoPE(-offset) to keys, introducing float16 roundtrip noise.
+
+    This simulates the key perturbation from truncation+correction without any
+    value contamination. In exact arithmetic this is identity, but in float16 it
+    introduces ~2e-3 max error per element.
+
+    BOS (position 0) is left untouched.
+
+    Args:
+        cache: DynamicCache to add noise to (modified in-place)
+        offset: RoPE offset magnitude
+        model: The model (for RoPE config)
+
+    Returns:
+        The same cache, modified in-place
+    """
+    cache = _ensure_dynamic_cache(cache)
+
+    if offset == 0:
+        return cache
+
+    config = model.config
+    head_dim = config.hidden_size // config.num_attention_heads
+    rope_theta = _get_rope_theta(config)
+
+    # Forward: RoPE(+offset)
+    cos_fwd, sin_fwd = _build_rope_correction(offset, head_dim, rope_theta)
+    # Inverse: RoPE(-offset)  — note _build_rope_correction already negates
+    # So we call with -offset to get the forward direction, and +offset for inverse
+    # Actually _build_rope_correction uses angles = -offset * inv_freq
+    # So for +offset rotation: angles = -(-offset) * inv_freq = +offset * inv_freq
+    # We need: first apply +S, then apply -S
+    # _build_rope_correction(offset) gives angles = -offset (i.e., inverse/correction)
+    # _build_rope_correction(-offset) gives angles = +offset (i.e., forward)
+    cos_fwd, sin_fwd = _build_rope_correction(-offset, head_dim, rope_theta)  # forward +S
+    cos_inv, sin_inv = _build_rope_correction(offset, head_dim, rope_theta)    # inverse -S
+
+    for layer_idx in range(len(cache)):
+        keys = _get_cache_keys(cache, layer_idx)
+        device = keys.device
+        dtype = keys.dtype
+
+        cf = cos_fwd.to(device=device, dtype=dtype)
+        sf = sin_fwd.to(device=device, dtype=dtype)
+        ci = cos_inv.to(device=device, dtype=dtype)
+        si = sin_inv.to(device=device, dtype=dtype)
+
+        # Apply to document tokens only (skip BOS at position 0)
+        doc_keys = keys[:, :, 1:, :]
+
+        # Forward rotation: RoPE(+S)
+        rotated = doc_keys * cf + _rotate_half(doc_keys) * sf
+        # Inverse rotation: RoPE(-S)
+        corrected = rotated * ci + _rotate_half(rotated) * si
+
+        _set_cache_keys(cache, layer_idx, torch.cat([keys[:, :, :1, :], corrected], dim=2))
+
+    return cache
+
+
+def score_answer_with_cache_and_attention(
+    past_key_values: Any,
+    context_len: int,
+    query_prompt: str,
+    answer: str,
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    config: ExperimentConfig,
+) -> Tuple[float, Any]:
+    """
+    Like score_answer_with_cache but also returns attention weights.
+
+    Args:
+        past_key_values: Pre-built KV cache
+        context_len: Length of the cached context
+        query_prompt: The query prompt to append
+        answer: The answer to score
+        model: The language model
+        tokenizer: The tokenizer
+        config: Experiment configuration
+
+    Returns:
+        Tuple of (mean_nll, attentions) where attentions is a tuple of
+        per-layer attention tensors from the answer scoring pass
+    """
+    query_encoding = tokenizer(
+        query_prompt, return_tensors="pt", add_special_tokens=False,
+        padding=False, truncation=False
+    )
+    query_ids = query_encoding['input_ids'].to(config.device)
+    query_len = query_ids.shape[1]
+
+    answer_encoding = tokenizer(
+        answer, return_tensors="pt", add_special_tokens=False,
+        padding=False, truncation=False
+    )
+    answer_ids = answer_encoding['input_ids'].to(config.device)
+    answer_len = answer_ids.shape[1]
+
+    # Extend cache with query
+    combined_len = context_len + query_len
+    attention_mask = torch.ones((1, combined_len), device=config.device)
+
+    with torch.no_grad():
+        query_outputs = model(
+            input_ids=query_ids,
+            attention_mask=attention_mask,
+            past_key_values=past_key_values,
+            use_cache=True,
+            return_dict=True
+        )
+        extended_cache = query_outputs.past_key_values
+
+    # Score answer with attention outputs
+    combined_len_final = context_len + query_len + answer_len
+    attention_mask_final = torch.ones((1, combined_len_final), device=config.device)
+
+    with torch.no_grad():
+        answer_outputs = model(
+            input_ids=answer_ids,
+            attention_mask=attention_mask_final,
+            past_key_values=extended_cache,
+            use_cache=False,
+            return_dict=True,
+            output_attentions=True,
+        )
+
+    # Compute NLL
+    logits = answer_outputs.logits
+    shift_logits = logits[:, :-1, :].contiguous()
+    shift_labels = answer_ids[:, 1:].contiguous()
+    shift_logits = shift_logits.view(-1, shift_logits.size(-1))
+    shift_labels = shift_labels.view(-1)
+
+    loss_fct = torch.nn.CrossEntropyLoss(reduction='sum')
+    nll = loss_fct(shift_logits, shift_labels).item()
+    num_scored = answer_len - 1
+    mean_nll = nll / num_scored if num_scored > 0 else 0.0
+
+    return mean_nll, answer_outputs.attentions
+
+
+def score_answer_with_cache_flexible(
+    cache: Any,
+    seq_len: int,
+    query: str,
+    answer: str,
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    query_attention_mask: Optional[torch.Tensor] = None,
+) -> float:
+    """
+    Score P(answer | cache, query) using NLL, with optional query-time attention mask.
+
+    This is a flexible scoring function that allows custom attention patterns
+    at query time (e.g., limiting which cached positions the query can attend to).
+
+    IMPORTANT: This function mutates the cache. Always deepcopy before calling
+    if you need to reuse the cache.
+
+    Args:
+        cache: Pre-built KV cache (DynamicCache or compatible)
+        seq_len: Length of the cached context
+        query: The query string
+        answer: The answer string to score
+        model: The language model
+        tokenizer: The tokenizer
+        query_attention_mask: Optional 4D mask (1, 1, query_len, cache_len + query_len).
+            For additive masks: 0 = attend, -inf = block.
+            Will be cast to model.dtype automatically.
+
+    Returns:
+        Mean negative log-likelihood (lower is better)
+
+    Example:
+        # Score with standard attention (query sees all cached tokens)
+        nll = score_answer_with_cache_flexible(cache, seq_len, query, answer, model, tokenizer)
+
+        # Score with query-time masking (query sees only first prefix + passage)
+        from lib.block_attention import create_query_time_mask_flexible
+        mask = create_query_time_mask_flexible(seq_len, query_len, prefix_info, 'first_only',
+                                               model.device, model.dtype)
+        nll = score_answer_with_cache_flexible(cache, seq_len, query, answer, model, tokenizer, mask)
+    """
+    continuation = f"Query: {query}\nAnswer: {answer}"
+    cont_ids = tokenizer.encode(continuation, return_tensors='pt', add_special_tokens=False).to(model.device)
+
+    # Get answer token positions for loss computation
+    answer_only = f" {answer}"
+    answer_ids = tokenizer.encode(answer_only, return_tensors='pt', add_special_tokens=False)
+    answer_len = answer_ids.shape[1]
+    query_len = cont_ids.shape[1]
+
+    with torch.no_grad():
+        position_ids = torch.arange(seq_len, seq_len + query_len, device=model.device).unsqueeze(0)
+
+        if query_attention_mask is not None:
+            # Cast to model dtype for SDPA compatibility
+            query_attention_mask = query_attention_mask.to(device=model.device, dtype=model.dtype)
+            outputs = model(
+                input_ids=cont_ids,
+                past_key_values=cache,
+                position_ids=position_ids,
+                attention_mask=query_attention_mask,
+                use_cache=True
+            )
+        else:
+            outputs = model(
+                input_ids=cont_ids,
+                past_key_values=cache,
+                position_ids=position_ids,
+                use_cache=True
+            )
+
+        logits = outputs.logits[0]
+        total_len = cont_ids.shape[1]
+        answer_logits = logits[total_len - answer_len - 1 : total_len - 1, :]
+        answer_targets = cont_ids[0, total_len - answer_len:]
+        loss = F.cross_entropy(answer_logits, answer_targets, reduction='mean')
+
+    return loss.item()
+
+
+def replace_values_at_layers(
+    target: Any,
+    source: Any,
+    layer_indices: list,
+) -> DynamicCache:
+    """
+    Replace value tensors at specific layers in target with values from source.
+
+    Keys are left unchanged. Useful for layer ablation experiments.
+
+    Args:
+        target: Cache to modify (cloned, not modified in-place)
+        source: Cache to copy values from
+        layer_indices: List of layer indices whose values to replace
+
+    Returns:
+        New DynamicCache with replaced values at specified layers
+    """
+    target = _ensure_dynamic_cache(target)
+    source = _ensure_dynamic_cache(source)
+
+    new_cache = DynamicCache()
+    n_layers = len(target)
+
+    for layer_idx in range(n_layers):
+        k = _get_cache_keys(target, layer_idx).clone()
+        if layer_idx in layer_indices:
+            v = _get_cache_values(source, layer_idx).clone()
+        else:
+            v = _get_cache_values(target, layer_idx).clone()
+        new_cache.update(k, v, layer_idx)
+
+    return new_cache
+
+
+def build_truncated_cache_variable_prefix(
+    prefix_text: str,
+    document: str,
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    config: ExperimentConfig,
+) -> Tuple[int, DynamicCache, int]:
+    """
+    Build a truncated+corrected cache using arbitrary raw prefix text.
+
+    Unlike build_truncated_kv_cache_corrected which wraps the surrogate in a
+    template, this function uses prefix_text verbatim (with a trailing space
+    separator).
+
+    Args:
+        prefix_text: Raw prefix text to prepend before document
+        document: The document text
+        model: The language model
+        tokenizer: The tokenizer
+        config: Experiment configuration
+
+    Returns:
+        Tuple of (keep_len, corrected_DynamicCache, prefix_token_len)
+        where prefix_token_len is the number of prefix tokens (including BOS)
+    """
+    document_text = f"Document:\n{document}"
+
+    # Tokenize prefix with BOS
+    prefix_with_sep = prefix_text + " "
+    prefix_encoding = tokenizer(
+        prefix_with_sep, return_tensors="pt", add_special_tokens=True,
+        padding=False, truncation=False
+    )
+    prefix_len = prefix_encoding['input_ids'].shape[1]
+
+    # Tokenize full context
+    full_context = prefix_with_sep + document_text
+    full_encoding = tokenizer(
+        full_context, return_tensors="pt", add_special_tokens=True,
+        padding=False, truncation=False
+    )
+    full_ids = full_encoding['input_ids'].to(config.device)
+    full_len = full_ids.shape[1]
+    doc_len = full_len - prefix_len
+
+    # Generate full KV cache
+    with torch.no_grad():
+        outputs = model(
+            input_ids=full_ids,
+            attention_mask=torch.ones_like(full_ids),
+            use_cache=True,
+            return_dict=True
+        )
+
+    # Keep BOS + document portion
+    keep_len = 1 + doc_len
+    truncated_cache = extract_and_truncate_cache_with_bos(
+        outputs.past_key_values, doc_len
+    )
+
+    # RoPE correction
+    surrogate_offset = prefix_len - 1
+    correct_rope_positions_with_bos(truncated_cache, surrogate_offset, model)
+
+    return keep_len, truncated_cache, prefix_len
+
+
 def build_suffix_kv_cache(
     passage: str,
     suffix_text: str,
@@ -348,6 +872,14 @@ def build_suffix_kv_cache(
     return build_kv_cache(full_context, model, tokenizer, config)
 
 
+def _get_rope_theta(config) -> float:
+    """Extract rope_theta from model config, checking rope_parameters first."""
+    if hasattr(config, 'rope_parameters') and isinstance(config.rope_parameters, dict):
+        if 'rope_theta' in config.rope_parameters:
+            return float(config.rope_parameters['rope_theta'])
+    return float(getattr(config, 'rope_theta', 10000.0))
+
+
 def _rotate_half(x: torch.Tensor) -> torch.Tensor:
     """Identical to HuggingFace's rotate_half: split first/second half."""
     x1 = x[..., : x.shape[-1] // 2]
@@ -361,10 +893,10 @@ def _build_rope_correction(offset: int, head_dim: int, rope_theta: float):
     Returns cos, sin each of shape (head_dim,), matching HF's convention
     where frequencies are duplicated across both halves.
     """
-    inv_freq = 1.0 / (rope_theta ** (torch.arange(0, head_dim, 2, dtype=torch.float32) / head_dim))
-    angles = -offset * inv_freq  # (head_dim // 2,)
+    inv_freq = 1.0 / (rope_theta ** (torch.arange(0, head_dim, 2, dtype=torch.int64).float() / head_dim))
+    angles = (-offset * inv_freq).double()  # compute in float64 for precision
     emb = torch.cat((angles, angles), dim=-1)  # (head_dim,) — HF duplication
-    return emb.cos(), emb.sin()
+    return emb.cos().float(), emb.sin().float()
 
 
 def correct_rope_positions(
@@ -399,7 +931,7 @@ def correct_rope_positions(
 
     config = model.config
     head_dim = config.hidden_size // config.num_attention_heads
-    rope_theta = getattr(config, 'rope_theta', 10000.0)
+    rope_theta = _get_rope_theta(config)
 
     cos_a, sin_a = _build_rope_correction(offset, head_dim, rope_theta)
 
