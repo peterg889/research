@@ -287,10 +287,28 @@ Key insight: Tests if prefix visibility hurts (pure interference test)
 
 **Key insight:** The positive results from Exps 05-14 do NOT generalize. Priming should be **OFF by default**.
 
+### ⚠️ Length is the Primary Constraint (Exp 20)
+
+**Controlled padding experiment: pad MS MARCO passages to long-doc lengths, measure when benefit disappears.**
+
+| Target Length | Cohen's d | Win% | p | sig |
+|---------------|-----------|------|---|-----|
+| original (~130 tok) | **+0.303** | 67% | 7.7e-07 | *** |
+| 256 tok | +0.114 | 65% | 0.059 | ns |
+| 512 tok | +0.034 | 58% | 0.570 | ns |
+| 1024 tok | -0.043 | 55% | 0.472 | ns |
+| 2048 tok | -0.014 | 58% | 0.813 | ns |
+
+**Key insight:** The failure on long NQ docs is a **length effect**, not a dataset effect. Same MS MARCO
+content, same prefix, same question style — the benefit vanishes by ~256 tokens. Value contamination
+from a ~10-token prefix gets diluted as the cache grows. No known mitigation (Exp 18 periodic beacons
+also failed).
+
 ## When Priming HELPS (Very Narrow)
 
 The "Goldilocks zone" is much narrower than originally thought:
-- **Short passages only** (<100 words, like MS MARCO)
+- **Very short passages only** (<200 tokens / ~100 words, like MS MARCO) — Exp 20 shows benefit
+  vanishes by 256 tokens
 - **Hard samples** (bare NLL > 1.5) within MS MARCO-like distributions
 - **Generative/abstractive tasks** — NOT extractive, NOT summarization
 - **Positive hardness correlation** — some datasets show INVERTED correlation (harder HURTS more)
@@ -300,22 +318,23 @@ The "Goldilocks zone" is much narrower than originally thought:
 **DO NOT prime for:**
 - **Summarization** — catastrophic harm (d=-1.3)
 - **Multi-hop reasoning** — disrupts attention routing
-- **Long passages** (>150 words) — interference scales with length
+- **Long passages** (>200 tokens) — value contamination diluted below noise floor (Exp 20)
 - **Scientific/specialized domains** — vocabulary mismatch
 - **Extractive QA** — no benefit, ceiling effect
 
-## Recommended Deployment Strategy (UPDATED after Exp 19)
+## Recommended Deployment Strategy (UPDATED after Exp 20)
 
-**⚠️ Priming should be OFF BY DEFAULT. Only enable for MS MARCO-like content.**
+**⚠️ Priming should be OFF BY DEFAULT. Only enable for very short MS MARCO-like content.**
 
 ```python
-def should_prime(passage, task_type, domain):
+def should_prime(passage, tokenizer, task_type, domain):
     # NEVER prime these task types
     if task_type in ["summarization", "multi_hop", "extractive_qa"]:
         return False
 
-    # NEVER prime long passages
-    if len(passage.split()) > 100:
+    # NEVER prime long passages (Exp 20: benefit gone by ~200 tokens)
+    n_tokens = len(tokenizer.encode(passage, add_special_tokens=False))
+    if n_tokens > 200:
         return False
 
     # NEVER prime specialized domains without validation
@@ -327,7 +346,7 @@ def should_prime(passage, task_type, domain):
     return bare_nll > 1.5
 
 
-if should_prime(passage, task_type, domain):
+if should_prime(passage, tokenizer, task_type, domain):
     # Truncation + oracle prefix (semantic signal helps)
     prefix = best_query(click_history, repeat=5) or llm_intent_query(passage, repeat=5)
     cache = build_truncated_cache(passage, prefix)  # truncate + RoPE correct
@@ -335,4 +354,4 @@ else:
     cache = build_bare_cache(passage)  # don't prime
 ```
 
-**Bottom line:** The approach works for a narrow slice of use cases (short, MS MARCO-like factoid QA). For most real-world applications, priming does more harm than good.
+**Bottom line:** The approach works for a narrow slice of use cases (very short factoid QA passages under ~200 tokens). For most real-world applications, priming does more harm than good.

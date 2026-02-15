@@ -1642,3 +1642,106 @@ rather than NLL-based scoring) or dramatically different priming regimes.
    immediately showing diminishing returns.
 5. **20-27 changed queries out of 300 is the ceiling** — even a perfect ensemble can
    only affect the ~7-9% of queries where ranking differs across signals.
+
+---
+
+## Experiment 20: Length-Controlled Padding — Is Priming Failure a Length or Dataset Effect?
+
+**Date started**: 2026-02-15
+**Notebook**: `20_length_controlled_padding.ipynb`
+**Results**: `results/exp20/`
+
+### Question
+
+Priming works on short MS MARCO docs (Exp 07 d=+0.30, Exp 18 d=+0.30) and short NQ docs
+(Exp 18 short bin d=+0.33) but fails on long NQ docs (Exp 18 medium/long/very_long all
+negative). Exp 18 ruled out the distance hypothesis (periodic beacons didn't help).
+
+**Is the failure on long docs a length effect or a dataset effect?** MS MARCO and NQ differ
+in many ways (passage style, question type, answer format). The cleanest test: take MS MARCO
+samples where priming works, artificially pad them to long-doc lengths, and see exactly when
+the benefit disappears.
+
+### Design
+
+- Dataset: MS MARCO v1.1 validation, same 300 samples as Exp 17/18
+- Prefix: `"What are the key facts I need to know?"` (static_factual, same as Exp 07/17/18)
+- 2 conditions (bare, single_prefix) × 5 target lengths = 10 scores per sample
+- Padding: unrelated MS MARCO passages appended at the **token level** (no BPE issues)
+  - Random start offset into pre-tokenized padding pool for diversity
+  - Answer span stays at the beginning — only total cache size changes
+
+| Target Length | What it tests |
+|---|---|
+| original (~130 tok) | Baseline where priming works |
+| 256 | Still short |
+| 512 | Medium (~NQ medium bin) |
+| 1024 | Long (~NQ long bin) |
+| 2048 | Very long (~NQ very_long bin) |
+
+### Results (N=278 valid after filtering)
+
+| Length | Mean Bare NLL | Mean Prefix NLL | Mean Δ | Cohen's d | Win% | p | sig |
+|--------|--------------|----------------|--------|-----------|------|---|-----|
+| original (~130 tok) | 1.098 | 1.025 | +0.072 | **+0.303** | 66.5% | 7.7e-07 | *** |
+| 256 tok | 1.022 | 0.996 | +0.026 | +0.114 | 64.7% | 0.059 | ns |
+| 512 tok | 0.955 | 0.948 | +0.007 | +0.034 | 58.3% | 0.570 | ns |
+| 1024 tok | 0.907 | 0.916 | -0.008 | -0.043 | 55.0% | 0.472 | ns |
+| 2048 tok | 0.889 | 0.891 | -0.002 | -0.014 | 57.6% | 0.813 | ns |
+
+### Key Findings
+
+1. **Length IS the primary factor.** The priming benefit decays monotonically from d=+0.303
+   at original length (~130 tokens) to effectively zero by 512 tokens, even though the
+   content, domain, question type, and passage style are identical MS MARCO throughout.
+   The benefit is already non-significant at 256 tokens (d=+0.114, p=0.059).
+
+2. **The transition is sharp.** Between original (~130 tok, d=+0.30) and 256 tok (d=+0.11),
+   priming loses ~2/3 of its effect. By 512 tokens the effect is gone (d=+0.03). This
+   suggests a critical window of ~200 tokens beyond which value contamination is diluted
+   below the noise floor.
+
+3. **Bare NLL decreases with length** (1.098 → 0.889). Longer documents make the answer
+   easier to predict because the padding provides additional context for the model. This
+   means the *absolute* improvement from priming (+0.072 NLL at original) gets swamped by
+   the much larger NLL reduction from document length itself (-0.209 NLL from original to
+   2048).
+
+4. **Weak per-sample correlation** (r=0.247, p=3.15e-05). Samples that benefit most from
+   priming at original length tend to benefit slightly more at 2048 too, but the effect is
+   massively attenuated — points cluster near zero at 2048 regardless of their original-
+   length delta.
+
+### Interpretation
+
+This conclusively answers the open question from Exp 18: the failure of priming on long
+NQ documents is primarily a **length effect**, not a dataset effect. The value contamination
+from a short prefix (~10 tokens) gets diluted as the cache grows. Each additional document
+token's KV representation is formed by attending to the full prefix+doc context, but when
+the document dominates the cache (e.g., 2048 doc tokens vs 10 prefix tokens), the prefix's
+contribution to each value vector is proportionally tiny.
+
+Combined with Exp 18's finding that periodic beacons don't help, this paints a clear picture:
+value contamination is a **local** phenomenon that only meaningfully affects documents
+comparable in length to the prefix itself (~100-200 tokens). There is no known way to
+extend it to longer documents.
+
+### Implications for Deployment
+
+The length constraint is more severe than previously understood:
+- **< ~200 tokens**: Priming can help (d ≈ +0.30, but only for hard samples)
+- **200-500 tokens**: Marginal, likely not worth the compute
+- **> 500 tokens**: No benefit; priming is wasted effort
+
+This means priming is viable only for very short content: search snippets, ad copy, product
+descriptions, short social posts. Most real-world documents (articles, pages, long-form
+content) are beyond the effective range.
+
+### Lessons Learned
+
+1. **Controlled padding is a clean way to isolate length effects** — avoids confounding
+   domain, style, and question-type differences between datasets.
+2. **Token-level padding avoids BPE boundary issues** — pre-tokenize the pool, then
+   concatenate IDs directly.
+3. **Always check if baseline NLL changes across conditions** — the bare NLL drop with
+   length is a reminder that the denominator of the comparison shifts too.
