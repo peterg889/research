@@ -287,6 +287,22 @@ Key insight: Tests if prefix visibility hurts (pure interference test)
 
 **Key insight:** The positive results from Exps 05-14 do NOT generalize. Priming should be **OFF by default**.
 
+### ⚠️ CRITICAL: Priming is Mistral-Specific, NOT Universal (Exp 16)
+
+**Cross-model replication on Gemma 3 4B shows priming does NOT transfer:**
+
+| Condition | Mistral d | Gemma d | Verdict |
+|-----------|----------|---------|---------|
+| static_fact_trunc | **+0.472** | -0.031 (ns) | Does NOT replicate |
+| random_trunc | +0.091 | **-0.109** (***) | **Hurts on Gemma** |
+| oracle_trunc | +0.023 (ns) | -0.020 (ns) | Neutral on both |
+| values_only | +0.275 | +0.056 (**) | Weak positive |
+
+**Key insight:** Value contamination signal exists on Gemma (values_only d=+0.056) but primed
+keys carry negative interference (d flips from +0.056 to -0.031 when keys included). Cause is
+content-based key interference, NOT bfloat16 precision (Exp 19 disproved). Layer-selective values
+(layers 0-16 only) amplifies the effect to d=+0.211 on Gemma.
+
 ### ⚠️ Length is the Primary Constraint (Exp 20)
 
 **Controlled padding experiment: pad MS MARCO passages to long-doc lengths, measure when benefit disappears.**
@@ -307,6 +323,7 @@ also failed).
 ## When Priming HELPS (Very Narrow)
 
 The "Goldilocks zone" is much narrower than originally thought:
+- **Mistral-7B only** — does NOT replicate on Gemma 3 4B (Exp 16); layer-selective values help on Gemma (Exp 19) but full priming still fails
 - **Very short passages only** (<200 tokens / ~100 words, like MS MARCO) — Exp 20 shows benefit
   vanishes by 256 tokens
 - **Hard samples** (bare NLL > 1.5) within MS MARCO-like distributions

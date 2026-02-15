@@ -1745,3 +1745,264 @@ content) are beyond the effective range.
    concatenate IDs directly.
 3. **Always check if baseline NLL changes across conditions** — the bare NLL drop with
    length is a reminder that the denominator of the comparison shifts too.
+
+---
+
+## Experiment 16: Cross-Model Priming Replication (Gemma 3 4B)
+
+**Date started**: 2026-02-15
+**Notebook**: `16_cross_model_gemma3.ipynb` (built by `scripts/build_nb16.py`)
+**Results**: `results/exp16/`
+
+### Question
+
+All 15 prior experiments used Mistral-7B exclusively. The critical open question: **is value
+contamination via priming a universal transformer mechanism, or Mistral-specific?** Gemma 3 4B
+has a substantially different architecture (34 layers, head_dim=256, per-layer RoPE with two
+theta values, 4 KV heads, bfloat16) — if priming replicates here, the mechanism is likely
+universal.
+
+### Design
+
+- **Model**: Gemma 3 4B (`google/gemma-3-4b-it`, 4-bit quantized, bfloat16)
+- **Dataset**: MS MARCO v1.1 validation, ≤300 words, ≥2 passages, N=300 queries (2174 passages)
+- **5 conditions**: bare, static_fact_trunc, random_trunc, oracle_trunc, values_only
+- All conditions use truncation + RoPE correction (same pipeline as Mistral experiments)
+- values_only = bare keys + static_fact primed values (hybrid cache, tests mechanism)
+
+| # | Condition | Description |
+|---|-----------|-------------|
+| 1 | bare | Baseline — no prefix |
+| 2 | static_fact_trunc | "What are the key facts?" prefix, truncated+RoPE |
+| 3 | random_trunc | Random text prefix, truncated+RoPE |
+| 4 | oracle_trunc | Actual query as prefix, truncated+RoPE |
+| 5 | values_only | Bare keys + sf primed values (hybrid cache) |
+
+### Results
+
+**Priming does NOT replicate on Gemma 3 4B.** The effects are opposite in sign from Mistral.
+
+| Condition | Mistral d | Gemma d | Gemma p | Gemma Win% | Verdict |
+|-----------|----------|---------|---------|------------|---------|
+| static_fact_trunc | **+0.472** | **-0.031** | 0.145 (ns) | 45.2% | Does NOT replicate |
+| random_trunc | +0.091 | **-0.109** | 4.4e-7 (***) | 40.0% | **Significantly hurts** |
+| oracle_trunc | +0.023 (ns) | -0.020 (ns) | 0.341 (ns) | 46.6% | Neutral on both |
+| values_only | +0.275 | **+0.056** | 0.009 (**) | 49.2% | Small positive (only sig condition) |
+
+**Mechanism decomposition (Gemma):**
+- Full static_fact (keys + values): d = -0.031 (ns)
+- Values-only (bare keys + primed values): d = +0.056 (**)
+- Keys carry **negative** interference: when primed keys are included, the net effect flips
+  from +0.056 to -0.031. On Mistral, keys were neutral (-0.009 ns).
+
+**Hardness interaction — INVERTED on easy samples:**
+
+| Condition | Q1 (easy) | Q2 | Q3 | Q4 | Q5 (hard) |
+|-----------|-----------|-----|-----|-----|-----------|
+| static_fact_trunc | -0.275 | -0.248 | -0.134 | -0.036 | **+0.148** |
+| random_trunc | -0.243 | -0.372 | -0.254 | -0.145 | +0.051 |
+| values_only | -0.242 | -0.083 | +0.020 | +0.083 | **+0.219** |
+
+The hardness gradient EXISTS on Gemma (hard samples benefit, easy samples hurt) but the crossover
+point is much higher — only Q5 (hardest 20%) sees any benefit, and the damage to easy samples
+overwhelms the gain. On Mistral, the crossover was around Q3 (median difficulty).
+
+### Key Findings
+
+1. **Priming is NOT a universal transformer mechanism.** The best Mistral condition
+   (static_fact d=+0.472) is effectively zero on Gemma (d=-0.031, ns). Random prefix
+   **significantly hurts** (d=-0.109, p<0.001) — the opposite of Mistral.
+
+2. **Value contamination signal EXISTS but is overwhelmed by key interference.**
+   values_only (bare keys + primed values) is the only significantly positive condition
+   (d=+0.056, p=0.009). But when primed keys are included (full truncated cache),
+   the effect flips negative. On Mistral, keys were negligible; on Gemma, keys actively
+   interfere.
+
+3. **The key interference may be due to Gemma's larger head_dim (256 vs 128).**
+   With head_dim=256, each key dimension encodes a narrower frequency band in RoPE.
+   The RoPE correction (inverse rotation by prefix offset) may introduce larger
+   numerical errors in bfloat16 with 256 dimensions than float16 with 128 dimensions.
+   Alternatively, Gemma's per-layer RoPE (10k/1M theta alternation) may create
+   mismatches when a single correction offset is applied uniformly.
+
+4. **The hardness gradient is weaker but directionally consistent.** Both models show
+   that hard samples benefit more from priming, but on Gemma the crossover is shifted
+   to only the hardest quintile, and the net effect is still negative.
+
+5. **This further narrows the applicability of priming.** Combined with Exp 11 (fails
+   on long docs) and Exp 19 v1 (fails on non-MARCO datasets), priming now also fails
+   on a different model architecture. The Goldilocks zone is: Mistral-7B + short MARCO
+   passages + hard samples.
+
+### Interpretation
+
+The result is a **strong negative** for the universality hypothesis. Value contamination
+is detectable on Gemma (values_only d=+0.056) but too weak to overcome key interference.
+The most likely explanation is architectural:
+
+- **head_dim=256** means RoPE correction operates on 128 frequency pairs (vs 64 on Mistral).
+  The bfloat16 precision (~3 significant digits) may be insufficient for accurate correction
+  at higher frequencies, introducing systematic key noise that degrades attention.
+- **Per-layer RoPE (10k sliding / 1M full)** means 5/6 of layers use theta=10k, where
+  position corrections produce larger angular changes than theta=1M. This amplifies any
+  numerical error from the correction.
+- **4 KV heads (vs 8)** means each head covers more of the representation, so noise in
+  any single head has a larger impact on the overall attention distribution.
+
+### Lessons Learned
+
+1. **Always test on multiple architectures before claiming a universal mechanism.** 15
+   experiments on one model can produce compelling but model-specific results.
+2. **Mechanism decomposition (values_only) is essential.** Without it, we'd only see
+   "priming doesn't work on Gemma" — not that values help but keys hurt.
+3. **RoPE correction precision depends on head_dim and dtype.** The float16/128-dim
+   combination on Mistral may be in a sweet spot that bfloat16/256-dim on Gemma is not.
+4. **The hardness gradient is the most robust finding across models** — even when the
+   net effect changes sign, the direction (hard benefits, easy hurts) is consistent.
+
+---
+
+## Exp 19: Gemma Priming — Precision Fix & Selective Value Contamination
+
+**Date:** 2026-02-15
+**Notebook:** `19_gemma_precision_and_selectivity.ipynb`
+**Results:** `results/exp19/results.json`
+**Runtime:** ~2h 19m on L4 GPU
+
+### Motivation
+
+Exp 16 showed priming FAILS on Gemma 3 4B (static_fact d=-0.031, ns), but `values_only`
+works (d=+0.056, p=0.009). The gap reveals -0.087 of key interference. Two hypotheses:
+
+- **H1 (Precision):** RoPE correction in bfloat16 (7-bit mantissa) with head_dim=256
+  introduces ~8.6x more quantization noise than Mistral's float16/128-dim. Computing
+  correction in float32 may recover the effect.
+- **H2 (Selectivity):** On Mistral (Exp 09), value contamination signal lives in layers
+  0-15 (88%) and first 25% of positions. Targeting these on Gemma may amplify d=+0.056.
+
+### Design
+
+9 conditions on MS MARCO v1.1 (N=300 queries, 2174 passages), 2 forward passes per
+passage + 9 scoring calls. 7 primary comparisons with Bonferroni α = 0.00714.
+
+| # | Condition | Description | Tests |
+|---|-----------|-------------|-------|
+| 1 | `bare` | Baseline | — |
+| 2 | `sf_trunc` | Standard truncated + bfloat16 RoPE correction | Exp 16 reference |
+| 3 | `sf_trunc_fp32` | Truncated + float32 RoPE correction | H1: precision |
+| 4 | `sf_trunc_nocorr` | Truncated, NO RoPE correction | Correction vs mismatch |
+| 5 | `values_only` | Bare keys + sf primed values (all layers) | Exp 16 replication |
+| 6 | `values_early_layers` | Values_only, layers 0-16 only | H2: layer selectivity |
+| 7 | `values_early_pos` | Values_only, first 25% of doc positions | H2: position selectivity |
+| 8 | `values_alpha_25` | 25% primed / 75% bare value blend | H2: dose reduction |
+| 9 | `rope_roundtrip` | Bare + RoPE roundtrip noise on keys | Control: noise baseline |
+
+### Results
+
+| Condition | d vs bare | Win% | Interpretation |
+|-----------|----------|------|----------------|
+| `bare` | 0.000 | — | Baseline |
+| `sf_trunc` | -0.031 | — | Replicates Exp 16 (keys+values hurt) |
+| `sf_trunc_fp32` | -0.032 | — | fp32 makes zero difference |
+| `sf_trunc_nocorr` | -0.009 | — | No correction ≈ neutral |
+| `values_only` | +0.056 | 49.2% | Replicates Exp 16 (values help) |
+| **`values_early_layers`** | **+0.211** | **62.4%** | **4x amplification — key finding** |
+| `values_early_pos` | +0.010 | — | Position selectivity doesn't help |
+| `values_alpha_25` | +0.081 | 50.6% | Dose reduction helps slightly |
+| `rope_roundtrip` | -0.019 | — | Pure noise cost is small |
+
+### Primary Comparisons (Bonferroni α = 0.00714)
+
+| # | Comparison | d | p | Bonferroni sig? |
+|---|-----------|---|---|-----------------|
+| C1 | fp32 vs bf16 | -0.016 | 4.4e-01 | No |
+| C2 | nocorr vs bare | -0.009 | 6.7e-01 | No |
+| C3 | nocorr vs bf16 | +0.021 | 3.3e-01 | No |
+| C4 | values_only vs bare | +0.056 | 8.7e-03 | No (marginal) |
+| C5 | early_layers vs values_only | **+0.170** | **3.7e-15** | **Yes** |
+| C6 | early_pos vs values_only | -0.124 | 7.7e-09 | Yes (worse) |
+| C7 | alpha_25 vs values_only | -0.043 | 4.3e-02 | No |
+
+### Key Derived Metrics
+
+- **Precision gain (fp32 - bf16):** -0.001 — bfloat16 is NOT the bottleneck
+- **Key interference (bf16):** +0.087 — keys subtract 0.087 from values' +0.056
+- **Key interference (fp32):** +0.089 — identical to bf16, confirming precision is irrelevant
+- **Noise baseline (rope_roundtrip):** -0.019 — pure bfloat16 noise is small
+- **Best selective condition:** `values_early_layers` d=+0.211 (3.8x values_only)
+
+### Verdicts
+
+**H1 REJECTED: fp32 correction DOES NOT RECOVER priming on Gemma.**
+
+The gain is -0.001 (effectively zero). bfloat16 quantization during RoPE correction is
+not the mechanism causing key interference. The interference is content-based, not
+precision-based — primed keys carry information that actively hurts attention routing
+regardless of numeric precision.
+
+**H2 SUPPORTED: Selective contamination AMPLIFIES the value signal.**
+
+Restricting primed values to layers 0-16 (first 50% of 34 layers) quadruples the effect
+from d=+0.056 to d=+0.211 (p=3.7e-15, Bonferroni significant). This reveals that
+**late-layer values (17-33) carry interference that dilutes the early-layer signal**.
+
+This mirrors Exp 09 on Mistral, where layers 0-15 carried 88% of the signal. But on
+Gemma the relationship is stronger: late layers don't just contribute less — they
+actively *hurt*. The net effect of all-layer values (+0.056) is the sum of a strong
+early-layer benefit (+0.211) partially cancelled by late-layer harm.
+
+Position selectivity (first 25% only) does NOT help on Gemma (d=+0.010 vs +0.056),
+unlike Mistral where first-quarter positions were dominant. The alpha=0.25 blend (d=+0.081)
+shows a modest improvement over full values (+0.056), consistent with the idea that
+reducing the late-layer "dose" helps.
+
+### Hardness Interaction
+
+| Condition | Q1 (easy) | Q2 | Q3 | Q4 | Q5 (hard) | Overall |
+|-----------|----------|-----|-----|-----|-----------|---------|
+| sf_trunc | -0.275 | -0.248 | -0.134 | -0.036 | +0.148 | -0.031 |
+| sf_trunc_fp32 | -0.277 | -0.248 | -0.134 | -0.040 | +0.145 | -0.032 |
+| values_only | -0.242 | -0.083 | +0.020 | +0.083 | +0.219 | +0.056 |
+| values_early_layers | -0.112 | +0.142 | +0.311 | +0.270 | +0.365 | +0.211 |
+| values_alpha_25 | -0.074 | +0.031 | +0.138 | +0.117 | +0.144 | +0.081 |
+
+The hardness gradient is consistent: hard samples benefit, easy samples hurt. But
+`values_early_layers` shifts the crossover dramatically — even Q2 benefits (+0.142),
+and Q3-Q5 all show d > +0.27. This suggests early-layer selective contamination
+could be practically useful on Gemma for medium-to-hard queries.
+
+### Interpretation
+
+1. **The key interference problem on Gemma is NOT about numeric precision.** fp32 RoPE
+   correction is identical to bfloat16. The interference is content-based: primed keys
+   encode prefix information that misdirects attention to irrelevant positions.
+
+2. **Late-layer value contamination is harmful on Gemma.** Unlike Mistral where all
+   layers contribute positively (just with different magnitudes), Gemma's late layers
+   (17-33) carry information that actively cancels the early-layer benefit. This may
+   relate to Gemma's per-layer RoPE structure — full-attention layers (5, 11, 17, 23, 29)
+   with theta=1M may process priming information differently than sliding-attention
+   layers with theta=10k.
+
+3. **Layer-selective values is a viable strategy on Gemma.** d=+0.211 approaches
+   Mistral's values_only (d=+0.275) and is practically meaningful. If combined with
+   hardness gating (Q3-Q5 only), the effective d would be even larger.
+
+4. **The RoPE correction itself is neutral on Gemma.** `sf_trunc_nocorr` (d=-0.009) is
+   essentially identical to `sf_trunc` (d=-0.031) — neither helps. This is surprising:
+   on Mistral, RoPE correction is essential. On Gemma, the problem is upstream of
+   the correction step.
+
+### Lessons Learned
+
+1. **Precision is rarely the bottleneck.** When something doesn't work, check content-level
+   mechanisms before numerical ones. The -0.087 key interference is a content effect, not
+   a quantization artifact.
+2. **Layer selectivity can dramatically change outcomes.** The 4x amplification from
+   all-layers to early-layers-only was unexpected. Always test selective conditions.
+3. **"Late layers hurt" is a model-specific finding** that likely depends on Gemma's
+   architecture (per-layer RoPE, sliding/full attention pattern). Don't assume Mistral's
+   layer-wise profile generalizes.
+4. **The hardness gradient remains the most robust finding.** It holds across both models,
+   across all conditions, and across selective variants. Hard samples consistently benefit.
