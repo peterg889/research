@@ -9,7 +9,7 @@ This module provides:
 - Cache copying and hybrid cache construction
 """
 
-from typing import Tuple, Union, Any, Optional
+from typing import List, Tuple, Union, Any, Optional
 import torch
 import torch.nn.functional as F
 import math
@@ -1279,3 +1279,269 @@ def build_truncated_kv_cache_corrected(
         # Default: correct RoPE so document positions become [1, 2, ..., doc_len]
         correct_rope_positions_with_bos(truncated_cache, surrogate_offset, model)
         return keep_len, truncated_cache
+
+
+# =============================================================================
+# Periodic Beacon Cache Functions (Experiment 18)
+# =============================================================================
+
+
+def build_beacon_cache_sequential(
+    document: str,
+    beacon_ids: List[int],
+    chunk_size: int,
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    config: "ExperimentConfig",
+) -> Tuple[DynamicCache, int, List[int], List[int], List[int]]:
+    """Build [BOS][beacon][chunk1][beacon][chunk2]... with a single forward pass.
+
+    Tokenizes the document separately (no BPE boundary issues at joins),
+    splits into chunks at the token level, interleaves beacon tokens,
+    and runs a single forward pass.
+
+    Args:
+        document: Raw document text.
+        beacon_ids: Pre-tokenized beacon token IDs (no BOS).
+        chunk_size: Number of document tokens per chunk (e.g. 256, 512).
+        model: The language model.
+        tokenizer: The tokenizer.
+        config: Experiment configuration.
+
+    Returns:
+        (cache, seq_len, doc_token_ids, beacon_positions, doc_positions)
+        - cache: DynamicCache for the full interleaved sequence.
+        - seq_len: Total sequence length.
+        - doc_token_ids: The raw document token IDs (for building a matched bare cache).
+        - beacon_positions: Indices of beacon tokens in the full sequence.
+        - doc_positions: Indices of document tokens in the full sequence.
+    """
+    doc_ids = tokenizer.encode(document, add_special_tokens=False)
+    chunks = [doc_ids[i:i + chunk_size] for i in range(0, len(doc_ids), chunk_size)]
+
+    bos_id = tokenizer.bos_token_id if tokenizer.bos_token_id is not None else 1
+    beacon_len = len(beacon_ids)
+
+    full_ids = [bos_id]
+    beacon_positions: List[int] = []
+    doc_positions: List[int] = []
+
+    for chunk in chunks:
+        # Beacon tokens
+        beacon_start = len(full_ids)
+        full_ids.extend(beacon_ids)
+        beacon_positions.extend(range(beacon_start, beacon_start + beacon_len))
+        # Chunk tokens
+        chunk_start = len(full_ids)
+        full_ids.extend(chunk)
+        doc_positions.extend(range(chunk_start, chunk_start + len(chunk)))
+
+    input_ids = torch.tensor([full_ids], device=config.device)
+    seq_len = input_ids.shape[1]
+
+    with torch.no_grad():
+        outputs = model(
+            input_ids=input_ids,
+            attention_mask=torch.ones_like(input_ids),
+            use_cache=True,
+            return_dict=True,
+        )
+
+    cache = _ensure_dynamic_cache(outputs.past_key_values)
+    return cache, seq_len, doc_ids, beacon_positions, doc_positions
+
+
+def build_beacon_cache_batch(
+    document: str,
+    beacon_ids: List[int],
+    chunk_size: int,
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    config: "ExperimentConfig",
+) -> Tuple[DynamicCache, int, List[int]]:
+    """Process each [BOS][beacon][chunk_i] independently, then flatten caches.
+
+    Each chunk is processed with explicit position_ids matching the chunk's
+    global position in the sequential layout, so RoPE positions are correct
+    at build time (no post-hoc RoPE correction needed).
+
+    After flattening: identical cache STRUCTURE to sequential, but different
+    VALUES because there is no cross-chunk attention during build.
+
+    Args:
+        document: Raw document text.
+        beacon_ids: Pre-tokenized beacon token IDs (no BOS).
+        chunk_size: Number of document tokens per chunk.
+        model: The language model.
+        tokenizer: The tokenizer.
+        config: Experiment configuration.
+
+    Returns:
+        (flattened_cache, total_seq_len, doc_token_ids)
+    """
+    doc_ids = tokenizer.encode(document, add_special_tokens=False)
+    chunks = [doc_ids[i:i + chunk_size] for i in range(0, len(doc_ids), chunk_size)]
+
+    bos_id = tokenizer.bos_token_id if tokenizer.bos_token_id is not None else 1
+    beacon_len = len(beacon_ids)
+
+    # Compute global positions for each chunk in the sequential layout:
+    # [BOS] [beacon0] [chunk0] [beacon1] [chunk1] ...
+    # pos:   0    1..B   B+1..B+N  B+N+1..2B+N  ...
+    chunk_caches = []
+    global_offset = 0  # tracks position of BOS for each chunk's context
+
+    for chunk_idx, chunk in enumerate(chunks):
+        chunk_ids = [bos_id] + list(beacon_ids) + list(chunk)
+        input_ids = torch.tensor([chunk_ids], device=config.device)
+        local_len = input_ids.shape[1]
+
+        # Position IDs: BOS at position 0, beacon+chunk at their global positions
+        if chunk_idx == 0:
+            # First chunk: positions are simply [0, 1, 2, ..., L-1]
+            pos_ids = torch.arange(local_len, device=config.device).unsqueeze(0)
+            global_offset = local_len  # next chunk starts here
+        else:
+            # Non-first chunks: BOS at 0, beacon+chunk at global positions
+            # global_offset points to where this chunk's beacon starts
+            pos = [0] + list(range(global_offset, global_offset + local_len - 1))
+            pos_ids = torch.tensor([pos], device=config.device)
+            global_offset += local_len - 1  # -1 because BOS is not counted in global
+
+        with torch.no_grad():
+            out = model(
+                input_ids=input_ids,
+                attention_mask=torch.ones_like(input_ids),
+                position_ids=pos_ids,
+                use_cache=True,
+                return_dict=True,
+            )
+
+        chunk_caches.append(_ensure_dynamic_cache(out.past_key_values))
+
+    # Flatten: keep all of first chunk, strip BOS from subsequent chunks
+    n_layers = len(chunk_caches[0])
+    flattened = DynamicCache()
+    total_seq_len = 0
+
+    for layer_idx in range(n_layers):
+        layer_keys = []
+        layer_vals = []
+        for ci, cc in enumerate(chunk_caches):
+            k = _get_cache_keys(cc, layer_idx)
+            v = _get_cache_values(cc, layer_idx)
+            if ci == 0:
+                layer_keys.append(k)
+                layer_vals.append(v)
+            else:
+                # Strip BOS (position 0) from non-first chunks
+                layer_keys.append(k[:, :, 1:, :])
+                layer_vals.append(v[:, :, 1:, :])
+        combined_k = torch.cat(layer_keys, dim=2).contiguous()
+        combined_v = torch.cat(layer_vals, dim=2).contiguous()
+        flattened.update(combined_k, combined_v, layer_idx)
+        if layer_idx == 0:
+            total_seq_len = combined_k.shape[2]
+
+    return flattened, total_seq_len, doc_ids
+
+
+def extract_cache_at_indices(
+    cache: DynamicCache,
+    indices: List[int],
+) -> DynamicCache:
+    """Extract specified positions from a cache, returning a new DynamicCache.
+
+    Args:
+        cache: Source DynamicCache.
+        indices: List of position indices to extract (must be sorted ascending).
+
+    Returns:
+        New DynamicCache containing only the specified positions.
+    """
+    cache = _ensure_dynamic_cache(cache)
+    idx_tensor = torch.tensor(indices, dtype=torch.long)
+
+    new_cache = DynamicCache()
+    for layer_idx in range(len(cache)):
+        k = _get_cache_keys(cache, layer_idx)
+        v = _get_cache_values(cache, layer_idx)
+        device = k.device
+        idx = idx_tensor.to(device)
+        new_cache.update(
+            k[:, :, idx, :].contiguous(),
+            v[:, :, idx, :].contiguous(),
+            layer_idx,
+        )
+    return new_cache
+
+
+def correct_rope_positions_chunked(
+    cache: DynamicCache,
+    chunk_boundaries: List[int],
+    offsets: List[int],
+    model: AutoModelForCausalLM,
+) -> DynamicCache:
+    """Apply per-chunk RoPE correction to an extracted (beacon-free) cache.
+
+    After beacon extraction, the cache is [BOS][doc_chunk0][doc_chunk1]...
+    Each chunk k's keys need to be shifted back by offsets[k] to remove the
+    positional gap left by the removed beacon tokens.
+
+    BOS (position 0) is untouched.
+
+    Args:
+        cache: DynamicCache with [BOS][doc_chunk0][doc_chunk1]...
+        chunk_boundaries: Start index of each chunk in the extracted cache
+            (after BOS). E.g. [1, 257, 513] for 3 chunks of 256.
+        offsets: RoPE offset for each chunk. Chunk k needs offset (k+1)*B
+            where B is the beacon token length.
+        model: The model (for RoPE config).
+
+    Returns:
+        The same cache, modified in-place.
+    """
+    config = model.config
+    head_dim = _get_head_dim(config)
+
+    # Pre-compute corrections per (theta, offset) pair
+    corrections = {}
+    for layer_idx in range(len(cache)):
+        theta = _get_rope_theta_for_layer(config, layer_idx)
+        for off in offsets:
+            key = (theta, off)
+            if key not in corrections:
+                corrections[key] = _build_rope_correction(off, head_dim, theta)
+
+    # Compute end boundary for each chunk
+    total_seq = _get_cache_keys(cache, 0).shape[2]
+    chunk_ends = []
+    for i in range(len(chunk_boundaries)):
+        if i + 1 < len(chunk_boundaries):
+            chunk_ends.append(chunk_boundaries[i + 1])
+        else:
+            chunk_ends.append(total_seq)
+
+    for layer_idx in range(len(cache)):
+        theta = _get_rope_theta_for_layer(config, layer_idx)
+        keys = _get_cache_keys(cache, layer_idx)
+        device = keys.device
+        dtype = keys.dtype
+
+        corrected_parts = [keys[:, :, :1, :]]  # BOS untouched
+
+        for chunk_idx, (start, end) in enumerate(zip(chunk_boundaries, chunk_ends)):
+            off = offsets[chunk_idx]
+            if off == 0:
+                corrected_parts.append(keys[:, :, start:end, :])
+                continue
+            cos_a, sin_a = corrections[(theta, off)]
+            c = cos_a.to(device=device, dtype=dtype)
+            s = sin_a.to(device=device, dtype=dtype)
+            chunk_keys = keys[:, :, start:end, :]
+            corrected = chunk_keys * c + _rotate_half(chunk_keys) * s
+            corrected_parts.append(corrected)
+
+        _set_cache_keys(cache, layer_idx, torch.cat(corrected_parts, dim=2))
+
+    return cache
