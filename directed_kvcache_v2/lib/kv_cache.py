@@ -14,6 +14,7 @@ import torch
 import torch.nn.functional as F
 import math
 from transformers import AutoModelForCausalLM, AutoTokenizer, DynamicCache
+from transformers.cache_utils import DynamicSlidingWindowLayer, DynamicLayer
 
 from .config import ExperimentConfig
 
@@ -464,6 +465,12 @@ def deepcopy_cache(cache: Any) -> DynamicCache:
     Use this instead of copy.deepcopy() for DynamicCache objects, as the
     iteration API varies across versions.
 
+    Preserves DynamicSlidingWindowLayer types and their cumulative_length,
+    which is critical for models like Gemma 3 that use sliding window
+    attention. Without this, get_seq_length() returns the physical stored
+    size (truncated to sliding_window-1) instead of the logical total
+    tokens seen, causing attention mask size mismatches.
+
     Args:
         cache: A DynamicCache, tuple, or list of (key, value) tensors
 
@@ -471,14 +478,36 @@ def deepcopy_cache(cache: Any) -> DynamicCache:
         New DynamicCache with cloned tensors (independent from original)
     """
     cache = _ensure_dynamic_cache(cache)
-    new_cache = DynamicCache()
     n_layers = len(cache)
 
+    # Build layer list preserving types (sliding window vs full attention)
+    layers = []
     for layer_idx in range(n_layers):
         k = _get_cache_keys(cache, layer_idx).clone()
         v = _get_cache_values(cache, layer_idx).clone()
-        new_cache.update(k, v, layer_idx)
+        src_layer = cache.layers[layer_idx]
 
+        if isinstance(src_layer, DynamicSlidingWindowLayer):
+            new_layer = DynamicSlidingWindowLayer(sliding_window=src_layer.sliding_window)
+            new_layer.dtype = k.dtype
+            new_layer.device = k.device
+            new_layer.keys = k
+            new_layer.values = v
+            new_layer.is_initialized = True
+            new_layer.cumulative_length = src_layer.cumulative_length
+            new_layer._sliding_window_tensor = new_layer._sliding_window_tensor.to(k.device)
+        else:
+            new_layer = DynamicLayer()
+            new_layer.dtype = k.dtype
+            new_layer.device = k.device
+            new_layer.keys = k
+            new_layer.values = v
+            new_layer.is_initialized = True
+        layers.append(new_layer)
+
+    new_cache = DynamicCache()
+    new_cache.layers = layers
+    new_cache.layer_class_to_replicate = None
     return new_cache
 
 
@@ -498,15 +527,37 @@ def build_hybrid_cache(keys_source: Any, values_source: Any) -> DynamicCache:
     keys_source = _ensure_dynamic_cache(keys_source)
     values_source = _ensure_dynamic_cache(values_source)
 
-    new_cache = DynamicCache()
     n_layers = len(keys_source)
     assert len(values_source) == n_layers, "Caches must have same number of layers"
 
+    layers = []
     for layer_idx in range(n_layers):
         k = _get_cache_keys(keys_source, layer_idx).clone()
         v = _get_cache_values(values_source, layer_idx).clone()
-        new_cache.update(k, v, layer_idx)
 
+        # Preserve sliding window layer types from keys_source
+        src_layer = keys_source.layers[layer_idx]
+        if isinstance(src_layer, DynamicSlidingWindowLayer):
+            new_layer = DynamicSlidingWindowLayer(sliding_window=src_layer.sliding_window)
+            new_layer.dtype = k.dtype
+            new_layer.device = k.device
+            new_layer.keys = k
+            new_layer.values = v
+            new_layer.is_initialized = True
+            new_layer.cumulative_length = src_layer.cumulative_length
+            new_layer._sliding_window_tensor = new_layer._sliding_window_tensor.to(k.device)
+        else:
+            new_layer = DynamicLayer()
+            new_layer.dtype = k.dtype
+            new_layer.device = k.device
+            new_layer.keys = k
+            new_layer.values = v
+            new_layer.is_initialized = True
+        layers.append(new_layer)
+
+    new_cache = DynamicCache()
+    new_cache.layers = layers
+    new_cache.layer_class_to_replicate = None
     return new_cache
 
 
@@ -811,8 +862,8 @@ def replace_values_at_layers(
     target = _ensure_dynamic_cache(target)
     source = _ensure_dynamic_cache(source)
 
-    new_cache = DynamicCache()
     n_layers = len(target)
+    layers = []
 
     for layer_idx in range(n_layers):
         k = _get_cache_keys(target, layer_idx).clone()
@@ -820,8 +871,30 @@ def replace_values_at_layers(
             v = _get_cache_values(source, layer_idx).clone()
         else:
             v = _get_cache_values(target, layer_idx).clone()
-        new_cache.update(k, v, layer_idx)
 
+        # Preserve sliding window layer types from target cache
+        src_layer = target.layers[layer_idx]
+        if isinstance(src_layer, DynamicSlidingWindowLayer):
+            new_layer = DynamicSlidingWindowLayer(sliding_window=src_layer.sliding_window)
+            new_layer.dtype = k.dtype
+            new_layer.device = k.device
+            new_layer.keys = k
+            new_layer.values = v
+            new_layer.is_initialized = True
+            new_layer.cumulative_length = src_layer.cumulative_length
+            new_layer._sliding_window_tensor = new_layer._sliding_window_tensor.to(k.device)
+        else:
+            new_layer = DynamicLayer()
+            new_layer.dtype = k.dtype
+            new_layer.device = k.device
+            new_layer.keys = k
+            new_layer.values = v
+            new_layer.is_initialized = True
+        layers.append(new_layer)
+
+    new_cache = DynamicCache()
+    new_cache.layers = layers
+    new_cache.layer_class_to_replicate = None
     return new_cache
 
 
@@ -849,14 +922,36 @@ def interpolate_values(
     n_layers = len(bare_cache)
     assert len(primed_cache) == n_layers, "Caches must have same number of layers"
 
-    new_cache = DynamicCache()
+    layers = []
     for layer_idx in range(n_layers):
         k = _get_cache_keys(bare_cache, layer_idx).clone()
         v_bare = _get_cache_values(bare_cache, layer_idx)
         v_primed = _get_cache_values(primed_cache, layer_idx)
         v_blended = alpha * v_primed + (1.0 - alpha) * v_bare
-        new_cache.update(k, v_blended.clone(), layer_idx)
 
+        # Preserve sliding window layer types from bare_cache
+        src_layer = bare_cache.layers[layer_idx]
+        if isinstance(src_layer, DynamicSlidingWindowLayer):
+            new_layer = DynamicSlidingWindowLayer(sliding_window=src_layer.sliding_window)
+            new_layer.dtype = k.dtype
+            new_layer.device = k.device
+            new_layer.keys = k
+            new_layer.values = v_blended.clone()
+            new_layer.is_initialized = True
+            new_layer.cumulative_length = src_layer.cumulative_length
+            new_layer._sliding_window_tensor = new_layer._sliding_window_tensor.to(k.device)
+        else:
+            new_layer = DynamicLayer()
+            new_layer.dtype = k.dtype
+            new_layer.device = k.device
+            new_layer.keys = k
+            new_layer.values = v_blended.clone()
+            new_layer.is_initialized = True
+        layers.append(new_layer)
+
+    new_cache = DynamicCache()
+    new_cache.layers = layers
+    new_cache.layer_class_to_replicate = None
     return new_cache
 
 
@@ -889,15 +984,37 @@ def replace_values_at_positions(
         f"Invalid positions: start={start_pos}, end={end_pos}, seq_len={seq_len}"
     )
 
-    new_cache = DynamicCache()
+    layers = []
     for layer_idx in range(n_layers):
         k = _get_cache_keys(bare_cache, layer_idx).clone()
         v = _get_cache_values(bare_cache, layer_idx).clone()
         if start_pos < end_pos:
             v_primed = _get_cache_values(primed_cache, layer_idx)
             v[:, :, start_pos:end_pos, :] = v_primed[:, :, start_pos:end_pos, :]
-        new_cache.update(k, v, layer_idx)
 
+        # Preserve sliding window layer types from bare_cache
+        src_layer = bare_cache.layers[layer_idx]
+        if isinstance(src_layer, DynamicSlidingWindowLayer):
+            new_layer = DynamicSlidingWindowLayer(sliding_window=src_layer.sliding_window)
+            new_layer.dtype = k.dtype
+            new_layer.device = k.device
+            new_layer.keys = k
+            new_layer.values = v
+            new_layer.is_initialized = True
+            new_layer.cumulative_length = src_layer.cumulative_length
+            new_layer._sliding_window_tensor = new_layer._sliding_window_tensor.to(k.device)
+        else:
+            new_layer = DynamicLayer()
+            new_layer.dtype = k.dtype
+            new_layer.device = k.device
+            new_layer.keys = k
+            new_layer.values = v
+            new_layer.is_initialized = True
+        layers.append(new_layer)
+
+    new_cache = DynamicCache()
+    new_cache.layers = layers
+    new_cache.layer_class_to_replicate = None
     return new_cache
 
 

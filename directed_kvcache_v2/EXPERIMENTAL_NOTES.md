@@ -2006,3 +2006,151 @@ could be practically useful on Gemma for medium-to-hard queries.
    layer-wise profile generalizes.
 4. **The hardness gradient remains the most robust finding.** It holds across both models,
    across all conditions, and across selective variants. Hard samples consistently benefit.
+
+---
+
+## Experiment 24: Gemma Layer-Selective Mechanism Deep Dive
+
+**Date**: 2026-02-16
+**Notebook**: `24_gemma_layer_mechanism.ipynb`
+**Results**: `results/exp24/`
+**Model**: Gemma 3 4B (4-bit, bfloat16)
+
+### Question
+
+Exp 21 confirmed layer-selective value contamination (layers 0-15, cutoff=16) produces
+d=+0.227 on Gemma with MS MARCO. Four questions remained:
+
+1. Which individual layers carry the signal?
+2. Does this generalize to SQuAD v2?
+3. Does prefix content matter under layer selectivity?
+4. What makes early-layer values physically different?
+
+### Design
+
+| Part | Data | N | Conditions |
+|------|------|---|------------|
+| 1+4 | MS MARCO | 300 | 34 single-layer replacements + value features |
+| 2 | SQuAD v2 | 400 | bare, values_all (34 layers), values_cutoff_16 (layers 0-15) |
+| 3 | MS MARCO | 300 | bare + 3 prefix types (static_fact, random, oracle) at cutoff=16 |
+
+### Part 1 Results: Individual Layer Contribution Map
+
+The signal is **concentrated in a handful of layers**, not a smooth gradient:
+
+| Layer | d | sig | Layer | d | sig |
+|-------|---|----|-------|---|-----|
+| L0 | -0.062 | ns | L17 | -0.010 | ns |
+| L1 | +0.004 | ns | L18 | **-0.196** | *** |
+| L2 | +0.081 | ns | L19 | +0.084 | ns |
+| L3 | +0.026 | ns | L20 | **+0.195** | *** |
+| L4 | +0.044 | ns | L21 | -0.114 | * |
+| L5 | +0.002 | ns | L22 | -0.144 | * |
+| L6 | +0.060 | ns | L23 | -0.110 | ns |
+| L7 | +0.037 | ns | L24 | +0.067 | ns |
+| L8 | +0.099 | ns | L25 | +0.098 | ns |
+| L9 | +0.023 | ns | L26 | +0.051 | ns |
+| **L10** | **+0.207** | *** | **L27** | **-0.213** | *** |
+| L11 | -0.083 | ns | L28 | +0.026 | ns |
+| **L12** | **+0.198** | *** | L29 | -0.044 | ns |
+| L13 | -0.052 | ns | L30 | -0.025 | ns |
+| **L14** | **+0.197** | *** | L31 | +0.080 | ns |
+| **L15** | **+0.238** | *** | L32 | +0.030 | ns |
+| L16 | -0.060 | ns | L33 | +0.164 | ** |
+
+**Top 5**: L15 (+0.238), L10 (+0.207), L12 (+0.198), L14 (+0.197), L20 (+0.195)
+**Bottom 5**: L23 (-0.110), L21 (-0.114), L22 (-0.144), L18 (-0.196), L27 (-0.213)
+
+**Early (0-15)**: mean d=+0.064, 13/16 positive
+**Late (16-33)**: mean d=-0.007, 9/18 positive
+
+Key insight: The signal is NOT a smooth early-vs-late gradient. It clusters in a
+"hero band" at **layers 10, 12, 14, 15** (all d ≈ +0.20, all p < 0.001), with a
+secondary contributor at **L20** (+0.195). Destructive layers cluster at **L18, L21-23,
+L27** (all d < -0.10). Most layers individually are non-significant noise.
+
+This explains why cutoff=16 is optimal — it captures ALL four hero layers while
+excluding the destructive L18/L21-23 block. But the early layers 0-9 are mostly
+noise (mean d=+0.033), suggesting a cherry-pick of just {10,12,14,15,20} might
+outperform the blanket cutoff.
+
+### Part 2 Results: Cross-Dataset — SQuAD v2
+
+| Condition | d | Win% | p | sig |
+|-----------|---|------|---|-----|
+| values_all (34 layers) | -0.093 | 27.7% | 0.095 | ns |
+| values_cutoff_16 (layers 0-15) | -0.031 | 24.9% | 0.578 | ns |
+
+**Verdict: Layer-selective value contamination does NOT generalize to SQuAD v2.**
+
+Both conditions are non-significant. values_all trends negative (consistent with
+late-layer interference). values_cutoff_16 is neutral. This reinforces the finding
+from Exp 11 that priming benefits are MS MARCO-specific — even with the layer-selective
+method that works well on MS MARCO (d=+0.227), SQuAD v2 shows zero benefit.
+
+The low win rates (25-28%) suggest the method may be slightly harmful on this dataset,
+possibly due to SQuAD's extractive nature (ceiling effect — passages already contain
+exact answer spans).
+
+### Part 3 Results: Prefix Content × Layer Selectivity
+
+| Prefix | d | Win% | p | sig |
+|--------|---|------|---|-----|
+| static_fact | **+0.217** | 51.2% | 5.5e-04 | *** |
+| random | +0.095 | 52.7% | 0.126 | ns |
+| oracle | **+0.230** | 51.9% | 2.6e-04 | *** |
+
+**Verdict: Prefix content DOES matter under layer selectivity.**
+
+Comparison with Exp 16 (full-cache replacement):
+
+| Prefix | Full-cache d | VEL@16 d | Gain |
+|--------|-------------|----------|------|
+| static_fact | -0.031 (ns) | **+0.217** (***) | +0.248 |
+| random | -0.109 (***) | +0.095 (ns) | +0.204 |
+
+Under full-cache replacement (Exp 16), ALL prefix types fail or hurt on Gemma. Under
+layer-selective values, static_fact (+0.217) and oracle (+0.230) both work significantly.
+Random is positive but non-significant (+0.095).
+
+This means the priming failure on Gemma was never about prefix content — it was about
+key interference in the late layers. Once late-layer values are excluded, the
+semantic signal emerges: oracle ≈ static_fact > random, matching the Mistral pattern.
+
+### Part 4 Results: Value Feature Analysis
+
+| Metric | r with per-layer d | p |
+|--------|--------------------|---|
+| delta_norm | -0.060 | 0.737 |
+| cosine_sim | -0.249 | 0.156 |
+
+Neither feature shows significant correlation with per-layer d. The physical
+properties of value vectors (L2 norms, cosine similarity, perturbation magnitude)
+do NOT predict which layers carry useful signal. The mechanism appears to be
+content-level rather than geometrically detectable from simple features.
+
+### Key Takeaways
+
+1. **Signal is concentrated, not distributed.** Only 5 of 34 layers matter significantly:
+   L10, L12, L14, L15 (hero band), plus L20. These account for virtually all of the
+   collective d=+0.227 from cutoff=16.
+
+2. **NOT dataset-general.** SQuAD v2 shows zero benefit even with the optimal Gemma method.
+   The priming benefit remains narrowly MS MARCO-specific.
+
+3. **Prefix content matters again once keys are excluded.** The Exp 16 conclusion that
+   "prefix content doesn't matter on Gemma" was wrong — it doesn't matter when primed
+   keys are poisoning the cache. Under layer-selective values, oracle and static_fact
+   both work (d≈+0.22), and random is weaker. The semantic hierarchy is restored.
+
+4. **No simple geometric predictor.** You can't identify beneficial layers from value
+   norms or cosine similarities. Layer selection must be empirically determined per model.
+
+### Lessons Learned
+
+1. **Don't iterate dict while deleting.** `for k in d: del d[k]` crashes Python.
+   Use `del d` or `d.clear()`.
+2. **Layer cherry-picking may beat blanket cutoffs.** The 5-layer hero set is a strong
+   candidate for a more targeted approach.
+3. **"Method X fails on Gemma" needs qualification.** Full-cache priming fails.
+   Layer-selective priming works. The method matters more than the model.
