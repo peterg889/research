@@ -303,6 +303,50 @@ keys carry negative interference (d flips from +0.056 to -0.031 when keys includ
 content-based key interference, NOT bfloat16 precision (Exp 19 disproved). Layer-selective values
 (layers 0-16 only) amplifies the effect to d=+0.211 on Gemma.
 
+### ⚠️ Priming Improves Average NLL but NOT Ranking (Exp 22)
+
+**Ranking evaluation: does values_early_layers help distinguish relevant from irrelevant passages?**
+
+| Method | AUC | MRR@10 | Cohen's d |
+|--------|-----|--------|-----------|
+| Raw bare NLL | 0.828 | 0.860 | +1.201 |
+| Raw primed NLL | 0.829 | 0.853 | +1.228 |
+| **PMI bare** | **0.841** | **0.860** | **+1.647** |
+| PMI primed | 0.832 | 0.853 | +1.588 |
+
+Primed vs Bare MRR (PMI): 6 wins / 185 ties / 9 losses.
+
+**Key insights:**
+- **Raw NLL is already a strong ranker** (AUC=0.83, MRR=0.86) without any priming
+- **PMI scoring** (NLL - baseline) boosts AUC to 0.841 for free (one BOS-only pass per query)
+- **Priming provides zero ranking benefit** — it lowers NLL equally for relevant and irrelevant
+  passages. The d=+0.211 from Exp 19 is a content-agnostic regularization, not a relevance signal
+- **Static-fact priming is query-independent** — same prefix for all documents cannot create
+  query-specific relevance discrimination
+
+### ⚠️ Even Query-Aware Priming Does NOT Improve Ranking (Exp 23)
+
+**Exhaustive test: 13 cache conditions × 3 scoring targets = 39 scores per passage (200 queries).**
+
+Best results (PMI AUC, answer target):
+
+| Condition | AUC | vs bare |
+|-----------|-----|---------|
+| oracle_interp (α=0.25 blend) | 0.842 | +0.001 |
+| bare | 0.841 | — |
+| oracle_vel_low (L0-8) | 0.841 | +0.000 |
+| qvi_010 (query inject α=0.10) | 0.836 | -0.005 |
+| qvi_050 (query inject α=0.50) | 0.767 | -0.074 |
+
+**Key insights:**
+- **Nothing beats bare PMI** — even oracle (actual query) priming yields AUC 0.842 vs 0.841 (+0.001, negligible)
+- **Alternative targets fail** — `qdoc` (AUC~0.57) and `relevance` template (AUC~0.45-0.50) are poor rankers
+- **QVI (query value injection) hurts** — blending query values into doc cache corrupts rather than enhances
+- **Intent routing hurts** — min-across-5-intents (AUC 0.825) and per-query routing (0.828) are worse than bare
+- **Two-stage pipeline** (bare PMI → oracle re-rank top-3) gives small MRR gain (+0.006) but requires per-passage oracle FP
+- **Conclusion**: value contamination fundamentally cannot create ranking signal. NLL ranking comes from
+  token overlap between passage and answer, not from cache modifications
+
 ### ⚠️ Length is the Primary Constraint (Exp 20)
 
 **Controlled padding experiment: pad MS MARCO passages to long-doc lengths, measure when benefit disappears.**
@@ -333,6 +377,7 @@ The "Goldilocks zone" is much narrower than originally thought:
 ## When Priming HURTS (Most Cases)
 
 **DO NOT prime for:**
+- **Ranking / document selection** — zero benefit; bare NLL is already a strong ranker (Exp 22)
 - **Summarization** — catastrophic harm (d=-1.3)
 - **Multi-hop reasoning** — disrupts attention routing
 - **Long passages** (>200 tokens) — value contamination diluted below noise floor (Exp 20)
@@ -371,4 +416,4 @@ else:
     cache = build_bare_cache(passage)  # don't prime
 ```
 
-**Bottom line:** The approach works for a narrow slice of use cases (very short factoid QA passages under ~200 tokens). For most real-world applications, priming does more harm than good.
+**Bottom line:** The approach works for a narrow slice of use cases (very short factoid QA passages under ~200 tokens). For most real-world applications, priming does more harm than good. Even where priming helps average NLL, it does NOT improve document ranking (Exp 22) — bare PMI scoring (NLL minus BOS-only baseline) is a better, cheaper ranker.

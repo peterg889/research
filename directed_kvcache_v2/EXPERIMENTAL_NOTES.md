@@ -2154,3 +2154,304 @@ content-level rather than geometrically detectable from simple features.
    candidate for a more targeted approach.
 3. **"Method X fails on Gemma" needs qualification.** Full-cache priming fails.
    Layer-selective priming works. The method matters more than the model.
+
+## Exp 22: Ranking Evaluation & Contrastive Scoring (PMI)
+
+**Date started**: 2026-02-15
+**Notebook**: `22_ranking_and_pmi.ipynb`
+**Results**: `results/exp22/`
+
+### Question
+
+All prior experiments measured *average NLL improvement* — does priming reduce NLL across
+passages? But they never tested whether the signal **correlates with document relevance**
+for ranking. This experiment asks: does values_early_layers produce lower NLL for relevant
+documents than irrelevant ones? And does PMI scoring (subtracting the model's prior)
+improve relevance discrimination?
+
+### Motivation (from Exp 19)
+
+Exp 19 established `values_early_layers` (layers 0-16) as the best Gemma mechanism
+(d=+0.211 vs bare). But a positive average d doesn't prove ranking utility — if priming
+lowers NLL equally for relevant and irrelevant passages, it helps prediction but not
+selection.
+
+### Design
+
+| Parameter | Value |
+|-----------|-------|
+| Model | Gemma 3 4B (4-bit, bfloat16) |
+| Method | `values_early_layers` (layers 0-16 of 34) |
+| Dataset | MS MARCO v1.1 validation — natural ~8-10 candidate passages per query |
+| N | 200 queries, 1,692 passages (221 relevant / 1,471 irrelevant) |
+
+**Three NLL values per passage:**
+1. `nll_primed` — values_early_layers cache → score answer
+2. `nll_bare` — bare cache (no priming) → score answer
+3. `nll_baseline` — BOS-only cache (no document context) → score answer (once per query)
+
+**PMI scoring:** `Score_PMI = NLL(Answer | Query, Document) - NLL(Answer | Query, Empty)`.
+More negative = document helps more. Removes "easy answer" bias.
+
+**Four scoring methods compared:** raw bare NLL, raw primed NLL, PMI bare, PMI primed.
+
+### Results
+
+| Method | AUC | MRR@10 | Diff NLL | Cohen's d | p-value |
+|---|---|---|---|---|---|
+| Raw bare NLL | 0.828 | 0.860 | +1.920 | +1.201 | 1.1e-57 |
+| Raw primed NLL | 0.829 | 0.853 | +1.874 | +1.228 | 4.8e-60 |
+| **PMI bare** | **0.841** | **0.860** | **+1.963** | **+1.647** | **1.2e-100** |
+| PMI primed | 0.832 | 0.853 | +1.918 | +1.588 | 2.0e-94 |
+
+Primed vs Bare MRR (PMI): 6 wins / 185 ties / 9 losses.
+
+### Key Findings
+
+1. **NLL is an excellent document ranker.** All four methods achieve AUC > 0.82 and
+   MRR@10 > 0.85 — far above chance. Raw NLL alone, without any priming or contrastive
+   scoring, separates relevant from irrelevant passages with Cohen's d > 1.2 (a large
+   effect). Relevant passages achieve mean NLL=0.56 vs irrelevant NLL=2.48.
+
+2. **PMI improves discrimination.** Subtracting the baseline (BOS-only NLL) boosts AUC
+   from 0.828 to 0.841 and Cohen's d from 1.20 to 1.65. PMI removes the "easy answer"
+   confound: some answers are predictable regardless of the document. PMI isolates how
+   much the *document specifically* helps predict the answer.
+
+3. **Priming does NOT improve ranking.** values_early_layers provides essentially zero
+   ranking benefit. MRR@10 is identical between bare and primed within each scoring type
+   (0.860 vs 0.853). Per-query: 6 primed wins, 185 ties, 9 bare wins. Priming slightly
+   *hurts* AUC by ~1 point (PMI bare 0.841 vs PMI primed 0.832).
+
+4. **Priming improves NLL uniformly, not differentially.** Exp 19 showed priming reduces
+   average NLL (d=+0.211). Exp 22 reveals this improvement is ~equal for relevant and
+   irrelevant passages — it doesn't create differential signal. The value contamination is
+   a content-agnostic regularization effect, not a relevance-aware one.
+
+5. **Bare PMI is the best scorer.** The simplest method (no priming, just NLL minus
+   baseline) achieves the highest AUC (0.841) and tied-highest MRR@10 (0.860). Priming
+   adds computational cost (2 extra forward passes per passage) with no ranking benefit.
+
+### Interpretation
+
+The results separate two distinct questions:
+- **"Does priming help predict the answer?"** — Yes (Exp 19: d=+0.211).
+- **"Does priming help *rank* documents by relevance?"** — No (Exp 22: 0 MRR gain).
+
+Priming helps the model predict answers better from *any* passage, but it doesn't help
+distinguish which passage is *relevant*. This makes sense: value contamination from a
+static fact prefix (`"What are the key facts I need to know?"`) is query-independent —
+it injects the same information regardless of whether the passage matches the query.
+
+For the ad-serving use case, what matters is ranking (which cache to serve), not
+absolute NLL (how well to predict the answer). Priming improves the latter but not the
+former. The most useful result from this experiment is that **bare NLL itself is a strong
+ranker** (AUC=0.83), and **PMI scoring is an easy win** (+1.3 AUC points) that requires
+only one extra BOS-only scoring pass per query.
+
+### Lessons Learned
+
+1. **Average NLL improvement ≠ ranking utility.** d=+0.211 on average says nothing about
+   whether the improvement is differential across relevant vs irrelevant documents. Always
+   test ranking metrics (AUC, MRR) separately from average effects.
+
+2. **PMI is cheap and effective.** One BOS-only forward pass per query (not per document)
+   gives a meaningful AUC boost. The baseline computation is amortized across all candidate
+   passages.
+
+3. **Raw NLL is already a strong relevance signal.** AUC=0.83 and MRR=0.86 from bare NLL
+   alone is competitive. The model inherently assigns lower NLL to relevant passages —
+   likely because relevant passages contain answer-overlapping content that reduces
+   prediction uncertainty.
+
+4. **Static-fact priming is not query-aware.** The prefix is the same for all documents,
+   so any benefit it provides is query-independent. To improve ranking, you'd need
+   query-specific priming — but that defeats the purpose of pre-computed caches.
+
+## Exp 23: Multi-Signal Ranking & Query-Time Enhancement
+
+**Date started**: 2026-02-15
+**Notebook**: `23_multi_signal_ranking.ipynb`
+**Results**: `results/exp23/`
+
+### Question
+
+Exp 22 showed static-fact VEL provides zero ranking benefit. Can we improve ranking with:
+(a) query-aware cache modifications, (b) alternative scoring targets, (c) intent-routing
+across multiple prefixes, or (d) two-stage pipelines?
+
+### Motivation (from Exp 22)
+
+The static-fact prefix is query-independent — same prefix for all documents, so any benefit
+is uniform across relevant and irrelevant passages. Four ideas to break this:
+1. **Query-Time Value Injection (QVI)**: Blend mean query-cache values into bare doc cache
+2. **Multiple scoring targets**: Score relevance templates or query prediction, not just answers
+3. **Intent-specialized prefixes**: 5 static prefixes, route to best per passage or per query
+4. **Two-stage pipeline**: Cheap bare PMI rank → expensive oracle VEL re-rank on top-k
+
+### Design
+
+| Parameter | Value |
+|-----------|-------|
+| Model | Gemma 3 4B (4-bit, bfloat16) |
+| Dataset | MS MARCO v1.1 validation |
+| N | 200 queries, 1,692 passages (221 relevant / 1,471 irrelevant) |
+| Conditions | 13 cache conditions × 3 scoring targets = 39 scores/passage |
+
+**13 cache conditions:**
+- `bare`: [BOS][doc] baseline
+- 5 intent VELs (`fact_vel`, `def_vel`, `proc_vel`, `quant_vel`, `prob_vel`): static prefix, L0-16
+- `oracle_vel`: actual query prefix, L0-16
+- `oracle_vel_low`: actual query prefix, L0-8
+- `oracle_interp`: interpolate_values(bare, oracle_corrected, α=0.25), all layers
+- `oracle_full`: full [BOS][query][doc] cache, no truncation
+- 3 QVI caches (`qvi_010`, `qvi_025`, `qvi_050`): v_new = (1-α)·v_doc + α·mean(v_query), L0-16
+
+**3 scoring targets:**
+- `answer`: "\nQuery: {q}\nAnswer:" → " {answer}" (standard)
+- `qdoc`: "\nThis document is about:" → " {query}" (bidirectional)
+- `relevance`: "\nQuery: {q}\nIs this document relevant?" → " Yes, this document is relevant to the query" (~8 tokens)
+
+**Analysis-time derived methods** (no extra compute):
+- PMI (score − baseline) for all 39 pairs
+- Best-intent routing: min(5 intents) per passage
+- Per-query intent routing: pick best intent per query
+- Two-stage pipeline: bare PMI rank → oracle_vel re-rank top-k
+
+### Results
+
+**AUC-ROC (PMI, answer target) — primary metric:**
+
+| Condition | AUC (PMI) | vs bare |
+|-----------|-----------|---------|
+| **oracle_interp** | **0.842** | **+0.001** |
+| bare | 0.841 | — |
+| oracle_vel_low | 0.841 | +0.000 |
+| oracle_full | 0.837 | -0.004 |
+| qvi_010 | 0.836 | -0.005 |
+| def_vel | 0.835 | -0.006 |
+| proc_vel | 0.834 | -0.007 |
+| fact_vel | 0.832 | -0.009 |
+| oracle_vel | 0.831 | -0.010 |
+| quant_vel | 0.830 | -0.011 |
+| prob_vel | 0.830 | -0.011 |
+| qvi_025 | 0.811 | -0.030 |
+| qvi_050 | 0.767 | -0.074 |
+
+**MRR@10 (PMI, answer target):**
+
+| Condition | MRR@10 |
+|-----------|--------|
+| oracle_vel | 0.865 |
+| oracle_vel_low | 0.864 |
+| quant_vel | 0.863 |
+| proc_vel | 0.862 |
+| oracle_interp | 0.861 |
+| **bare** | **0.860** |
+| prob_vel | 0.859 |
+| fact_vel / def_vel | 0.853 |
+| oracle_full | 0.850 |
+| qvi_010 | 0.847 |
+| qvi_025 | 0.840 |
+| qvi_050 | 0.835 |
+
+**Alternative targets (PMI AUC):**
+
+| Target | Best condition | AUC | bare AUC |
+|--------|---------------|-----|----------|
+| answer | oracle_interp | 0.842 | 0.841 |
+| qdoc | oracle_interp / bare | 0.574 | 0.574 |
+| relevance | qvi_050 | 0.498 | 0.451 |
+
+**Derived methods:**
+
+| Method | AUC (PMI, answer) | MRR@10 |
+|--------|-------------------|--------|
+| Best-intent routing | 0.825 | 0.855 |
+| Per-query intent routing | 0.828 | 0.858 |
+| Two-stage (k=3) | — | 0.866 |
+| Two-stage (k=5) | — | 0.865 |
+| bare PMI (baseline) | 0.841 | 0.860 |
+
+**Head-to-head vs bare (PMI answer MRR):**
+- oracle_interp: 2 wins / 197 ties / 1 loss (most stable)
+- oracle_vel: 8 wins / 187 ties / 5 losses
+- All conditions: overwhelmingly ties (~93-99%)
+
+### Key Findings
+
+1. **No condition meaningfully beats bare for ranking.** The best condition (oracle_interp,
+   AUC=0.842) beats bare (0.841) by +0.001 — statistically insignificant. Even with the
+   actual query as prefix (oracle conditions), ranking improvement is negligible. The
+   13-condition sweep confirms Exp 22's finding is robust.
+
+2. **qdoc and relevance targets are poor rankers.** The `qdoc` target (does doc predict query?)
+   achieves AUC ~0.57 — barely above chance. The `relevance` target (explicit relevance
+   judgment) is worse at AUC ~0.45-0.50, actually below chance for most conditions. The
+   `answer` target dominates. The model's relevance judgment via template scoring does not
+   correlate with actual relevance.
+
+3. **QVI hurts, especially at high alpha.** Blending query values into doc cache *degrades*
+   ranking. α=0.10 is near-neutral (AUC 0.836), but α=0.50 is catastrophic (AUC 0.767).
+   Injecting query information into value vectors corrupts the document representation
+   rather than enhancing relevance discrimination.
+
+4. **Intent routing underperforms bare.** Both best-intent routing (min across 5 intents
+   per passage, AUC 0.825) and per-query routing (AUC 0.828) are *worse* than bare (0.841).
+   Taking the minimum NLL across intents adds noise rather than signal.
+
+5. **Two-stage pipeline shows marginal MRR gain.** Bare PMI rank → oracle VEL re-rank on
+   top-3 yields MRR@10=0.866 vs bare 0.860 — a +0.006 improvement. This is the only method
+   that shows any positive signal, but it requires a query-specific forward pass per passage
+   in the top-k, which is expensive and defeats the pre-computation goal.
+
+6. **oracle_vel_low (L0-8) ≈ oracle_vel (L0-16).** Restricting to fewer layers doesn't help
+   or hurt. The value contamination from oracle prefix is irrelevant to ranking regardless
+   of layer range.
+
+7. **oracle_full slightly hurts.** Full context (query visible to attention during scoring)
+   achieves AUC 0.837, slightly below bare 0.841. This is surprising: having the query
+   explicitly present in context doesn't help ranking. The query is already provided in the
+   scoring prompt; duplicating it in the cache adds no information.
+
+### Interpretation
+
+This experiment exhaustively tested whether query-aware cache modifications can improve
+document ranking. The answer is definitively **no** — across 13 cache conditions, 3 scoring
+targets, and 4 derived methods, nothing meaningfully beats bare PMI.
+
+The fundamental issue: **NLL-based ranking already captures relevance well** (AUC=0.84). The
+model assigns lower NLL to relevant passages because they contain answer-overlapping tokens.
+This signal comes from the document content itself, not from any prefix or cache modification.
+Priming (whether static or query-aware) modifies value representations but doesn't change
+which tokens overlap with the answer — so it can't improve relevance discrimination.
+
+The one exception is the two-stage pipeline (+0.006 MRR), which works by combining two
+independent ranking signals (bare PMI + oracle VEL PMI). But this requires per-passage
+oracle forward passes at query time, making it impractical for the ad-serving use case.
+
+**For the ad-serving use case**: bare PMI scoring (AUC=0.841, MRR=0.860) remains the best
+approach. It requires only one BOS-only pass per query (amortized across all candidates)
+and zero modifications to document caches. No form of cache priming improves ranking.
+
+### Lessons Learned
+
+1. **Query-aware priming doesn't help ranking either.** Exp 22 showed static priming fails;
+   Exp 23 shows even oracle (actual query) priming fails. The issue isn't that the prefix
+   is wrong — it's that value contamination fundamentally doesn't create ranking signal.
+
+2. **Alternative scoring targets don't help.** The `answer` target is by far the best ranker.
+   Bidirectional scoring (doc predicts query) and explicit relevance templates perform near
+   or below chance. The model's relevance judgment doesn't correlate with actual relevance.
+
+3. **Value injection is destructive.** QVI (blending query values into doc cache) actively
+   corrupts the representation. The mean query value is a poor summary of query semantics
+   in value space — it overwrites document-specific information without adding useful signal.
+
+4. **Routing across intents adds noise.** Min-across-intents selects the intent that happens
+   to produce the lowest NLL, which is not necessarily the most discriminative. The selection
+   is driven by passage characteristics (which intent fits the topic) rather than relevance.
+
+5. **Two-stage re-ranking is the only positive signal.** Combining two independent scoring
+   functions (bare + oracle) via re-ranking is more promising than modifying a single cache.
+   Future work on ranking should explore score combination rather than cache modification.
