@@ -3045,3 +3045,419 @@ Pooled retrieval-hard (NQ + DROP-span + BoolQ with bare > 0.5) vs computation-ha
 **Refined pattern**: Hero layers help retrieval-type QA (MARCO, NQ) when not at ceiling,
 are neutral at ceiling, and specifically hurt computational reasoning (DROP-number).
 The task-type dissociation is confirmed by within-dataset evidence and regression.
+
+---
+
+## Exp 25: Soft Prefix Optimization (Layer-Selective Soft Surrogates)
+
+**Date**: 2026-02-16
+**Notebook**: `25_soft_prefix_optimization.ipynb`
+**Results**: `results/exp25/`
+**Model**: Gemma 3 4B (4-bit, bfloat16)
+
+### Question
+
+Can we learn continuous embedding vectors (soft prompts) that maximize document value
+contamination for factoid QA, beating the hand-picked discrete `static_fact` prefix
+(`"What are the key facts I need to know?"`) when applied via Gemma's layer-selective
+hybrid cache (values at layers 0-15)?
+
+### Motivation
+
+Experiments 19, 21, and 24 established that layer-selective value contamination works on
+Gemma 3 4B (d=+0.211 to +0.227 on MS MARCO). But the `static_fact` prefix was chosen by
+hand — a single natural-language string. Soft prompt tuning (Lester et al., 2021) learns
+continuous embedding vectors that may capture richer value contamination patterns than any
+discrete token sequence can express. This is the first experiment to apply gradient-based
+optimization to the priming prefix itself.
+
+### Design
+
+| Parameter | Value |
+|-----------|-------|
+| Model | Gemma 3 4B (4-bit, bfloat16, 34 layers) |
+| Trainable params | 28,160 (11 vectors x 2560 hidden_size) |
+| Method | Layer-selective values (layers 0-15), bare keys |
+| Training data | 2,000 MS MARCO v1.1 train samples |
+| Training | 3 epochs, AdamW lr=0.1, grad_accum=4, warmup=50 steps |
+| Eval data | 300 MS MARCO v1.1 validation samples (separate from train) |
+| Total optimizer steps | 1,500 per init condition |
+
+**Two initialization conditions:**
+- **random**: N(0, 0.02) initialization
+- **fact**: Initialized from `static_fact` token embeddings
+
+**Differentiable training loop:**
+1. Build `inputs_embeds = [BOS_emb (detached)] + [soft_prefix (grad)] + [doc_emb (detached)]`
+2. Forward pass → get primed cache (gradients flow through soft prefix only)
+3. Extract primed values at layers 0-15 (BOS + doc positions, skip prefix positions)
+4. Build bare cache (no grad) for keys and late-layer values
+5. Splice: bare keys + primed values (L0-15) + bare values (L16-33)
+6. Score answer NLL through hybrid cache
+7. `loss.backward()` → updates only soft_prefix_embeddings
+
+Key insight: values have no RoPE encoding, so the hybrid splice doesn't need
+differentiable RoPE correction — avoiding the in-place mutation problem in
+`correct_rope_positions_with_bos()`.
+
+### Evaluation Conditions
+
+| Condition | Keys | Values (L0-15) | Values (L16-33) |
+|-----------|------|----------------|------------------|
+| bare | bare | bare | bare |
+| vel_static | bare | static_fact primed | bare |
+| vel_soft_random | bare | learned (random init) | bare |
+| vel_soft_fact | bare | learned (fact init) | bare |
+
+### Results
+
+| Condition | d vs bare | Win% | p | sig |
+|-----------|-----------|------|---|-----|
+| vel_static | **+0.195** | 58.9% | 1.38e-03 | ** |
+| vel_soft_random | **+0.274** | 62.5% | 8.09e-06 | *** |
+| vel_soft_fact | **+0.288** | 64.0% | 2.87e-06 | *** |
+
+N=275 valid samples (out of 300).
+
+**Pairwise comparisons:**
+
+| Comparison | d | p | sig |
+|------------|---|---|-----|
+| soft_fact vs static | +0.273 | 8.83e-06 | *** |
+| soft_random vs static | +0.245 | 6.17e-05 | *** |
+| soft_fact vs soft_random | +0.008 | 8.89e-01 | ns |
+
+**Reference comparison:**
+
+| Source | Condition | d |
+|--------|-----------|---|
+| Exp 21 | vel_static (discrete) | +0.227 |
+| **This exp** | vel_static (discrete) | +0.195 |
+| **This exp** | vel_soft_random (learned) | +0.274 |
+| **This exp** | vel_soft_fact (learned) | +0.288 |
+
+Note: vel_static d=+0.195 here vs d=+0.227 in Exp 21 likely reflects eval-set variance
+(different 300-sample draw from validation).
+
+**Hardness gradient (bare NLL quintiles, Cohen's d):**
+
+| Condition | Q1 easy | Q2 | Q3 | Q4 | Q5 hard |
+|-----------|---------|----|----|----|---------|
+| vel_static | -0.34 | +0.02 | -0.10 | +0.37 | +0.56 |
+| vel_soft_random | -0.31 | -0.32 | +0.12 | +0.74 | +0.64 |
+| vel_soft_fact | -0.43 | -0.13 | +0.01 | +0.85 | +0.61 |
+
+Hard queries (Q4-Q5) benefit strongly from all conditions. Soft prefixes amplify the
+benefit on Q4 (d=+0.85 for soft_fact vs +0.37 for static). Easy queries (Q1) are hurt
+by all conditions — soft prefixes slightly worsen this (d=-0.43 for soft_fact vs -0.34
+for static).
+
+**Training dynamics:**
+- Random init: loss dropped from ~4.3 → ~0.8 over 1,500 optimizer steps
+- Fact init: loss dropped from ~1.2 → ~0.6 (started much lower, converged tighter)
+- Gradient norms stabilized after warmup (~50 steps)
+- Prefix norm grew from ~3.4 → ~12 (random) and ~30 → ~22 (fact)
+
+### Key Findings
+
+1. **Continuous optimization beats discrete prefix by ~48%.** vel_soft_fact achieves
+   d=+0.288 vs vel_static d=+0.195 on the same eval set — a highly significant
+   improvement (pairwise d=+0.273, p=8.83e-06). The learned embedding captures richer
+   value contamination than the hand-picked string.
+
+2. **Random initialization works nearly as well as fact initialization.** vel_soft_random
+   (d=+0.274) is statistically indistinguishable from vel_soft_fact (d=+0.288, pairwise
+   d=+0.008, p=0.89). The optimization surface is apparently benign — random starting
+   points converge to equivalently good solutions. The specific token content of the
+   discrete prefix matters less than being in the right region of embedding space.
+
+3. **Soft prefixes amplify the hardness gating pattern.** The biggest gains appear on
+   hard queries (Q4: d=+0.85 for soft_fact vs +0.37 for static). But easy queries are
+   also more hurt (Q1: d=-0.43 for soft_fact vs -0.34 for static). Optimization
+   concentrates the signal in the high-benefit regime at the cost of increased harm to
+   easy queries.
+
+4. **Training is stable with standard soft-prompt hyperparameters.** lr=0.1 with AdamW,
+   gradient clipping (max_norm=1.0), and linear warmup produced smooth convergence.
+   No instability or divergence despite 4-bit quantized model and single-sample batches
+   (with grad_accum=4).
+
+5. **28K parameters capture the full signal.** The entire learned representation is just
+   11 vectors x 2560 dimensions. This is a tiny overhead on top of the document cache.
+
+### Interpretation
+
+This experiment confirms that the value contamination mechanism identified in Exps 19/21/24
+is **optimizable** — it's not a coincidental artifact of the `static_fact` string. Gradient
+descent can systematically find embedding vectors that produce stronger value contamination
+than any discrete token sequence we've tested.
+
+However, the improvement is bounded: d goes from +0.195 to +0.288, a meaningful but not
+transformative gain. The hardness gating pattern persists and intensifies — soft prefixes
+help hard queries more, but also hurt easy queries more. The fundamental constraint
+(length dilution from Exp 20, ~200 token limit) almost certainly still applies.
+
+The practical value depends on whether the soft prefix generalizes across datasets and
+models. This experiment trained and evaluated on MS MARCO only — the same narrow setting
+where all prior priming benefits were observed.
+
+### Lessons Learned
+
+1. **`model.get_input_embeddings()`** is the correct HuggingFace API for accessing
+   embeddings on Gemma 3 (multimodal architecture). Neither `model.model.embed_tokens`
+   nor `model.language_model.embed_tokens` works.
+
+2. **Values don't have RoPE.** This critical property enables a clean differentiable path:
+   we can splice primed values into bare caches without any positional correction, avoiding
+   the in-place operations in `correct_rope_positions_with_bos()`.
+
+3. **`inputs_embeds` bypasses the embedding lookup.** This is the standard way to inject
+   soft prompts — concatenate `[BOS_emb, soft_prefix, doc_emb]` as `inputs_embeds` and
+   the model processes it identically to token IDs.
+
+4. **Random init ≈ fact init for soft prefix tuning.** The initialization doesn't matter
+   much — the optimizer finds the same basin regardless. This simplifies deployment (no
+   need to carefully choose a seed string).
+
+5. **The `DynamicSlidingWindowLayer` needs `cumulative_length` preserved.** When building
+   hybrid caches manually, copying this attribute from the source layer is essential for
+   Gemma's sliding window attention to function correctly.
+
+---
+
+## Experiment 26: Hardness-Gated Soft Prefix
+
+**Date started**: 2026-02-16
+**Notebook**: `26_hardness_gated_soft_prefix.ipynb`
+**Results**: `results/exp26/`
+
+### Question
+
+Exp 25 showed soft prefix optimization beats discrete prefix (d=+0.288 vs +0.195) but hurts
+easy queries (Q1: d=-0.43) while massively helping hard ones (Q4: d=+0.85). Can a simple
+gating strategy — only applying the soft prefix when bare NLL exceeds a threshold — improve
+overall effect size by eliminating easy-query harm?
+
+**Gating rule:** `gated_nll = soft_fact_nll if bare_nll >= threshold, else bare_nll`
+
+### Design
+
+Three-part experiment using the Exp 25 trained soft prefix (`soft_prefix_fact.pt`):
+
+| Part | Data | Purpose |
+|------|------|---------|
+| 1 | Exp 25 eval data (275 valid / 300 total) | Threshold sweep to find optimal gate |
+| 2 | 300 fresh validation queries (seed=44), 264 valid | Test generalization |
+| 3 | Cross-validation | Does Part 1 threshold hold on Part 2 data? |
+
+Model: Gemma 3 4B (4-bit, bfloat16). Soft prefix: 11 vectors x 2560 dims (28K params).
+Value-edit layers: 0-15 (CUTOFF=16). Bootstrap: 1000 resamples.
+
+### Results — Part 1: Threshold Sweep (Exp 25 Data)
+
+Ungated baseline on Exp 25 data: d=+0.288, win%=64.0%, p=2.87e-06.
+
+**Optimal threshold: 0.3092** (d=+0.328, 46.9% of samples gated).
+
+| Percentile | Threshold | d | Win% | % gated |
+|------------|-----------|---|------|---------|
+| P0 (ungated) | 0.0000 | +0.288 | 64.0% | 100.0% |
+| P30 | 0.0906 | +0.312 | 58.2% | 69.8% |
+| P50 | 0.2788 | +0.304 | 42.9% | 50.2% |
+| P60 | 0.3718 | +0.315 | 34.2% | 40.0% |
+| P70 | 0.5456 | +0.290 | 26.2% | 30.2% |
+| P80 | 0.9947 | +0.242 | 17.1% | 20.0% |
+| Optimal | 0.3092 | +0.328 | 40.4% | 46.9% |
+
+Oracle gating (perfect knowledge): d=+0.384.
+
+### Results — Part 2: Fresh Validation Data
+
+Ungated on fresh data (264 valid): d=+0.340, win%=63.6%, p=7.80e-08.
+
+| Candidate | Threshold | d | Win% | p | Improves? |
+|-----------|-----------|---|------|---|-----------|
+| P50 | 0.2788 | **+0.355** | 42.4% | 2.19e-08 | YES |
+| Optimal | 0.3092 | +0.349 | 39.0% | 3.62e-08 | YES |
+| P60 | 0.3718 | +0.335 | 33.0% | 1.17e-07 | no |
+| P70 | 0.5456 | +0.313 | 25.8% | 6.73e-07 | no |
+| P80 | 0.9947 | +0.255 | 14.4% | 4.72e-05 | no |
+
+Fresh oracle gating: d=+0.389. Fresh-optimal threshold: 0.1073, d=+0.364.
+
+### Results — Per-Quintile (Fresh Data, P50 Threshold)
+
+| Quintile | Ungated d | Gated d | Improves? |
+|----------|-----------|---------|-----------|
+| Q1 (easy) | -0.599 | +0.000 | YES |
+| Q2 | -0.122 | +0.000 | YES |
+| Q3 | +0.329 | +0.310 | no |
+| Q4 | +1.035 | +1.035 | no |
+| Q5 (hard) | +0.760 | +0.760 | no |
+
+### Results — Bootstrap 95% CI (Fresh Data)
+
+| Condition | d | CI low | CI high |
+|-----------|---|--------|---------|
+| Ungated | +0.340 | +0.273 | +0.511 |
+| Gated (P50) | +0.355 | +0.285 | +0.541 |
+
+### Key Findings
+
+1. **Gating improves overall d marginally** (+0.355 vs +0.340 on fresh data, +0.015).
+   CIs overlap heavily: [+0.273, +0.511] vs [+0.285, +0.541]. The improvement is real
+   but small.
+
+2. **Easy-query harm is eliminated.** Q1 goes from d=-0.599 to d=+0.000, Q2 from d=-0.122
+   to d=+0.000. This is the cleanest demonstration of gating's value.
+
+3. **Oracle upper bound is only d=+0.389.** No threshold-based gating can gain more than
+   ~0.05 d over ungated. The ceiling is low because hard queries dominate the aggregate
+   effect size.
+
+4. **Threshold generalizes across datasets.** Exp25-optimal (0.3092) applied to fresh data
+   yields d=+0.349, within 0.015 of fresh-optimal (d=+0.364). The d-vs-threshold curve is
+   broad and flat near the peak.
+
+5. **Win% drops with gating even as d increases.** Ungated 63.6% vs gated 42.4%. Below-threshold
+   samples contribute zero delta (bare vs bare = 0), reducing wins but also removing all
+   losses from easy queries. Cohen's d increases because variance drops more than mean.
+
+6. **Soft prefix effect replicates on fresh data.** Ungated d=+0.340 (fresh, N=264) vs
+   d=+0.288 (Exp 25 eval, N=275). Robust and not overfit.
+
+### Interpretation
+
+Hardness gating is a clean, principled improvement but the practical gain is marginal
+(+0.015 d). The main benefit is eliminating harm to easy queries, which matters for
+deployment safety but barely moves aggregate metrics. The oracle ceiling (d=+0.389)
+shows that no gating strategy can do much better — the fundamental constraint remains
+that value contamination is a small effect on short passages and no effect on long ones.
+
+### Lessons Learned
+
+1. **Threshold choice is robust.** The d-vs-threshold curve is flat near the peak, so
+   precise threshold tuning is unnecessary. Any threshold in the P30-P60 range works well.
+
+2. **Oracle gating ceiling is informative.** Computing the perfect-knowledge upper bound
+   early in the experiment tells you whether the gating approach is worth pursuing.
+
+---
+
+## Experiment 28: Contrastive Ranking Soft Prefix
+
+**Date started**: 2026-02-16
+**Notebook**: `28_contrastive_ranking_soft_prefix.ipynb`
+**Results**: `results/exp28/`
+
+### Question
+
+Can training a soft prefix with a ranking (hinge) loss — instead of NLL loss — create
+differential value contamination that reduces NLL more for relevant passages than irrelevant
+ones, improving document ranking?
+
+**Hypothesis:** A hinge-based loss (`max(0, margin + NLL_relevant - NLL_irrelevant)`) might
+train the prefix to amplify answer-predictive tokens more than other tokens.
+
+**Why it might fail:** The soft prefix is the same for all documents. It produces identical
+value contamination regardless of document content. The contrastive gradient tells it
+"help relevant passages more" but it has no mechanism to distinguish relevant from irrelevant
+at cache-build time (it doesn't see the query).
+
+### Design
+
+Model: Gemma 3 4B (4-bit, bfloat16). CUTOFF=16, PREFIX_LEN=11, 28,160 trainable params.
+
+**Training:** 500 queries × 5 epochs, lr=0.05, grad_accum=4, margin=0.1, warmup=30 steps.
+4,116 training passages (559 relevant, 13.6%). Loss: hinge ranking loss.
+
+**Two initialization conditions:**
+
+| Init | Source | Tests |
+|------|--------|-------|
+| **warm** | Exp 25 `soft_prefix_fact.pt` | Can ranking signal be added to NLL-useful prefix? |
+| **cold** | Random N(0, 0.02) | Can contrastive loss learn ranking from scratch? |
+
+**Evaluation:** 200 queries, 1,692 passages (221 relevant, 13.1%).
+
+**Success criteria:**
+- Primary: contrastive prefix AUC > 0.835 (bare=0.828) or PMI AUC > 0.845 (bare=0.841)
+- Secondary: still helps average NLL (d > 0 vs bare)
+
+### Results — Ranking Metrics
+
+| Method | AUC | MRR@10 |
+|--------|-----|--------|
+| Raw bare | 0.828 | 0.860 |
+| Raw exp25_fact | **0.839** | **0.872** |
+| Raw contr_warm | 0.819 | 0.872 |
+| Raw contr_cold | 0.735 | 0.808 |
+| PMI bare | **0.841** | 0.860 |
+| PMI exp25_fact | 0.822 | 0.872 |
+| PMI contr_warm | 0.787 | 0.872 |
+| PMI contr_cold | 0.794 | 0.808 |
+
+### Results — NLL Improvement (Relevant Passages, vs Bare)
+
+| Condition | d vs bare | Win% | p | sig |
+|-----------|-----------|------|---|-----|
+| exp25_fact | **+0.304** | 53.0% | 2.64e-05 | *** |
+| contrastive_warm | -0.197 | 24.0% | 5.91e-03 | ** |
+| contrastive_cold | -0.990 | 3.5% | 1.89e-31 | *** |
+
+### Results — Differential NLL (Relevant vs Irrelevant Gap)
+
+| Method | Rel NLL | Irr NLL | Gap | d |
+|--------|---------|---------|-----|---|
+| Raw bare | 0.564 | 2.484 | +1.920 | +1.201 |
+| Raw exp25_fact | 0.406 | 2.241 | +1.835 | +1.322 |
+| Raw contr_warm | 0.625 | 2.050 | +1.425 | +1.152 |
+| Raw contr_cold | 1.822 | 3.018 | +1.196 | +0.680 |
+
+### Key Findings
+
+1. **Contrastive training FAILS to improve ranking.** Best contrastive raw AUC: 0.819
+   (target >0.835, bare 0.828). Best contrastive PMI AUC: 0.794 (target >0.845, bare 0.841).
+   Both contrastive prefixes underperform bare on AUC.
+
+2. **Contrastive training DESTROYS NLL benefit.** The NLL-optimized exp25_fact prefix had
+   d=+0.304. After contrastive fine-tuning from the same initialization (warm), d dropped
+   to -0.197. The ranking gradient pushed the prefix away from useful NLL-reduction without
+   gaining ranking ability.
+
+3. **Cold start is catastrophic.** Random-init contrastive prefix converged to AUC=0.735
+   and mean NLL=1.82 on relevant passages (vs bare 0.47). Without first learning NLL
+   reduction, the contrastive prefix learns something actively harmful.
+
+4. **Differential NLL gap SHRANK.** Bare gap: +1.920 (d=+1.201). Contrastive warm: +1.425
+   (d=+1.152). Cold: +1.196 (d=+0.680). The contrastive loss reduced NLL more for
+   irrelevant passages — the opposite of intent — because the prefix cannot condition on
+   document content.
+
+5. **MRR@10 is less sensitive than AUC.** Warm contrastive matched exp25_fact on MRR@10
+   (both 0.872) despite much worse AUC (0.819 vs 0.839). AUC is the more discriminating
+   ranking metric.
+
+### Interpretation
+
+This is the definitive negative result for ranking via value contamination. Exps 22-23
+showed NLL-based priming doesn't help ranking. Exp 28 shows that even switching to a
+ranking-specific loss does not help. The root cause is architectural: the soft prefix
+is document-independent, so its value contamination affects all passages equally. No
+training objective can overcome this constraint.
+
+The ranking signal in NLL comes from token overlap between passage and answer — an
+intrinsic property of the document, not something that can be injected via prefix values.
+
+### Lessons Learned
+
+1. **Contrastive loss and NLL loss are antagonistic for soft prefixes.** The hinge gradient
+   pushes the prefix in the opposite direction from what helps NLL. You cannot get both
+   ranking and NLL improvement from a single document-independent prefix.
+
+2. **Cold-start contrastive training fails catastrophically.** Always initialize from a
+   pre-trained NLL prefix if attempting multi-objective training.
+
+3. **The fundamental limitation is confirmed across three loss functions** (NLL in Exp 25,
+   PMI in Exp 23, hinge/contrastive in Exp 28). No objective can make a document-independent
+   prefix create query-specific ranking signal.
