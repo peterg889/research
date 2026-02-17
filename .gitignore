@@ -24,6 +24,9 @@ venv/
 *.swp
 *.swo
 
+# Secrets
+.env
+
 # OS
 .DS_Store
 Thumbs.db

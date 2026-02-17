@@ -84,6 +84,25 @@ improved document representations via bidirectional co-encoding?
 **Result**: Truncation makes it STRONGER. Document representations are genuinely improved.
 Oracle_trunc d=+0.408, surr_doc_trunc d=+0.363 (89% of oracle). N=200.
 
+### Exp 02 — Surrogate Type Sweep (DONE)
+**Question**: What is the best surrogate to prime the encoder with?
+
+**Result**: Mechanism is 85% structural, 10% semantic. Random prefix captures 81% of oracle.
+Best doc-derived: surr_template ("What is [keyword]?") at 90% of oracle. N=500.
+
+### Exp 2B — Structural vs Semantic Mechanism Decomposition (DONE)
+**Question**: Is the benefit structural or semantic? Same as v2's value contamination?
+
+**Result**: Binary switch — 1 random word (2.5 tokens) captures 85% of oracle. "the" x10
+beats diverse random. 85% structure / 6% vocabulary (ns) / 10% semantics (sig). N=500.
+
+### Exp 03 — Length Scaling (DONE)
+**Question**: Does the surrogate benefit survive longer documents?
+
+**Result**: NO DECAY. All conditions significant (p<1e-07) at every length up to 2048 tokens.
+Oracle d=+0.38 to +0.45, surr_doc d=+0.33 to +0.41. Complete reversal of v2's cliff at ~200 tokens.
+N=400, 6 length bins, Bonferroni-corrected (18 comparisons). See Results Log for full table.
+
 ---
 
 ## Planned Experiments
@@ -132,46 +151,13 @@ Part 4 — Token diversity (all ~10 words):
 
 ---
 
-### Exp 03 — Length Scaling
+### Exp 03 — Length Scaling (DONE)
 **Question**: Does the surrogate benefit survive longer documents?
 
 **Dataset**: MS MARCO v1.1 with controlled padding (same approach as v2 Exp 20).
 
-**Why this matters**: The #1 limitation from v2. Value contamination in decoder-only models
-diluted at ~200 tokens (v2 Exp 20). This was a step function, not gradual decay.
-T5Gemma's bidirectional encoder is qualitatively different: every document token attends to
-the surrogate in BOTH directions, not just via causal forward propagation. The surrogate
-influence should be distributed more uniformly. If this experiment shows the benefit persists
-at 512+ tokens, it dramatically expands the practical operating envelope — and is critical
-for Exp 04, where ESCI product descriptions can be 100-500 words.
-
-**Method**: Same padding approach as v2 Exp 20. Take the same MS MARCO passages
-(median ~130 tokens) and pad them to controlled lengths with unrelated MS MARCO text.
-Same questions, same answers — only the document length changes.
-
-**Conditions** (all with truncation, using surr_template_trunc from Exp 02, N=500):
-
-| # | Document length | What changes | v2 Exp 20 result |
-|---|----------------|-------------|------------------|
-| 1 | Original (~130 tok) | Replication of Exp 01/02 | d=+0.303*** |
-| 2 | 256 tokens | Padded | d=+0.114 (ns) |
-| 3 | 512 tokens | 4x original | d=+0.034 (ns) |
-| 4 | 1024 tokens | 8x original | d=-0.043 (ns) |
-| 5 | 2048 tokens | Approaching T5Gemma encoder limits | not tested in v2 |
-
-Each length tested with: bare, oracle_trunc, best_surrogate_trunc.
-
-**Key metric**: At what length does d drop below significance? Compare the decay curve
-to v2's cliff at ~200 tokens. Plot the decay curves side-by-side.
-
-**What we expect**: The bidirectional encoder should show a more gradual decay (vs v2's
-step function). The surrogate's influence is propagated through global self-attention, not
-just causal forward flow. Even if the effect diminishes with length, the critical question
-is whether 512-token documents still show meaningful benefit — that's the range where
-ESCI product descriptions live.
-
-**Builds on**: Exp 02 (best surrogate type)
-**Informs**: Exp 04 (practical document length constraints for ranking)
+**Result**: NO DECAY. Benefit is rock-solid at all lengths up to 2048 tokens.
+Complete reversal of v2's cliff at ~200 tokens. See Results Log below.
 
 ---
 
@@ -516,3 +502,24 @@ Uniform repetition BEATS diverse random. Token identity barely matters.
    structural representation enrichment through bidirectional attention
 7. For deployment: prepend ANY short prefix. Content barely matters.
    The 10% semantic uplift may not justify surrogate generation cost.
+
+### Exp 03 — Length Scaling
+**Status**: COMPLETE | **Date**: 2026-02-17 | **N**: 400 | **Dataset**: MS MARCO v1.1 (padded)
+
+| Length | oracle_trunc d | surr_doc d | surr_para d | v2 oracle d |
+|--------|---------------|-----------|------------|-------------|
+| original (~130 tok) | +0.384*** | +0.340*** | +0.334*** | +0.303*** |
+| 256 tok | +0.435*** | +0.413*** | +0.369*** | +0.114 (ns) |
+| 384 tok | +0.447*** | +0.363*** | +0.324*** | N/A |
+| 512 tok | +0.442*** | +0.368*** | +0.349*** | +0.034 (ns) |
+| 1024 tok | +0.452*** | +0.343*** | +0.280*** | -0.043 (ns) |
+| 2048 tok | +0.392*** | +0.333*** | +0.365*** | N/A |
+
+All p-values < 1e-07 (Bonferroni-corrected for 18 comparisons: 3 conditions × 6 lengths).
+
+**Conclusion**: NO DECAY. The benefit is rock-solid at all lengths up to 2048 tokens —
+a complete reversal of v2's cliff at ~200 tokens. Oracle effect actually *increases* slightly
+with length (d=+0.384 → +0.452 at 1024). Bidirectional co-encoding distributes surrogate
+influence uniformly via global self-attention, unlike causal forward-only propagation.
+This removes the #1 practical limitation from v2 and confirms that ESCI product descriptions
+(100-500 words) are well within the operating envelope for Exp 04.
