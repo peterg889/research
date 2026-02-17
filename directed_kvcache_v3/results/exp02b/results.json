@@ -1,0 +1,51 @@
+{
+  "experiment": "exp02b_mechanism_decomposition",
+  "model": "google/t5gemma-2-4b-4b",
+  "n_samples": 500,
+  "timestamp": "2026-02-17 22:34:10",
+  "titration": {
+    "1": {
+      "d": 0.3209006622779212,
+      "mean_ptoks": 2.512
+    },
+    "3": {
+      "d": 0.30843431591715076,
+      "mean_ptoks": 5.29
+    },
+    "5": {
+      "d": 0.2978120831902944,
+      "mean_ptoks": 7.918
+    },
+    "10": {
+      "d": 0.2790741992486864,
+      "mean_ptoks": 14.486
+    },
+    "20": {
+      "d": 0.30279454274188633,
+      "mean_ptoks": 27.706
+    },
+    "50": {
+      "d": 0.2955872978585803,
+      "mean_ptoks": 65.102
+    }
+  },
+  "ablation": {
+    "structure_pct": 84.72868261351559,
+    "vocabulary_pct": 5.541206185213545,
+    "semantics_pct": 9.730111201270871,
+    "structure_d": 0.2960082922176069,
+    "vocabulary_d": 0.04509439588014096,
+    "semantics_d": 0.15195300288332195
+  },
+  "diversity": {
+    "repeat_the_d": 0.33776099121053266,
+    "repeat_kw_d": 0.3322626181186367,
+    "diverse_random_d": 0.2790741992486864
+  },
+  "conclusion": {
+    "titration_finding": "SWITCH",
+    "ablation_finding": "STRUCTURAL",
+    "diversity_finding": "DIVERSITY_HURTS",
+    "same_as_v2": true
+  }
+}

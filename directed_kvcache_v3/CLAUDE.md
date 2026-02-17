@@ -150,6 +150,17 @@ See EXPERIMENT_PLAN.md for full roadmap and detailed results.
   Document representations are genuinely improved by co-encoding. Surrogate
   keywords from the document capture 89% of oracle benefit (d=+0.363).
   Truncation parallels the decoder-only values-only finding.
-- **Exp 02** (planned): Surrogate type sweep — which surrogate works best?
+- **Exp 02**: Surrogate type sweep — NO content gradient (Spearman rho=-0.167, p=0.693),
+  mechanism is primarily structural. BUT pairwise comparisons show per-sample semantic
+  advantage (surr_doc > random, d=+0.130, p=0.004). Static_fact achieves 99% of oracle
+  by Cohen's d but lower absolute NLL improvement. Best doc-derived: surr_template
+  ("What is [keyword]?") at d=+0.336 (90% of oracle). Random gets 81% — large structural floor.
+  surr_lead anomalously weak (40% oracle). N=500, all sig after Bonferroni.
+- **Exp 2B**: Mechanism decomposition — **85% of headroom is pure structure**, only 10%
+  is semantic (vocabulary 6% ns, semantics 10% ***). Binary SWITCH: 1 random word gets
+  85% of oracle. "the" x10 gets 90% of oracle. Uniform tokens beat diverse random.
+  NOT v2's value contamination (truncation improves it) — structural representation
+  enrichment through bidirectional attention. Semantic component grows for harder samples.
 - **Exp 03** (planned): Length scaling — does the benefit survive longer documents?
-- **Exp 04** (planned): Ranking evaluation — can primed representations rank documents?
+- **Exp 04** (planned): Ranking on MS MARCO + Amazon ESCI + WANDS
+- **Exp 05** (future): LLM-generated surrogates — can an instruction-tuned LLM beat heuristics?

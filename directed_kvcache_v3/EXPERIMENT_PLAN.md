@@ -88,46 +88,47 @@ Oracle_trunc d=+0.408, surr_doc_trunc d=+0.363 (89% of oracle). N=200.
 
 ## Planned Experiments
 
-### Exp 02 — Surrogate Type Sweep
-**Question**: What is the best surrogate to prime the encoder with?
+### Exp 2B — Structural vs Semantic Mechanism Decomposition
+**Question**: Is the co-encoding benefit structural (any prefix helps) or semantic
+(content-specific surrogates are genuinely better)? Is this the same implicit
+regularization as v2's value contamination, or qualitatively different?
 
-**Dataset**: MS MARCO v1.1 (controlled — isolate the surrogate variable, same dataset as Exp 01).
+**Dataset**: MS MARCO v1.1 (same 500 samples as Exp 02, enables direct comparison).
 
-**Why this is next**: Exp 01 tested only 2 surrogate types (paraphrased query, doc keywords).
-v2 showed surprising results — static phrases beat LLM-generated surrogates 2x on Mistral
-(Exp 07, d=+0.472 vs d=+0.234). The mechanism in T5Gemma is fundamentally different
-(bidirectional co-encoding, not value contamination), so the surrogate hierarchy may change.
-We need to map this landscape before investing in length/ranking experiments.
+**Why this is needed**: Exp 02 found no content gradient (Spearman rho=-0.167) yet
+pairwise comparisons showed doc-specific surrogates DO beat random per-sample. Static
+surrogates had higher Cohen's d despite lower absolute NLL improvement. These contradictions
+need resolution before we can interpret Exps 03-04 correctly.
 
-**Conditions** (all with truncation, N=200):
+**Design** (4 parts, 10 new conditions, all with truncation, N=500):
 
-| # | Condition | Source | v2 analog |
-|---|-----------|--------|-----------|
-| 1 | bare | — (lower bound) | baseline |
-| 2 | oracle_trunc | Real query (upper bound) | Exp 01 |
-| 3 | surr_doc_trunc | Top-5 TF-IDF keywords from document | Exp 01 |
-| 4 | surr_para_trunc | Query words reversed (paraphrase proxy) | Exp 01 |
-| 5 | static_fact_trunc | "What are the key facts?" | v2 Exp 07 (best for Mistral) |
-| 6 | static_howto_trunc | "How do I do this?" | v2 Exp 07 |
-| 7 | surr_llm_trunc | LLM-generated query about the document | v2 Exp 06 |
-| 8 | random_trunc | Random unrelated sentence | v2 Exp 01 (structural control) |
-| 9 | category_trunc | Broad topic label from document (e.g., "health", "travel") | New |
+Part 1 — Re-analysis of Exp 02 data (no new scoring):
+- Document length stratification (does semantic gap change with doc length?)
+- Hardness stratification (does semantic advantage emerge for hard samples?)
+- Variance decomposition (explains the Cohen's d paradox)
 
-**Key comparisons**:
-- Content-specific (doc_kw, para, llm) vs content-agnostic (static, random, category)
-- Document-derived (doc_kw, category) vs external (llm, static) — matters for deployment cost
-- How much of oracle gap does each close?
-- Does T5Gemma show a genuine CONTENT GRADIENT (more relevant → more helpful)?
-  v2 found NO content gradient with Mistral (Exp 10, Spearman r=+0.036). If T5Gemma shows
-  a monotonic gradient, this confirms the bidirectional mechanism is qualitatively different.
+Part 2 — Prefix length titration (random words: 1, 3, 5, 10, 20, 50):
+- Saturation curve: does 1 word suffice (switch) or do we need many (gradual)?
+- Distinguishes attention redistribution from regularization
 
-**What we expect**: Unlike v2 where the mechanism was value contamination (and content
-barely mattered), T5Gemma's bidirectional attention should create a genuine content gradient —
-more relevant surrogates should produce better document representations. If static_fact
-still wins, that would suggest the encoder is doing something structural rather than semantic.
+Part 3 — Content ablation (all length-matched to oracle):
+- bare → random_matched: STRUCTURE (any prefix helps)
+- random_matched → scrambled_oracle: VOCABULARY (right words, wrong order)
+- scrambled_oracle → oracle: SEMANTICS (right word order)
+- Clean three-way decomposition of the total benefit
 
-**Builds on**: Exp 01 (inherits scoring infrastructure, truncation approach)
-**Informs**: Exps 03-04 (which surrogate to use for length/ranking tests)
+Part 4 — Token diversity (all ~10 words):
+- "the" x10 vs doc_keyword x10 vs diverse random words
+- Tests whether having DIFFERENT tokens matters or repetition suffices
+
+**Key predictions**:
+- If 1 random word ≈ 50 random words → switch mechanism (like v2)
+- If structure > 70% of benefit → primarily structural (like v2 but different path)
+- If repeat_the ≈ diverse_random → pure structural, token identity irrelevant
+- If vocabulary or semantics contribute > 20% → different from v2
+
+**Builds on**: Exp 02 (same samples, loads checkpoint)
+**Informs**: Interpretation of Exps 03-04, whether LLM surrogates (Exp 05) are worth pursuing
 
 ---
 
@@ -148,7 +149,7 @@ for Exp 04, where ESCI product descriptions can be 100-500 words.
 (median ~130 tokens) and pad them to controlled lengths with unrelated MS MARCO text.
 Same questions, same answers — only the document length changes.
 
-**Conditions** (all with truncation, using best surrogate from Exp 02, N=200):
+**Conditions** (all with truncation, using surr_template_trunc from Exp 02, N=500):
 
 | # | Document length | What changes | v2 Exp 20 result |
 |---|----------------|-------------|------------------|
@@ -246,22 +247,57 @@ documents than for irrelevant ones? Compute per-query:
 
 ---
 
+## Future Experiments (after Exps 02-04)
+
+### Exp 05 (tentative) — LLM-Generated Surrogate Queries
+**Question**: Can an LLM generate better surrogates than heuristic extraction?
+
+Exp 02 tests simple surrogates (keywords, templates, static phrases). These are cheap
+but may not capture the full query intent. An LLM could generate a natural-language
+query like "What are the best family-friendly hotels in the Bahamas?" from a product
+description, potentially producing a much richer surrogate.
+
+**Why not in Exp 02**: T5Gemma is pretrained-only (not instruction-tuned), so it cannot
+generate queries on command. Generating surrogates requires a separate instruction-tuned
+model (e.g., Gemma 2 9B-IT, Llama 3, or an API call). This adds infrastructure
+complexity and GPU memory pressure that should be isolated from the controlled
+surrogate comparison in Exp 02.
+
+**Approach**:
+- Pre-generate surrogate queries offline using an instruction-tuned LLM
+- Prompt: "Given this product description, write a search query someone might use to find it: [doc]"
+- Generate 1-3 surrogates per document, test each
+- Compare to Exp 02's best heuristic surrogate
+- Test both generic prompts and domain-specific prompts (e.g., "Write a product search query...")
+
+**Key question**: How much of the oracle-heuristic gap can LLM surrogates close?
+If Exp 02 shows doc_keywords at 85% of oracle, and LLM surrogates reach 95%,
+the 10% uplift may not justify the generation cost. But if heuristics plateau at 60%
+and LLM surrogates reach 90%, the case is strong.
+
+**Depends on**: Exp 02 results (establishes the heuristic baseline to beat)
+
+---
+
 ## Experiment Dependency Graph
 
 ```
 Exp 01 (Truncation — DONE)
   │
   ▼
-Exp 02 (Surrogate Types, MS MARCO) ── determines best surrogate
+Exp 02 (Surrogate Types — DONE) ── best doc-derived: surr_template (90% oracle)
   │
-  ▼
-Exp 03 (Length Scaling, MS MARCO) ──── determines operating envelope
-  │
-  ▼
-Exp 04 (Ranking: MS MARCO + ESCI + WANDS) ── the payoff
-  ├─ Part A: MS MARCO ranking (compare to v2)
-  ├─ Part B: Amazon ESCI (ad serving)
-  └─ Part C: WANDS (cross-domain, conditional)
+  ├─────────────────────────────────┐
+  ▼                                 ▼
+Exp 2B (Mechanism Decomposition)  Exp 03 (Length Scaling) [can run in parallel]
+  │                                 │
+  ▼                                 ▼
+  Interpretation of structural    Exp 04 (Ranking: MARCO + ESCI + WANDS)
+  vs semantic mechanism             ├─ Part A: MS MARCO
+  │                                 ├─ Part B: Amazon ESCI
+  ▼                                 └─ Part C: WANDS
+Exp 05 (LLM Surrogates — only if
+  vocab/semantics contribute >20%)
 ```
 
 ---
@@ -303,7 +339,8 @@ wands = load_dataset("napsternxg/wands")
    mask surrogate tokens from decoder cross-attention.
 
 3. **Statistical rigor**: Cohen's d, win%, AND p-value. Bonferroni for multiple comparisons.
-   N=200 minimum. Checkpoint every 20 samples for resume.
+   **N=500 minimum** (we have a 40 GB GPU and prefer quality over speed). This gives us
+   power to detect d=0.13 in pairwise comparisons. Checkpoint every 20 samples for resume.
 
 4. **Content controls**: Always include a content-agnostic control (random or static)
    to distinguish semantic from structural effects.
@@ -363,3 +400,119 @@ Results will be appended here as experiments complete.
 
 **Conclusion**: Truncation is strictly better. Document representations are genuinely
 improved by bidirectional co-encoding. Doc keywords capture 89% of oracle benefit.
+
+### Exp 02 — Surrogate Type Sweep
+**Status**: COMPLETE | **Date**: 2026-02-17 | **N**: 500 | **Dataset**: MS MARCO v1.1
+
+**Question**: What is the best surrogate type? Does content matter (semantic) or is any prefix enough (structural)?
+
+**Conditions**: 9 total (1 bare + 1 oracle + 7 surrogates), all with truncation.
+
+| Rank | Condition | Mean NLL | Delta | d vs bare | Win% | p-value | % Oracle |
+|------|-----------|----------|-------|-----------|------|---------|----------|
+| — | bare | 3.6765 | — | — | — | — | 0% (LB) |
+| 1 | oracle_trunc | 2.9929 | +0.684 | +0.376 | 92.6% | 4.8e-16 | 100% (UB) |
+| 2 | static_fact_trunc | 3.2584 | +0.418 | +0.372 | 83.8% | 8.7e-16 | 99% |
+| 3 | static_howto_trunc | 3.2280 | +0.448 | +0.346 | 85.6% | 6.0e-14 | 92% |
+| 4 | surr_template_trunc | 3.1173 | +0.559 | +0.336 | 90.8% | 2.6e-13 | 90% |
+| 5 | surr_doc_trunc | 3.0560 | +0.620 | +0.322 | 87.4% | 2.1e-12 | 86% |
+| 6 | surr_para_trunc | 3.0870 | +0.589 | +0.305 | 89.2% | 2.8e-11 | 81% |
+| 7 | random_trunc | 3.1432 | +0.533 | +0.303 | 87.6% | 3.6e-11 | 81% |
+| 8 | surr_lead_trunc | 3.4672 | +0.209 | +0.151 | 64.2% | 7.9e-04 | 40% |
+
+All conditions significant after Bonferroni correction (threshold p < 0.0063).
+
+**Content gradient**: Spearman rho = -0.167 (p = 0.693). **NO content gradient**, same as v2.
+Semantic relevance of the surrogate does NOT predict effect size (Cohen's d).
+
+**However — pairwise head-to-head comparisons tell a nuanced story**:
+
+| Comparison | d | Win% | p | Sig |
+|------------|---|------|---|-----|
+| Oracle vs surr_doc | +0.080 | 63.6% | 0.074 | ns |
+| Oracle vs surr_para | +0.181 | 64.2% | 6.1e-05 | *** |
+| surr_doc vs static_fact | +0.169 | 59.2% | 1.7e-04 | *** |
+| surr_doc vs random | +0.130 | 54.6% | 3.9e-03 | ** |
+| static_fact vs random | -0.129 | 43.6% | 4.0e-03 | ** |
+| surr_lead vs surr_template | -0.427 | 32.6% | 5.5e-20 | *** |
+
+The Cohen's d ranking and pairwise ranking diverge because of **variance differences**:
+- Static surrogates have SMALLER absolute NLL improvements but LOWER variance (more consistent)
+- Doc-specific surrogates have LARGER absolute improvements but HIGHER variance
+- Pairwise: surr_doc beats both static_fact (d=+0.169***) and random (d=+0.130**) on a per-sample basis
+
+**Group analysis**:
+- Content-specific avg d: +0.270 (71.9% oracle) — but includes weak surr_lead
+- Content-agnostic avg d: +0.340 (90.6% oracle) — more consistent
+- Group difference: d=+0.121 (p=0.007), content-specific has lower NLL per-sample
+
+**Hardness**: All conditions strongly correlated with hardness (r > +0.80). Benefit
+scales with bare NLL: hard samples benefit more. Random shows r=+0.849 — same as oracle.
+
+**Best document-derived surrogate**: surr_template_trunc ("What is [top_keyword]?")
+d=+0.336 (90% of oracle). Cheapest to compute, requires only word frequency.
+
+**surr_lead anomaly**: First sentence of document gets only 40% of oracle despite being
+the most semantically rich doc-derived surrogate. Possibly because it overlaps too much
+with the document itself (redundant information in bidirectional attention).
+
+**Conclusions**:
+1. The mechanism is primarily structural, not semantic — same as v2, even with bidirectional attention
+2. BUT there IS a per-sample semantic advantage (pairwise surr_doc > random, p=0.004)
+3. The "structural floor" (random) captures 81% of oracle — most of the benefit comes for free
+4. For deployment: surr_template ("What is [keyword]?") is the practical winner — 90% of oracle, trivial to compute
+5. LLM surrogates (Exp 05) may not be worth the cost: heuristics already capture 90% of oracle
+
+### Exp 2B — Structural vs Semantic Mechanism Decomposition
+**Status**: COMPLETE | **Date**: 2026-02-17 | **N**: 500 | **Dataset**: MS MARCO v1.1
+
+**Question**: Is the co-encoding benefit structural (any prefix helps) or semantic
+(content matters)? Is it the same implicit regularization as v2?
+
+**Part 1: Re-analysis of Exp 02 data**
+- Document length: semantic gap is STABLE across lengths (r=+0.056, p=0.208)
+- Hardness: semantic gap grows Q1(+0.013) → Q5(+0.397) — content matters more for hard samples
+- Variance: all conditions share r>0.88 benefit correlation — dominated by shared structural mechanism
+- Oracle beats random only 70.6% of the time (63% for easy, 79% for hard)
+
+**Part 2: Prefix length titration**
+
+| Prefix words | ~Tokens | d | % of oracle |
+|-------------|---------|------|-------------|
+| 1 | 2.5 | +0.321 | 85% |
+| 3 | 5.3 | +0.308 | 82% |
+| 5 | 7.9 | +0.298 | 79% |
+| 10 | 14.5 | +0.279 | 74% |
+| 20 | 27.7 | +0.303 | 81% |
+| 50 | 65.1 | +0.296 | 79% |
+
+**SWITCH MECHANISM**: 1 random word (2.5 tokens) captures 85% of oracle. Curve is flat.
+
+**Part 3: Content ablation** (length-matched to oracle)
+
+| Component | NLL delta | % of total | d | sig |
+|-----------|----------|-----------|------|-----|
+| Structure (bare → random_matched) | +0.579 | **84.7%** | +0.296 | *** |
+| Vocabulary (→ scrambled oracle) | +0.038 | 5.5% | +0.045 | ns |
+| Semantics (→ oracle) | +0.067 | 9.7% | +0.152 | *** |
+
+**Part 4: Token diversity** (~10 words each)
+
+| Condition | d | % oracle |
+|-----------|------|----------|
+| "the" x10 | +0.338 | 90% |
+| doc_keyword x10 | +0.332 | 88% |
+| diverse random 10w | +0.279 | 74% |
+
+Uniform repetition BEATS diverse random. Token identity barely matters.
+
+**Conclusions**:
+1. **85% of the headroom is pure structure** — any prefix triggers a mode shift
+2. Vocabulary contributes 6% (not significant); semantics contributes 10% (significant but small)
+3. The mechanism is a **binary switch**: 1 random word suffices (85% of oracle)
+4. Uniform tokens ("the" x10) outperform diverse random words
+5. Semantics matters slightly MORE for hard samples (Q5 gap = +0.397)
+6. The mechanism is NOT v2's value contamination (truncation improves it) — it is
+   structural representation enrichment through bidirectional attention
+7. For deployment: prepend ANY short prefix. Content barely matters.
+   The 10% semantic uplift may not justify surrogate generation cost.
