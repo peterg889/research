@@ -3461,3 +3461,122 @@ intrinsic property of the document, not something that can be injected via prefi
 3. **The fundamental limitation is confirmed across three loss functions** (NLL in Exp 25,
    PMI in Exp 23, hinge/contrastive in Exp 28). No objective can make a document-independent
    prefix create query-specific ranking signal.
+
+---
+
+## Experiment 31: Query-Likelihood Ranking with PMI
+
+**Date started**: 2026-02-17
+**Notebook**: `31_query_likelihood_ranking.ipynb`
+**Results**: `results/exp31/`
+
+### Question
+
+Is NLL(query | passage) — query-likelihood — a viable ranking signal? In ad serving, there
+is no "answer" at query time, only the user's query and the ads. Query-likelihood is a
+classic IR technique that has never been tested in our framework.
+
+### Motivation
+
+Every previous ranking experiment (Exps 14, 15, 22, 23, 28) scored NLL(answer | passage).
+But in ad serving we don't have answers. Query-likelihood scores how well a document
+predicts the query — if an ad is about running shoes and the query is "best running shoes",
+the ad should lower NLL(query).
+
+### Design
+
+Model: Gemma 3 4B (4-bit). Data: MS MARCO v1.1 validation, 200 queries, 1692 passages
+(221 relevant, 13.1%). All caches are bare (no priming). Purely a scoring method comparison.
+
+**Six scoring methods (3 raw + 3 PMI):**
+
+| Method | Score | PMI baseline |
+|--------|-------|--------------|
+| Raw AL | NLL(answer \| passage + query_template) | — |
+| PMI AL | al − NLL(answer \| BOS + query_template) | BOS-only |
+| Raw QL | NLL(query \| passage + "\n") | — |
+| PMI QL | ql − NLL(query \| BOS + "\n") | BOS-only |
+| Raw QL-search | NLL(query \| passage + "\nSearch query: ") | — |
+| PMI QL-search | ql_search − NLL(query \| BOS + "\nSearch query: ") | BOS-only |
+
+### Results — AUC and MRR
+
+| Method | AUC | MRR@10 |
+|--------|-----|--------|
+| **PMI AL** | **0.841** | **0.860** |
+| Raw AL | 0.828 | 0.860 |
+| Raw QL-search | 0.593 | 0.487 |
+| Raw QL | 0.578 | 0.470 |
+| PMI QL-search | 0.568 | 0.487 |
+| PMI QL | 0.561 | 0.470 |
+
+Answer-likelihood perfectly replicates Exp 22 (AUC 0.828 raw, 0.841 PMI, MRR 0.860).
+
+### Results — Differential NLL (Relevant vs Irrelevant)
+
+| Method | Mean Rel | Mean Irr | Gap | d | p |
+|--------|----------|----------|-----|---|---|
+| Raw AL | 0.564 | 2.484 | +1.920 | +1.200 | 1.1e-57 |
+| PMI AL | -2.268 | -0.305 | +1.963 | +1.646 | 1.2e-100 |
+| Raw QL | 2.583 | 3.047 | +0.464 | +0.261 | 3.0e-04 |
+| PMI QL | -3.654 | -3.254 | +0.401 | +0.200 | 5.5e-03 |
+| Raw QL-search | 1.948 | 2.481 | +0.533 | +0.323 | 8.1e-06 |
+| PMI QL-search | -3.808 | -3.305 | +0.503 | +0.249 | 5.7e-04 |
+
+### Results — Inter-Method Correlations
+
+| | Raw AL | Raw QL | PMI AL | PMI QL |
+|---|--------|--------|--------|--------|
+| Raw AL | 1.000 | 0.111 | 0.296 | 0.039 |
+| Raw QL | 0.111 | 1.000 | 0.071 | 0.098 |
+| PMI AL | 0.296 | 0.071 | 1.000 | 0.097 |
+| PMI QL | 0.039 | 0.098 | 0.097 | 1.000 |
+
+AL and QL are nearly uncorrelated (r=0.111) — fundamentally different signals.
+
+### Key Findings
+
+1. **Query-likelihood FAILS as a ranking signal.** Best QL AUC is 0.593 (target >0.80,
+   answer-likelihood 0.828). MRR@10 drops from 0.860 to 0.487.
+
+2. **PMI HURTS query-likelihood.** PMI QL AUC (0.561) < Raw QL AUC (0.578). This is
+   the opposite of answer-likelihood where PMI helps (+1.3 AUC points). The BOS-only
+   baseline doesn't capture the right "difficulty" for query prediction.
+
+3. **The search frame helps slightly.** QL-search (0.593) > QL (0.578), but not enough
+   to be practically useful. The "\nSearch query: " prompt gives the model a small hint.
+
+4. **AL and QL are nearly uncorrelated** (r=0.111). They capture fundamentally different
+   signals: AL measures answer-containment, QL measures topical similarity. This means
+   combining them could potentially add information.
+
+5. **QL does detect a small differential** (d=+0.26 to +0.32, significant). Relevant
+   passages do predict the query slightly better. But the effect is too weak for ranking.
+
+### Interpretation
+
+Query-likelihood fails because of the MS MARCO passage pool structure: all ~8 passages
+per query were retrieved FOR that query, so they're all topically related. The `is_selected`
+flag distinguishes passages that contain the answer, not topical relevance. QL captures
+topical similarity (all passages score similarly) but not answer-containment.
+
+This has an important implication for ad serving: if the candidate pool contains diverse
+topics (electronics vs travel vs food ads), QL might discriminate better. But within a
+topically homogeneous pool, QL is near-useless.
+
+The near-zero AL-QL correlation (r=0.111) is the most actionable finding: these signals
+are complementary. A combined AL+QL feature vector might capture aspects that neither
+captures alone.
+
+### Lessons Learned
+
+1. **Candidate pool structure determines which scoring method works.** Within a topically
+   homogeneous pool (all retrieved for the same query), answer-containment matters and
+   topical similarity doesn't. For diverse pools, QL might be more useful.
+
+2. **PMI normalization is not universally helpful.** It helps AL (removes answer difficulty
+   confound) but hurts QL (removes query difficulty confound that was actually informative).
+
+3. **`score_answer_with_cache` works correctly with empty/minimal query_prompt.** Using
+   `"\n"` or `"\nSearch query: "` as query_prompt and the query text as answer_text
+   successfully computes query-likelihood through the existing infrastructure.

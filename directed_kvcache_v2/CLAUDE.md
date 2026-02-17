@@ -405,6 +405,24 @@ Per-quintile (fresh data, gated vs ungated):
 - **Differential NLL gap shrank** — contrastive loss helped irrelevant passages MORE than relevant (opposite of intent)
 - **Confirms architectural limitation across 3 loss functions** (NLL/Exp 25, PMI/Exp 23, hinge/Exp 28): a document-independent prefix cannot create query-specific ranking signal
 
+### ⚠️ Query-Likelihood Fails for Ranking (Exp 31)
+
+**NLL(query | passage) is not a viable ranking signal in MS MARCO's retrieval pool.**
+
+| Method | AUC | MRR@10 |
+|--------|-----|--------|
+| PMI AL (answer) | **0.841** | **0.860** |
+| Raw AL (answer) | 0.828 | 0.860 |
+| Raw QL-search (query) | 0.593 | 0.487 |
+| Raw QL (query) | 0.578 | 0.470 |
+
+**Key insights:**
+- **QL AUC barely above chance** (0.59 vs 0.83 for AL) — all passages in MS MARCO are topically related to the query, so QL can't discriminate
+- **PMI hurts QL** (opposite of AL) — BOS baseline doesn't capture the right difficulty for query prediction
+- **AL and QL are nearly uncorrelated** (r=0.111) — complementary signals, useful in combination
+- **Candidate pool structure matters** — QL might work for diverse pools (different ad categories), but not within a topically homogeneous retrieval set
+- **Answer-likelihood perfectly replicates Exp 22** — confirming experimental calibration
+
 ### ⚠️ Length is the Primary Constraint (Exp 20)
 
 **Controlled padding experiment: pad MS MARCO passages to long-doc lengths, measure when benefit disappears.**
@@ -436,7 +454,7 @@ The "Goldilocks zone" is much narrower than originally thought:
 ## When Priming HURTS (Most Cases)
 
 **DO NOT prime for:**
-- **Ranking / document selection** — zero benefit across 3 loss functions: NLL (Exp 25), PMI (Exp 23), hinge (Exp 28). Bare PMI is the best ranker
+- **Ranking / document selection** — zero benefit across 3 loss functions: NLL (Exp 25), PMI (Exp 23), hinge (Exp 28). Query-likelihood also fails (Exp 31). Bare PMI-AL is the best ranker
 - **Summarization** — catastrophic harm (d=-1.3)
 - **Multi-hop reasoning** — disrupts attention routing
 - **Long passages** (>200 tokens) — value contamination diluted below noise floor (Exp 20)
