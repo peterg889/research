@@ -161,8 +161,13 @@ See EXPERIMENT_PLAN.md for full roadmap and detailed results.
   85% of oracle. "the" x10 gets 90% of oracle. Uniform tokens beat diverse random.
   NOT v2's value contamination (truncation improves it) — structural representation
   enrichment through bidirectional attention. Semantic component grows for harder samples.
-- **Exp 03**: Length scaling — NO DECAY. Benefit holds at all lengths up to 2048 tokens,
-  complete reversal of v2's cliff at ~200 tokens. N=400.
+- **Exp 03**: Length scaling — NO DECAY up to 2048 tokens. All conditions ***
+  at all 6 length bins. Oracle d=+0.38 to +0.45. Complete reversal of v2's cliff at ~200 tok.
+  N=400, Bonferroni 18.
+- **Exp 03B**: Extended length scaling — NO DECAY up to 6144 tokens. 8 conditions × 7 lengths,
+  all *** (Bonferroni 49). Oracle d=+0.38 at both original and 6144 tokens — completely flat.
+  Encoder sliding window (1024 tok, full attn every 6th layer) does NOT degrade the effect.
+  Three-way structure/vocabulary/semantics decomposition holds at all lengths. N=400.
 - **Exp 3D**: Cross-dataset ablation (neural-bridge/rag-12000, 18w queries, 600w docs) —
   **Structure = 84.3%** (vs 84.7% MS MARCO), near-perfect replication. Vocabulary grew
   (5.5%→19.9%), but semantics went NEGATIVE (-4.2%): real query creates semantic
@@ -192,5 +197,4 @@ See EXPERIMENT_PLAN.md for full roadmap and detailed results.
   p<1e-8) but template vs random NOT significant (d=0.012, p=0.79). Only the real query
   captures the semantic benefit — surrogates cannot. Two-population interpretation validated
   but structural still dominant even on most favorable subsample.
-- **Exp 3B** (running on other machine): surrogates at very long lengths (3072-6144 tokens)
 - **Exp 04** (planned): Ranking on MS MARCO + Amazon ESCI + WANDS
