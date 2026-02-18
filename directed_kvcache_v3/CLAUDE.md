@@ -161,6 +161,36 @@ See EXPERIMENT_PLAN.md for full roadmap and detailed results.
   85% of oracle. "the" x10 gets 90% of oracle. Uniform tokens beat diverse random.
   NOT v2's value contamination (truncation improves it) — structural representation
   enrichment through bidirectional attention. Semantic component grows for harder samples.
-- **Exp 03** (planned): Length scaling — does the benefit survive longer documents?
+- **Exp 03**: Length scaling — NO DECAY. Benefit holds at all lengths up to 2048 tokens,
+  complete reversal of v2's cliff at ~200 tokens. N=400.
+- **Exp 3D**: Cross-dataset ablation (neural-bridge/rag-12000, 18w queries, 600w docs) —
+  **Structure = 84.3%** (vs 84.7% MS MARCO), near-perfect replication. Vocabulary grew
+  (5.5%→19.9%), but semantics went NEGATIVE (-4.2%): real query creates semantic
+  interference. ALL surrogates beat oracle (150% of oracle d). Structural mechanism is
+  genuine and cross-dataset consistent, not an artifact of short queries. N=500.
+- **Exp 3E**: Attention mechanism probing — **mechanism identified: attention buffer
+  redistribution**. The `<bos>` token (ID 2) absorbs ~72-76% of doc-token attention at
+  layer 23 (67-87x avg). CORRECTION: prefix does NOT absorb the sink away from `<bos>` —
+  `<bos>` retains its attention share regardless of prefix. Instead, prefix steals ~3pp
+  from doc-doc attention, and remaining doc-doc reorganizes beneficially (entropy +0.15-0.22
+  nats, KL up to 2.97 nats). Single token insufficient — need 5+ tokens. Different
+  prefixes push reps in DIFFERENT directions (cosine ~0.32) but all equally good.
+  Geometric escape from degenerate bare manifold. N=500.
+- **Exp 3F**: Semantic amplification — **moderate amplification (1.7x)** of semantic fraction
+  by repeating the prefix (15% at x1 → 26% at x10-x20). Growth is vocabulary (5.5%→15.8%),
+  NOT word-order semantics (~10% flat). Structural effect saturated (x20/x1=1.12). Stripping
+  stop words hurts (halves semantic ratio). Hardness interaction: Q5 semantic fraction triples
+  with repetition (8%→23%). Short docs amplify prefix benefit (d=+0.458 vs +0.376). N=500.
+- **Exp 05**: LLM-generated surrogates (Gemma 2 9B-IT) — **NEGATIVE ROI**. No significant
+  uplift over "What is [keyword]?" heuristic (d uplift: -0.003 at x1, +0.021 at x4, both ns).
+  LLM question x1 at 108% of oracle (surrogates beat real query again). Need > question >
+  keywords among prompts. Stop-word hypothesis confirmed. Decomposition: 87% structural.
+  Practical recommendation: use template heuristic, skip LLM generation. N=500.
+- **Exp 06**: Factoid subsample validation (answer ≤5 words, fresh N=500, SEED=43) —
+  structural dropped from 85%→76%, vocabulary tripled (6%→15%), semantics flat (~9%).
+  Oracle headroom doubled (d=0.767 vs 0.376). Oracle vs random significant (d=0.256,
+  p<1e-8) but template vs random NOT significant (d=0.012, p=0.79). Only the real query
+  captures the semantic benefit — surrogates cannot. Two-population interpretation validated
+  but structural still dominant even on most favorable subsample.
+- **Exp 3B** (running on other machine): surrogates at very long lengths (3072-6144 tokens)
 - **Exp 04** (planned): Ranking on MS MARCO + Amazon ESCI + WANDS
-- **Exp 05** (future): LLM-generated surrogates — can an instruction-tuned LLM beat heuristics?
