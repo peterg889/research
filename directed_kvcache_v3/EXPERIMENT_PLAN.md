@@ -153,6 +153,36 @@ semantics nearly doubled (5%→9%). Oracle headroom doubled (d=0.767 vs 0.376). 
 random is significant (d=0.256, p<1e-8), but template vs random is NOT (d=0.012, p=0.79).
 The semantic benefit requires the actual query — surrogates cannot capture it. N=500.
 
+### Exp 07 — RoPE Position Isolation (DONE)
+**Question**: Does the RoPE position shift from prepending a prefix contribute to
+the co-encoding benefit, or is it purely attention redistribution?
+
+**Result**: RoPE conclusively ruled out. Pure RoPE shift (shifted_bare): d=-0.034 (ns).
+Invisible prefix with RoPE shift (prefix_encoder_blocked): d=+0.036 (ns). Attention
+redistribution WITHOUT RoPE shift (random_rope_neutralized): d=+0.372 (***), actually
+BETTER than standard random_trunc (d=+0.296). 2x2 factorial: attention row effect=+0.260,
+RoPE column effect=-0.076. Primary mechanism: attention redistribution only. N=500.
+
+### Exp 04A — MS MARCO Ranking (DONE)
+**Question**: Can surrogate-primed encoder representations improve passage ranking?
+
+**Result**: MARGINAL. Oracle AUC=0.853 vs bare AUC=0.845 (gain=+0.008, ns). Surrogates
+beat oracle on AUC (surr_doc=0.867**, random=0.866*). BUT oracle differential signal
+d=-0.007 (ns) — priming helps relevant and irrelevant passages equally. Surr_template
+differential d=+0.130 (***) and static_fact d=+0.153 (***) show some differential, but
+driven by hard queries (Q1: +0.08-0.13 AUC gain) while slightly hurting easy queries.
+Overall: no clean ranking signal from oracle priming. N=400, ~8.2 passages/query.
+
+### Exp 04B — Amazon ESCI Ranking (DONE)
+**Question**: Can surrogate priming improve product ranking using query-likelihood scoring?
+
+**Result**: NO. Oracle HURTS ranking: AUC=0.699 vs bare=0.709 (negative gain). Oracle
+differential d=-0.269 — helps irrelevant products MORE than relevant ones. Surr_template
+AUC=0.724 (**) and surr_doc AUC=0.718 (**) show modest AUC gains, but all differentials
+are negative or near zero. The structural mechanism is document-independent — it cannot
+create the differential signal needed for ranking. Same outcome as v2. N=400, ~21.6
+products/query, query-likelihood scoring.
+
 ---
 
 ## Planned Experiments
@@ -235,7 +265,7 @@ decomposition holds at every length. See Results Log below.
 
 ---
 
-### Exp 04 — Ranking on Commercial Datasets
+### Exp 04 — Ranking on Commercial Datasets (DONE)
 **Question**: Can surrogate-primed encoder representations improve document ranking?
 Does this generalize from MS MARCO to real product search?
 
@@ -343,8 +373,14 @@ Exp 2B (Mechanism — DONE)         Exp 03/03B (Length Scaling — DONE)
   │     85%→76%, oracle headroom
   │     doubles, but template can't
   │     capture semantic gap)
-  ▼
-  (Mechanism fully characterized)
+  │
+  ├── Exp 07 (RoPE Isolation
+  │     — DONE: RoPE ruled out,
+  │     pure attention redistribution)
+  ▼                                 ▼
+  (Mechanism fully characterized)   Exp 04 (Ranking — DONE)
+                                      ├─ A: MS MARCO (marginal, ns oracle)
+                                      └─ B: ESCI (oracle HURTS ranking)
 ```
 
 ---
@@ -1061,3 +1097,141 @@ dataset** (d=0.376). Factoid questions benefit much more from query co-encoding.
 8. **Two-population interpretation validated**: factoid answers ARE more semantic-sensitive,
    but even here the mechanism is still 76% structural. The prediction of 40-50% structural
    was too optimistic — the structural mechanism is robust even on the most favorable subsample
+
+### Exp 07 — RoPE Position Isolation
+**Status**: COMPLETE | **Date**: 2026-02-18 | **N**: 500 | **Dataset**: MS MARCO v1.1
+
+**Question**: Does the encoder RoPE position shift from prepending a prefix contribute to
+the co-encoding benefit? Or is the benefit purely from attention redistribution?
+
+**Design**: 2x2 factorial {attention redistribution ON/OFF} × {RoPE shift ON/OFF}, plus controls.
+
+| # | Condition | Attention | RoPE shift | d vs bare | p | sig |
+|---|-----------|-----------|-----------|-----------|---|-----|
+| 1 | bare | — | — | 0.000 | — | — |
+| 2 | oracle_trunc | both | both | +0.376 | 4.8e-16 | *** |
+| 3 | random_trunc | ON | ON | +0.296 | 9.4e-11 | *** |
+| 4 | shifted_bare | OFF | ON | -0.034 | 0.448 | ns |
+| 5 | prefix_encoder_blocked | OFF (4D mask) | ON | +0.036 | 0.427 | ns |
+| 6 | random_rope_neutralized | ON | OFF | +0.372 | 7.9e-16 | *** |
+
+**Method**:
+- `shifted_bare`: bare encoding with position_ids shifted by +6 (tests pure absolute RoPE shift)
+- `prefix_encoder_blocked`: prefix present but invisible to doc tokens via 4D attention mask
+  (tests RoPE shift + invisible prefix in attention computation)
+- `random_rope_neutralized`: random prefix present in attention, but doc positions preserved
+  at [0..doc_len-1] via custom position_ids (attention redistribution without RoPE shift)
+
+**2x2 Factorial Analysis**:
+
+|  | RoPE shift OFF | RoPE shift ON |
+|--|---------------|--------------|
+| Attention OFF | bare (0.000) | shifted_bare (-0.034) |
+| Attention ON | rope_neutralized (+0.372) | random_trunc (+0.296) |
+
+- **Row effect (attention)**: +0.260 — attention redistribution provides the benefit
+- **Column effect (RoPE)**: -0.076 — RoPE shift actually HURTS slightly
+- **Interaction**: RoPE shift reduces the attention benefit (0.372 → 0.296)
+
+**Key result**: `random_rope_neutralized` (d=+0.372) is BETTER than `random_trunc` (d=+0.296),
+and the difference is significant (d=-0.397, p=1.2e-17). Removing the RoPE shift actually
+improves the effect.
+
+**Caveat**: The neutralized condition has higher variance and lower raw NLL (2.242 vs 3.097)
+due to unusual position arrangement (prefix at positions [doc_len..doc_len+N]). The d-value
+comparison is reliable but raw NLLs are not directly comparable.
+
+**Conclusions**:
+1. **RoPE is conclusively ruled out** as a mechanism contributor
+2. Pure RoPE shift does nothing (shifted_bare: d=-0.034, ns)
+3. Invisible prefix with RoPE shift does nothing (prefix_encoder_blocked: d=+0.036, ns)
+4. Attention redistribution WITHOUT RoPE works BETTER (d=+0.372 vs +0.296)
+5. RoPE slightly attenuates the benefit (column effect = -0.076)
+6. The mechanism is **purely attention redistribution** — consistent with Exp 3E
+7. This rules out Hypothesis 2 (RoPE position shift) from the Exp 3E probe
+
+### Exp 04A — MS MARCO Ranking
+**Status**: COMPLETE | **Date**: 2026-02-18 | **N**: 400 queries | **Dataset**: MS MARCO v2.1
+
+**Question**: Can surrogate-primed encoder representations improve passage ranking?
+
+**Method**: Answer-likelihood scoring — `NLL(answer | encode([condition + passage]))`.
+400 queries, ~8.2 candidate passages per query (3,276 total scoring passes per condition).
+6 conditions: bare, oracle_trunc, surr_template_trunc, surr_doc_trunc, static_fact_trunc, random_trunc.
+
+**AUC Results**:
+
+| Condition | AUC | Gain vs bare | p | sig |
+|-----------|-----|-------------|---|-----|
+| bare | 0.845 | — | — | — |
+| oracle_trunc | 0.853 | +0.008 | 0.126 | ns |
+| surr_doc_trunc | 0.867 | +0.022 | 0.001 | ** |
+| surr_template_trunc | 0.861 | +0.016 | 0.010 | * |
+| static_fact_trunc | 0.864 | +0.019 | 0.003 | ** |
+| random_trunc | 0.866 | +0.021 | 0.012 | * |
+
+**Critical test — Differential signal** (does priming help relevant MORE than irrelevant?):
+
+| Condition | delta_relevant | delta_irrelevant | differential d | p | sig |
+|-----------|---------------|-----------------|---------------|---|-----|
+| oracle_trunc | +0.600 | +0.607 | -0.007 | 0.904 | ns |
+| surr_template | +0.494 | +0.366 | +0.130 | <0.001 | *** |
+| static_fact | +0.389 | +0.242 | +0.153 | <0.001 | *** |
+| random_trunc | +0.537 | +0.516 | +0.024 | 0.658 | ns |
+
+**Oracle has ZERO differential signal** — priming helps relevant and irrelevant equally (d=-0.007).
+Surr_template and static_fact show some differential, but this is driven by:
+- Hard queries (Q1): all conditions gain +0.08-0.13 AUC
+- Easy queries (Q4-Q5): slight harm from priming
+
+**Conclusions**:
+1. Oracle priming does NOT create a ranking signal (AUC gain +0.008, ns)
+2. The structural mechanism is document-independent — it helps all passages equally
+3. Content-agnostic surrogates (random, static) perform as well as oracle for AUC
+4. Some differential exists for surr_template/static_fact, but not for oracle or random
+5. Hardness interaction: priming helps ranking for hard queries, slightly hurts for easy
+6. v2's ranking failure (Exps 22/23/28) is replicated in encoder-decoder architecture
+
+### Exp 04B — Amazon ESCI Ranking
+**Status**: COMPLETE | **Date**: 2026-02-18 | **N**: 400 queries | **Dataset**: Amazon ESCI (US)
+
+**Question**: Can surrogate priming improve product ranking? Query-likelihood scoring on
+a dataset with truly irrelevant candidates (unlike MS MARCO's topically similar pools).
+
+**Method**: Query-likelihood scoring — `NLL(query | encode([condition + product_text]))`.
+400 queries, ~21.6 products per query (8,642 total scoring passes per condition).
+Pre-screen: PASS (bare QL AUC=0.713, much better than v2's 0.578 on MS MARCO).
+6 conditions: bare, oracle_trunc, surr_template_trunc, surr_doc_trunc, surr_title_trunc, random_trunc.
+
+**AUC Results** (binary: E+S = relevant, C+I = irrelevant):
+
+| Condition | AUC | Gain vs bare | p | sig |
+|-----------|-----|-------------|---|-----|
+| bare | 0.709 | — | — | — |
+| oracle_trunc | 0.699 | **-0.010** | 0.189 | ns |
+| surr_template_trunc | 0.724 | +0.015 | 0.002 | ** |
+| surr_doc_trunc | 0.718 | +0.009 | 0.002 | ** |
+| surr_title_trunc | 0.700 | -0.009 | 0.193 | ns |
+| random_trunc | 0.717 | +0.008 | 0.100 | ns |
+
+**Oracle HURTS ranking** — AUC drops from 0.709 to 0.699. The real query primes irrelevant
+products MORE than relevant ones (differential d=-0.269).
+
+**Differential signal** (all negative or near zero):
+
+| Condition | differential d | p | sig |
+|-----------|---------------|---|-----|
+| oracle_trunc | -0.269 | <0.001 | *** |
+| surr_title_trunc | -0.245 | <0.001 | *** |
+| surr_template_trunc | -0.013 | 0.765 | ns |
+| random_trunc | +0.032 | 0.432 | ns |
+
+**Conclusions**:
+1. **Oracle HURTS ranking on ESCI** — priming helps irrelevant products more than relevant
+2. surr_title (product name) also hurts — same problem as oracle, too semantically specific
+3. surr_template shows modest AUC gain (+0.015) but zero differential (d=-0.013, ns)
+4. The structural mechanism is document-independent — it cannot create ranking signal
+5. v2's ranking failure is definitively replicated on a commercial dataset
+6. The mechanism fundamentally cannot do ranking: it reshapes ALL documents similarly
+7. **Ranking is a dead end for this approach** — across v2 (6 experiments) and v3 (2 experiments),
+   no configuration has ever produced a meaningful ranking signal from cache priming

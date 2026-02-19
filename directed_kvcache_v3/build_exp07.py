@@ -429,6 +429,22 @@ print(f"  Passage ({ex['word_count']}w): {ex['passage'][:80]}...")
 print(f"  Random prefix: {ex['random_matched']}")
 print(f"  Oracle prefix tokens: {ex['n_prefix_oracle']}, "
       f"Random prefix tokens: {ex['n_prefix_random']}")
+
+# Show what each condition actually does for sample 0
+n_prefix = ex['n_prefix_random']
+doc_len = len(tokenizer(ex['passage'], add_special_tokens=True).input_ids)
+print(f"\n--- What each condition does (sample 0) ---")
+print(f"  {'Condition':<28} {'Encoder text':<22} {'position_ids':<24} {'Decoder sees':<14}")
+print(f"  {'-'*90}")
+print(f"  {'bare':<28} {'[doc]':<22} {'[0..{0}]':<24} {'all':<14}".format(doc_len-1))
+print(f"  {'oracle_trunc':<28} {'[query + doc]':<22} {'[0..{0}] (default)':<24} {'doc only':<14}".format(doc_len+n_prefix-1))
+print(f"  {'random_trunc':<28} {'[random + doc]':<22} {'[0..{0}] (default)':<24} {'doc only':<14}".format(doc_len+n_prefix-1))
+print(f"  {'shifted_bare':<28} {'[doc]':<22} {'[{0}..{1}] (shifted)':<24} {'all':<14}".format(n_prefix, n_prefix+doc_len-1))
+print(f"  {'prefix_encoder_blocked':<28} {'[random + doc]':<22} {'[0..{0}] (default)':<24} {'doc only':<14}".format(doc_len+n_prefix-1))
+print(f"  {'':<28} {'  doc CANNOT attend':<22} {'':<24} {'':<14}")
+print(f"  {'':<28} {'  to prefix in encoder':<22} {'':<24} {'':<14}")
+print(f"  {'random_rope_neutralized':<28} {'[random + doc]':<22} {'prefix@[{0}..{1}],':<24} {'doc only':<14}".format(doc_len, doc_len+n_prefix-1))
+print(f"  {'':<28} {'':<22} {'doc@[0..{0}]':<24} {'':<14}".format(doc_len-1))
 """)
 
 

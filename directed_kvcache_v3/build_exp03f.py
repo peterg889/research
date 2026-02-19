@@ -332,6 +332,21 @@ cw = [w for w in ex['query'].split() if w.lower() not in STOP_WORDS]
 print(f"  Content words: {' '.join(cw)}")
 print(f"  Short doc: {ex['short_doc'][:80]}...")
 
+# Show actual repeated prefix text for representative conditions
+print(f"\n--- Actual prefix text for representative conditions (sample 0) ---")
+rep_examples = [
+    ('oracle_x1', ex['oracle_x1']),
+    ('oracle_x3', ex['oracle_x3']),
+    ('random_x1', ex['random_x1']),
+    ('random_x5', ex['random_x5']),
+    ('scrambled_x5', ex['scrambled_x5']),
+    ('content_x5', ex['content_x5']),
+    ('the_matched10', ex['the_matched10']),
+]
+for name, text in rep_examples:
+    ptoks = count_prefix_tokens(text, ex['passage'])
+    print(f"  {name:<20} ({ptoks:>4} prefix toks): {str(text)[:70]}{'...' if len(text) > 70 else ''}")
+
 # Token count summary for first 50 samples
 print(f"\nPrefix token counts (first 50 samples):")
 for c in COND_NAMES:

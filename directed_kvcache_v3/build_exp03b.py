@@ -436,7 +436,24 @@ print(f"  Answer: {samples[0]['answer'][:80]}")
 for lb in LENGTH_BINS:
     preview = padded_docs[lb][0]
     tok_count = len(tokenizer(preview, add_special_tokens=True).input_ids)
-    print(f"  {lb:>8s}: {tok_count} tokens")""")
+    print(f"  {lb:>8s}: {tok_count} tokens")
+
+# Show actual prefix text for each non-bare condition
+print(f"\n--- Actual prefix text for each condition (sample 0) ---")
+ex = samples[0]
+ex_doc = padded_docs["original"][0]
+surr_items = {
+    'oracle': ex['query'],
+    'scrambled_oracle': ex['surr_scrambled_oracle'],
+    'random_matched': ex['surr_random_matched'],
+    'random (~20w)': ex['surr_random'],
+    'static_fact': STATIC_FACT,
+    'surr_template': ex['surr_template'],
+    'surr_doc (kw)': ex['surr_doc_kw'],
+}
+for name, text in surr_items.items():
+    ptoks = count_prefix_tokens(text, ex_doc)
+    print(f"  {name:<22} ({ptoks:>3} prefix toks): {str(text)[:60]}")""")
 
 # ============================================================
 code(r"""# Cell 7: Explain conditions and estimate runtime

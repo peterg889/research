@@ -197,4 +197,13 @@ See EXPERIMENT_PLAN.md for full roadmap and detailed results.
   p<1e-8) but template vs random NOT significant (d=0.012, p=0.79). Only the real query
   captures the semantic benefit — surrogates cannot. Two-population interpretation validated
   but structural still dominant even on most favorable subsample.
-- **Exp 04** (planned): Ranking on MS MARCO + Amazon ESCI + WANDS
+- **Exp 07**: RoPE isolation — **RoPE conclusively ruled out**. 2x2 factorial: pure RoPE
+  shift d=-0.034 (ns), invisible prefix d=+0.036 (ns), attention redistribution WITHOUT
+  RoPE d=+0.372 (***) — actually BETTER than standard (d=+0.296). Row effect (attention)
+  =+0.260, column effect (RoPE)=-0.076. Mechanism is purely attention redistribution. N=500.
+- **Exp 04A**: MS MARCO ranking — MARGINAL. Oracle AUC=0.853 vs bare=0.845 (ns). Oracle
+  differential d=-0.007 (ns) — helps relevant and irrelevant equally. Surrogates beat oracle
+  on AUC. Structural mechanism is document-independent. N=400 queries.
+- **Exp 04B**: ESCI ranking — Oracle HURTS (AUC 0.699 vs bare 0.709). Differential d=-0.269
+  — helps irrelevant products MORE. surr_template AUC=0.724 (**) but differential ns.
+  Ranking is a dead end for cache priming. N=400 queries.

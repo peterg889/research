@@ -333,6 +333,28 @@ ex = samples[0]
 print(f"\nExample (sample 0):")
 print(f"  Query ({ex['query_words']}w): {ex['query'][:100]}...")
 print(f"  Document ({ex['doc_words']}w): {ex['document'][:80]}...")
+
+# Show what each condition's encoder input looks like
+print(f"\n--- Encoder input for each condition (sample 0) ---")
+cond_examples = {
+    'bare': ex['document'],
+    'oracle_trunc': ex['query'] + "\n" + ex['document'],
+    'random_matched_trunc': ex['random_matched'] + "\n" + ex['document'],
+    'repeat_the_trunc': ex['repeat_the'] + "\n" + ex['document'],
+}
+for cond_name, enc_text in cond_examples.items():
+    if cond_name == 'bare':
+        ptoks = 0
+        prefix_display = "(none)"
+    else:
+        key = cond_name.replace('_trunc', '')
+        prefix_text = ex[key]
+        ptoks = count_prefix_tokens(prefix_text, ex['document'])
+        prefix_display = prefix_text[:60]
+    print(f"  {cond_name:<28} ({ptoks:>3} prefix toks)")
+    if cond_name != 'bare':
+        print(f"    prefix: {prefix_display}")
+    print(f"    enc input: {enc_text[:80]}...")
 """)
 
 

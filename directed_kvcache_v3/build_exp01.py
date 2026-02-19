@@ -308,6 +308,18 @@ oracle_prefix_tokens = count_prefix_tokens(ex['query'], ex['passage'])
 para_prefix_tokens = count_prefix_tokens(ex['surrogate_para'], ex['passage'])
 doc_prefix_tokens = count_prefix_tokens(ex['surrogate_doc_kw'], ex['passage'])
 
+# Show actual prefix text for each condition
+surrogates = {
+    'oracle (real query)': ex['query'],
+    'surr_para (reversed kw)': ex['surrogate_para'],
+    'surr_doc (top-5 doc kw)': ex['surrogate_doc_kw'],
+}
+print(f"\nExample passage: {ex['passage'][:80]}...")
+print(f"\nActual prefix text for each condition:")
+for name, text in surrogates.items():
+    ptoks = count_prefix_tokens(text, ex['passage'])
+    print(f"  {name:<25} ({ptoks:>3} prefix toks): {text[:70]}")
+
 conditions_explained = f'''
 CONDITION         ENCODER INPUT              DECODER CROSS-ATTENDS TO    PREFIX TOKENS
 -------------------------------------------------------------------------------------

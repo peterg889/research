@@ -425,7 +425,18 @@ print(f"  Answer: {samples[0]['answer'][:80]}")
 for lb in LENGTH_BINS:
     preview = padded_docs[lb][0]
     tok_count = len(tokenizer(preview, add_special_tokens=True).input_ids)
-    print(f"  {lb:>8s}: {tok_count} tokens, starts='{preview[:60]}...', ends='...{preview[-40:]}'")""")
+    print(f"  {lb:>8s}: {tok_count} tokens, starts='{preview[:60]}...', ends='...{preview[-40:]}'")
+
+# Show actual surrogate prefix text for each condition
+print(f"\n--- Actual prefix text for each condition (sample 0) ---")
+surrogates = {
+    'oracle (real query)': samples[0]['query'],
+    'surr_para (reversed kw)': samples[0]['surrogate_para'],
+    'surr_doc (top-5 doc kw)': samples[0]['surrogate_doc_kw'],
+}
+for name, text in surrogates.items():
+    ptoks = count_prefix_tokens(text, padded_docs["original"][0])
+    print(f"  {name:<25} ({ptoks:>3} prefix toks): {text[:70]}")""")
 
 # ============================================================
 code(r"""# Cell 7: Explain conditions
