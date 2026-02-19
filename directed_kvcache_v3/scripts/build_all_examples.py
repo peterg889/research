@@ -17,7 +17,7 @@ import numpy as np
 from pathlib import Path
 from collections import Counter
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "..")
 from lib.data import count_words
 
 SEED = 42
@@ -96,7 +96,7 @@ def make_surrogate_template(passage):
 
 # Verify against checkpoint
 def verify_checkpoint(exp_name):
-    ckpt_path = Path(f"results/{exp_name}/checkpoint.json")
+    ckpt_path = Path(f"../results/{exp_name}/checkpoint.json")
     if ckpt_path.exists():
         ckpt = json.loads(ckpt_path.read_text())
         results = ckpt.get('results', [])
@@ -121,7 +121,7 @@ import numpy as np
 from pathlib import Path
 from collections import Counter
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "..")
 
 SEED = 42
 N_SAMPLES = 500
@@ -152,7 +152,7 @@ del ds
 
 # Verify against checkpoint
 def verify_checkpoint(exp_name):
-    ckpt_path = Path(f"results/{exp_name}/checkpoint.json")
+    ckpt_path = Path(f"../results/{exp_name}/checkpoint.json")
     if ckpt_path.exists():
         ckpt = json.loads(ckpt_path.read_text())
         meta = ckpt.get('sample_meta', ckpt.get('results', []))
@@ -570,7 +570,7 @@ def make_exp04b_display():
 import numpy as np
 from pathlib import Path
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "..")
 
 SEED = 42
 N_QUERIES = 400
@@ -695,7 +695,7 @@ verify_checkpoint("exp05")
 ex = samples[0]
 
 # Load LLM-generated surrogates
-surr_path = Path("results/exp05/surrogates.json")
+surr_path = Path("../results/exp05/surrogates.json")
 if surr_path.exists():
     all_surrogates = json.loads(surr_path.read_text())
     surr = all_surrogates[0]
@@ -746,7 +746,7 @@ import numpy as np
 from pathlib import Path
 from collections import Counter
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "..")
 from lib.data import count_words
 
 SEED = 43  # Different seed from main experiments!
@@ -809,7 +809,7 @@ def make_surrogate_template(passage):
     return f"What is {counts.most_common(1)[0][0]}?"
 
 # Verify
-ckpt_path = Path("results/exp06/checkpoint.json")
+ckpt_path = Path("../results/exp06/checkpoint.json")
 if ckpt_path.exists():
     ckpt = json.loads(ckpt_path.read_text())
     if ckpt['results'][0]['query'][:50] == samples[0]['query'][:50]:
@@ -1061,7 +1061,7 @@ for exp_id, title, display_fn, uses_msmarco_std in EXPERIMENTS:
     nb.cells.append(nbf.v4.new_code_cell(full_code))
 
     # Write notebook
-    out_name = f"{exp_id}_examples.ipynb"
+    out_name = f"examples/{exp_id}_examples.ipynb"
     with open(out_name, 'w') as f:
         nbf.write(nb, f)
     print(f"  {out_name}")

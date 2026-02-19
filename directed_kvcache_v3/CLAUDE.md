@@ -134,12 +134,13 @@ directed_kvcache_v3/
   CLAUDE.md               -- This file
   RESEARCH_FRAMING.md     -- Upper/lower/middle bound framing
   EXPERIMENT_PLAN.md      -- Experiment roadmap and results log
+  XX_name.ipynb           -- Source experiment notebooks (run from here)
   lib/                    -- Shared utilities
   results/expXX/          -- Per-experiment outputs
   tests/                  -- Tests
-  scripts/                -- Build scripts
-  build_expXX.py          -- Notebook build scripts
-  XX_name.ipynb           -- Experiment notebooks
+  scripts/                -- Build scripts and utility scripts
+  executed/               -- Executed notebooks with saved outputs
+  examples/               -- Example notebooks (data previews, no GPU)
 ```
 
 ## Experiment Log
