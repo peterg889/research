@@ -21,6 +21,9 @@ import json
 cells = []
 
 def md(source):
+    lines = source.split("\n") if isinstance(source, str) else source
+    formatted = [l + "\n" for l in lines[:-1]] + [lines[-1]]
+    cells.append({"cell_type": "markdown", "metadata": {}, "source": formatted})
     cells.append({"cell_type": "markdown", "metadata": {}, "source": source.split("\n")
                   if isinstance(source, str) else source})
 
