@@ -202,31 +202,122 @@ def show_conditions(conditions, doc_text):
 
 def make_exp01_display():
     return r"""
-show_sample(samples[0])
 verify_checkpoint("exp01")
 
 ex = samples[0]
 surr_para = make_surrogate_paraphrase(ex['query'])
 surr_doc_kw = make_surrogate_from_doc(ex['passage'])
+doc_short = ex['passage'][:80]
 
-print("CONDITIONS: 7 total (3 prefixes x full/trunc + bare)")
-print("  _full: decoder cross-attends to ALL encoder tokens (prefix + doc)")
-print("  _trunc: decoder cross-attends to doc tokens ONLY (prefix masked)")
+print("=" * 80)
+print("SAMPLE")
+print("=" * 80)
+print(f"  Query:      {ex['query']}")
+print(f"  Answer:     {ex['answer']}")
+print(f"  Document:   {doc_short}...")
+print(f"  Doc words:  {len(ex['passage'].split())}")
+print()
+print("=" * 80)
+print("HOW THIS EXPERIMENT WORKS")
+print("=" * 80)
+print()
+print("  The T5Gemma encoder-decoder has two stages:")
+print()
+print("    1. ENCODER: reads text with bidirectional attention (sees everything)")
+print("    2. DECODER: generates the answer, cross-attending to encoder output")
+print()
+print("  We vary two things:")
+print("    - What PREFIX (if any) is prepended to the document in the encoder")
+print("    - Whether the decoder can see the prefix tokens (full) or only the")
+print("      document tokens (trunc = truncated cross-attention)")
+print()
+print("  The decoder always scores the same answer text via NLL.")
 print()
 
-conditions = [
-    ("bare", "Baseline — document only", None),
-    ("oracle_full", "Real query, decoder sees query+doc", ex['query']),
-    ("oracle_trunc", "Real query, decoder sees doc ONLY", ex['query']),
-    ("surr_para_full", "Reversed query keywords, decoder sees all", surr_para),
-    ("surr_para_trunc", "Reversed query keywords, decoder sees doc ONLY", surr_para),
-    ("surr_doc_full", "Top-5 TF keywords from doc, decoder sees all", surr_doc_kw),
-    ("surr_doc_trunc", "Top-5 TF keywords from doc, decoder sees doc ONLY", surr_doc_kw),
-]
-show_conditions(conditions, ex['passage'])
+print("=" * 80)
+print("CONDITIONS (7 total)")
+print("=" * 80)
 
-print("KEY QUESTION: If _trunc ~= _full, the benefit is from improved doc representations.")
-print("              If _trunc ~= bare, the decoder was just reading the prefix.")
+print()
+print("--- CONDITION 1: bare (BASELINE) ---")
+print()
+print("  Encoder input:      [document]")
+print("  Decoder attends to: [document]")
+print()
+print("  No prefix. This is the control -- how well does the model predict")
+print("  the answer from the document alone?")
+print()
+print(f"  Encoder sees: \"{doc_short}...\"")
+
+print()
+print("--- CONDITION 2: oracle_full ---")
+print()
+print(f"  Prefix:             \"{ex['query']}\"")
+print(f"  Encoder input:      [prefix] + [document]")
+print(f"  Decoder attends to: [prefix + document]  <-- decoder CAN read the query")
+print()
+print("  Upper bound. But is the benefit because the decoder reads the query")
+print("  directly, or because co-encoding improved the document representations?")
+
+print()
+print("--- CONDITION 3: oracle_trunc  *** THE KEY CONDITION ***")
+print()
+print(f"  Prefix:             \"{ex['query']}\"")
+print(f"  Encoder input:      [prefix] + [document]  (same as oracle_full)")
+print(f"  Decoder attends to: [document ONLY]  <-- prefix tokens MASKED")
+print()
+print("  Same encoder input as oracle_full, but the decoder CANNOT see the")
+print("  query tokens. If this still beats bare, the document representations")
+print("  themselves are improved by co-encoding with the query.")
+
+print()
+print("--- CONDITION 4: surr_para_full ---")
+print()
+print(f"  Prefix:             \"{surr_para}\"  (query keywords reversed)")
+print(f"  Encoder input:      [prefix] + [document]")
+print(f"  Decoder attends to: [prefix + document]")
+
+print()
+print("--- CONDITION 5: surr_para_trunc ---")
+print()
+print(f"  Prefix:             \"{surr_para}\"  (query keywords reversed)")
+print(f"  Encoder input:      [prefix] + [document]")
+print(f"  Decoder attends to: [document ONLY]  <-- prefix MASKED")
+
+print()
+print("--- CONDITION 6: surr_doc_full ---")
+print()
+print(f"  Prefix:             \"{surr_doc_kw}\"  (top-5 TF keywords from document)")
+print(f"  Encoder input:      [prefix] + [document]")
+print(f"  Decoder attends to: [prefix + document]")
+
+print()
+print("--- CONDITION 7: surr_doc_trunc ---")
+print()
+print(f"  Prefix:             \"{surr_doc_kw}\"  (top-5 TF keywords from document)")
+print(f"  Encoder input:      [prefix] + [document]")
+print(f"  Decoder attends to: [document ONLY]  <-- prefix MASKED")
+
+print()
+print("=" * 80)
+print("WHAT TO LOOK FOR IN RESULTS")
+print("=" * 80)
+print()
+print("  1. oracle_full >> bare?")
+print("     Expected yes (replicates v2 Exp 33b, d ~ +0.35).")
+print()
+print("  2. oracle_trunc > bare?")
+print("     If YES: document reps are genuinely improved by co-encoding.")
+print("     This is the key finding -- the benefit isn't just the decoder")
+print("     reading the query from the encoder output.")
+print()
+print("  3. oracle_trunc / oracle_full retention %?")
+print("     High (>50%): most benefit is from improved doc representations.")
+print("     Low  (<20%): decoder was mostly just reading the query directly.")
+print()
+print("  4. surr_*_trunc > bare?")
+print("     Do surrogate prefixes also improve doc representations,")
+print("     even when the decoder can't see them?")
 """
 
 
