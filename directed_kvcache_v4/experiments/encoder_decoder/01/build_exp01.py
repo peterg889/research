@@ -92,14 +92,14 @@ from collections import Counter
 from scipy import stats
 from tqdm.auto import tqdm
 
-sys.path.insert(0, "../..")
+sys.path.insert(0, "../../..")
 from lib.analysis import cohens_d
 
 SEED = 42
 N_SAMPLES = 500
 MODEL_NAME = "google/t5gemma-2-4b-4b"
 
-RESULTS_DIR = Path("../../results/exp01")
+RESULTS_DIR = Path("../../../results/exp01")
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 CHECKPOINT_PATH = RESULTS_DIR / "checkpoint.json"
 
@@ -847,7 +847,7 @@ print("Done!")
 
 
 # ===== Write notebook =====
-out_path = "experiments/01/01_production_kv_cache.ipynb"
+out_path = "experiments/encoder_decoder/01/01_production_kv_cache.ipynb"
 with open(out_path, 'w') as f:
     nbf.write(nb, f)
 

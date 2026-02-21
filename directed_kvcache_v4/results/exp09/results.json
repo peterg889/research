@@ -1,0 +1,79 @@
+{
+  "experiment": "v4_exp09_cross_model_sweep",
+  "dataset": "ms_marco_v1.1",
+  "n_samples": 500,
+  "seed": 42,
+  "models_tested": [
+    "google/flan-t5-base",
+    "google/flan-t5-large",
+    "google/flan-t5-xl",
+    "facebook/bart-large"
+  ],
+  "timestamp": "2026-02-21 01:21:31",
+  "model_results": {
+    "google/flan-t5-base": {
+      "short_name": "flan-t5-base",
+      "n_samples": 500,
+      "nll_bare": 3.1038671875,
+      "nll_oracle_trunc": 2.974068359375,
+      "nll_random_trunc": 3.0597587890625,
+      "nll_bare_nq": 2.2491240234375,
+      "d_oracle": 0.25113878360678366,
+      "d_random": 0.1069839151634474,
+      "d_dec_q": -0.4384904207954699,
+      "p_oracle": 3.2562463739291676e-08,
+      "p_random": 0.017115234045391985,
+      "structural_fraction": 0.42599519527400304
+    },
+    "google/flan-t5-large": {
+      "short_name": "flan-t5-large",
+      "n_samples": 500,
+      "nll_bare": 3.005427734375,
+      "nll_oracle_trunc": 2.8242041015625,
+      "nll_random_trunc": 2.911669921875,
+      "nll_bare_nq": 2.24341015625,
+      "d_oracle": 0.3199676085720256,
+      "d_random": 0.24740683691353074,
+      "d_dec_q": -0.41622169849104695,
+      "p_oracle": 3.00956076131601e-12,
+      "p_random": 5.112593717374569e-08,
+      "structural_fraction": 0.7732246336361225
+    },
+    "google/flan-t5-xl": {
+      "short_name": "flan-t5-xl",
+      "n_samples": 500,
+      "nll_bare": 2.795451171875,
+      "nll_oracle_trunc": 2.54728564453125,
+      "nll_random_trunc": 2.7832373046875,
+      "nll_bare_nq": 2.22822412109375,
+      "d_oracle": 0.4301233805550352,
+      "d_random": 0.029685949148394678,
+      "d_dec_q": -0.3409779458470954,
+      "p_oracle": 3.340650864514144e-20,
+      "p_random": 0.5071261724605941,
+      "structural_fraction": 0.06901728780725115
+    },
+    "facebook/bart-large": {
+      "short_name": "bart-large",
+      "n_samples": 500,
+      "nll_bare": 3.284259765625,
+      "nll_oracle_trunc": 3.129109375,
+      "nll_random_trunc": 3.236845703125,
+      "nll_bare_nq": 4.747818695068359,
+      "d_oracle": 0.14410342912077237,
+      "d_random": 0.04341473524626335,
+      "d_dec_q": 0.6800141971172222,
+      "p_oracle": 0.0013549840806055776,
+      "p_random": 0.33212666733214113,
+      "structural_fraction": 0.30127482400073685
+    }
+  },
+  "t5gemma_reference": {
+    "nll_bare": 2.554,
+    "nll_oracle_trunc": 2.406,
+    "nll_bare_nq": 3.676,
+    "d_oracle": 0.228,
+    "d_random": 0.08,
+    "structural_frac": 0.35
+  }
+}
