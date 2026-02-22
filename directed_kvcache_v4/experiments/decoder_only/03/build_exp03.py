@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Build Exp 03: Position vs Attention Isolation.
-
-Exp 02 found structural dominance (82-88%) on Gemma 3 4B. This experiment
-isolates three candidate mechanisms:
-  1. BOS removal from Phase B cache (confound in all exp02 prefixed conditions)
-  2. RoPE position offset (doc tokens at higher absolute positions)
-  3. Attention enrichment (doc attending to prefix tokens during Phase A)
-
-10 conditions, N=400, MS MARCO v1.1, Gemma 3 4B-PT.
-"""
+# Build Exp 03: Hard-Example Semantic Isolation Across Datasets.
+#
+# Restricts to hard examples (top 40% by bare NLL) where conditioning helps,
+# measures semantic delta above structural baseline (condition - random_tokens),
+# and tests whether the semantic gradient generalizes across 4 diverse QA datasets.
+#
+# MS MARCO: reuses Exp 02 results (same model, same scoring approach).
+# SQuAD 2.0, TriviaQA, HotpotQA: new scoring in this experiment.
+#
+# Scoring: BOS-retained repositioning + token-level prefix matching on
+# Gemma 3 12B-IT (identical to Exp 02).
+#
+# 13 conditions, N=400 per dataset, top 40% hard = 160 per dataset, SEED=42.
 
 import os
 import nbformat as nbf
@@ -16,6 +19,11 @@ import nbformat as nbf
 os.makedirs("experiments/decoder_only/03", exist_ok=True)
 
 nb = nbf.v4.new_notebook()
+nb.metadata['kernelspec'] = {
+    'display_name': 'Python 3',
+    'language': 'python',
+    'name': 'python3',
+}
 
 
 def md(source):
@@ -27,65 +35,69 @@ def code(source):
 
 
 # ===== Cell 1: Markdown =====
-md(r"""# Decoder-Only Exp 03: Position vs Attention Isolation
+md(r"""# Experiment 03: Hard-Example Semantic Isolation Across Datasets
 
 ## Motivation
 
-Exp 02 found that the **structural effect** (any prefix helps, regardless of content)
-accounts for 82-88% of the benefit on Gemma 3 4B. But what drives this structural
-component? Three candidate mechanisms:
+Exp 02 (token-matched, 13 conditions, N=400, Gemma 3 12B-IT) confirmed:
+- **Oracle HURTS overall** (d=-0.151, p=0.003)
+- **No semantic gradient overall** (Spearman rho=-0.43, p=0.40)
+- **But in Q5 (hardest 20%)**, ALL conditions help, and there IS a semantic gradient:
+  llm_summarize d=+0.493 > llm_extract +0.356 > same_topic +0.334 > paraphrase +0.291
+  > random_tokens +0.218 > oracle +0.078
+- The semantic effect is **real but masked** by the dominant structural effect in easy samples
 
-1. **BOS removal**: In all prefixed conditions, BOS is sliced from the Phase B cache
-   (because BOS is part of the prefix). In bare, BOS stays. If BOS acts as an attention
-   sink that wastes capacity, removing it from the cache could improve query attention.
+## Goal
 
-2. **RoPE position offset**: With a prefix of S tokens, doc tokens sit at RoPE positions
-   S..S+D instead of 1..D. Even though relative doc-query distances are preserved,
-   the absolute positions differ. The model may have learned position-dependent behaviors.
-   Also, BOS-to-doc distance increases from 1 to S, weakening the BOS attention sink.
+Isolate the semantic effect by:
+1. Restricting to hard examples (top 40% by bare NLL) where conditioning helps
+2. Measuring the **semantic delta** above the structural baseline (condition - random_tokens)
+3. Testing whether this pattern generalizes across 4 diverse QA datasets
 
-3. **Attention enrichment**: During Phase A, doc tokens attend to prefix tokens in
-   addition to BOS and prior doc tokens. This changes hidden states and thus KV values.
-   Even random words provide alternative attention targets beyond BOS, yielding a richer
-   weighted sum.
+## Method — BOS-Retained Repositioning with Token-Level Matching
 
-## Conditions (10 total)
+Identical to Exp 02. Phase A builds KV cache with `[BOS] + prefix_ids(Q) + [\n] + doc_ids(D)`,
+selects BOS + doc, repositions doc keys. Phase B scores `[\n + query + \n + answer]` with
+cache_position auto-generated from cache length. No look-ahead.
 
-### Diagnostic controls
-| # | Condition | Prefix tokens? | BOS in cache? | Doc RoPE positions | Tests |
-|---|-----------|---------------|---------------|-------------------|-------|
-| 1 | bare | no | YES | 1..D | Baseline |
-| 2 | oracle | query | no | S..S+D | Upper bound |
-| 3 | bare_no_bos | no | **NO** | 1..D | Factor 1: BOS removal |
-| 4 | pos_offset_4 | no | no | 4..4+D | Factor 2: small offset |
-| 5 | pos_offset_20 | no | no | 20..20+D | Factor 2: large offset |
+## Datasets (4 total)
 
-### Saturation curve (real prefix tokens)
-| # | Condition | Prefix | BOS in cache? | Doc positions (approx) |
-|---|-----------|--------|---------------|----------------------|
-| 6 | newline_only | just `\n` | no | 2..2+D |
-| 7 | single_word | 1 random word | no | ~4..4+D |
-| 8 | random_3w | 3 random words | no | ~6..6+D |
-| 9 | random_5w | 5 random words | no | ~8..8+D |
-| 10 | random_15w | 15 random words | no | ~20..20+D |
+| Dataset | Source | Question type | Passage type |
+|---------|--------|--------------|--------------|
+| MS MARCO | `microsoft/ms_marco` v1.1 | Web search queries | Selected passages (30-300w) |
+| SQuAD 2.0 | `rajpurkar/squad_v2` | Factoid questions | Wikipedia paragraphs (30-500w) |
+| TriviaQA | `mandarjoshi/trivia_qa` rc.wikipedia | Trivia questions | Wikipedia articles (first 500w) |
+| HotpotQA | `hotpotqa/hotpot_qa` distractor | Multi-hop questions | Supporting fact sentences (30-500w) |
 
-## Key diagnostic comparisons
+## Conditions (13 total, same as Exp 02)
 
-1. **BOS removal**: bare → bare_no_bos
-2. **Position offset**: bare_no_bos → pos_offset_20
-3. **Attention enrichment**: pos_offset_20 → random_15w
-4. **Saturation curve**: newline → 1w → 3w → 5w → 15w
-5. **Offset dose-response**: pos_offset_4 vs pos_offset_20
+| # | Key | Semantic relevance | Token construction |
+|---|-----|-------------------|--------------------|
+| 1 | `bare` | baseline | No prefix |
+| 2 | `random_tokens` | none | Q random IDs from vocab |
+| 3 | `repeat_token` | none (structural) | Token ID 1000 repeated Q times |
+| 4 | `scrambled_oracle` | vocab match only | Random permutation of oracle IDs |
+| 5 | `unrelated_query` | low | Other sample's query, pad/trunc to Q |
+| 6 | `same_topic` | medium | LLM: "Write a question about same topic..." |
+| 7 | `paraphrase` | high | LLM: "Rephrase this query differently..." |
+| 8 | `oracle` | maximal | Exact query token IDs |
+| 9 | `llm_extract` | task-framing (doc) | LLM: "List key facts from this document" |
+| 10 | `llm_question` | query-like (doc) | LLM: "What question does this doc answer?" |
+| 11 | `llm_summarize` | summary (doc) | LLM: "Summarize in one sentence" |
+| 12 | `extractor_matched` | task-framing (generic) | Fixed extraction text |
+| 13 | `adversarial_matched` | adversarial | Fixed adversarial text |
 
-These three factors should sum to the total structural effect:
-`(bare − random_15w) = (bare − bare_no_bos) + (bare_no_bos − pos_offset_20) + (pos_offset_20 − random_15w)`""")
+## Key metric: Semantic delta
+
+For each condition C: `semantic_delta(C) = NLL(random_tokens) - NLL(C)`
+
+Positive = semantic content helps beyond structural baseline.""")
 
 
-# ===== Cell 2: Setup + model loading =====
-code(r"""# Cell 2: Setup and model loading
+# ===== Cell 2: Setup + model loading + scoring functions =====
+code(r"""# Cell 2: Setup, model loading, and scoring functions
 import os
 os.umask(0o000)
-
 import sys, json, time, gc, re
 import random as pyrandom
 import numpy as np
@@ -98,14 +110,19 @@ from tqdm.auto import tqdm
 
 sys.path.insert(0, "../../..")
 from lib.analysis import cohens_d
+from lib.data import count_words
 
 SEED = 42
-N_SAMPLES = 400
-MODEL_NAME = "google/gemma-3-4b-it"
+N_SAMPLES = 400      # per dataset
+HARD_FRAC = 0.40     # top 40% by bare NLL
+MODEL_NAME = "google/gemma-3-12b-it"
 
 RESULTS_DIR = Path("../../../results/decoder_only/exp03")
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-CHECKPOINT_PATH = RESULTS_DIR / "checkpoint.json"
+EXP02_DIR = Path("../../../results/decoder_only/exp02")
+
+DATASET_NAMES = ['ms_marco', 'squad_v2', 'triviaqa', 'hotpotqa']
+NEW_DATASETS = ['squad_v2', 'triviaqa', 'hotpotqa']
 
 np.random.seed(SEED)
 torch.manual_seed(SEED)
@@ -115,685 +132,1268 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, DynamicCache
 
 print(f"Loading {MODEL_NAME}...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, token=HF_TOKEN)
 model = AutoModelForCausalLM.from_pretrained(
-    MODEL_NAME, device_map="auto", torch_dtype=torch.bfloat16, token=HF_TOKEN,
+    MODEL_NAME, device_map="auto", dtype=torch.bfloat16, token=HF_TOKEN,
 )
 model.eval()
 
 DEVICE = next(model.parameters()).device
+BOS_ID = tokenizer.bos_token_id
+NEWLINE_IDS = tokenizer("\n", add_special_tokens=False).input_ids
+text_cfg = getattr(model.config, 'text_config', model.config)
+# Use actual embedding table size (config vocab_size may include padding rows)
+VOCAB_SIZE = model.get_input_embeddings().num_embeddings
+cfg_vocab = getattr(text_cfg, 'vocab_size', None)
+if cfg_vocab != VOCAB_SIZE:
+    print(f"WARNING: config vocab_size={cfg_vocab} != embedding size={VOCAB_SIZE}")
+    print(f"Using embedding size {VOCAB_SIZE} for random token generation")
+rope_params = getattr(text_cfg, 'rope_parameters', {})
+layer_types = getattr(text_cfg, 'layer_types', [])
+# Sliding attention layers cache only (sliding_window - 1) entries.
+# select_kv_cache uses uniform indices across all layers, so total Phase A
+# tokens must not exceed this limit when a prefix is used.
+SLIDING_WINDOW = getattr(text_cfg, 'sliding_window', 4096)
+SLIDING_CACHE_LIMIT = SLIDING_WINDOW - 1  # observed: 1024-1 = 1023 for Gemma 3
 
-print(f"Exp 03: Position vs Attention Isolation")
-print(f"N: {N_SAMPLES}, Model: {MODEL_NAME}")
+print(f"Exp 03: Hard-Example Semantic Isolation Across Datasets")
+print(f"Scoring: BOS-retained repositioning + token-level prefix matching")
+print(f"N_SAMPLES: {N_SAMPLES} per dataset, HARD_FRAC: {HARD_FRAC}")
+print(f"Model: {MODEL_NAME}")
 print(f"DEVICE: {DEVICE}, dtype: {next(model.parameters()).dtype}")
 print(f"GPU memory: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-text_cfg = getattr(model.config, 'text_config', model.config)
-print(f"Vocab size: {getattr(text_cfg, 'vocab_size', 'N/A')}")
+print(f"Vocab size: {VOCAB_SIZE}")
+print(f"Sliding window: {SLIDING_WINDOW}, cache limit: {SLIDING_CACHE_LIMIT}")
 print(f"Num layers: {getattr(text_cfg, 'num_hidden_layers', 'N/A')}")
-print(f"Num KV heads: {getattr(text_cfg, 'num_key_value_heads', 'N/A')}")
-""")
+
+# --- RoPE repositioning helpers ---
+def build_layer_inv_freqs():
+    inv_freqs = {}
+    for lt, params in rope_params.items():
+        theta = params.get('rope_theta', 10000.0)
+        dim = text_cfg.head_dim
+        inv_freq = 1.0 / (theta ** (torch.arange(0, dim, 2, dtype=torch.float32, device=DEVICE) / dim))
+        inv_freqs[lt] = inv_freq
+    return inv_freqs
+
+LAYER_INV_FREQS = build_layer_inv_freqs()
 
 
-# ===== Cell 3: Scoring functions =====
-code(r"""# Cell 3: KV cache helpers and unified scoring function
+def rotate_half(x):
+    x1, x2 = x[..., :x.shape[-1]//2], x[..., x.shape[-1]//2:]
+    return torch.cat((-x2, x1), dim=-1)
 
-def slice_kv_cache(cache, start_idx):
-    # Remove first start_idx entries from KV cache.
-    from transformers import DynamicCache
-    if isinstance(cache, DynamicCache):
-        sliced = DynamicCache()
-        for i in range(len(cache.layers)):
-            k = cache.layers[i].keys[:, :, start_idx:, :]
-            v = cache.layers[i].values[:, :, start_idx:, :]
-            sliced.update(k, v, i)
-        return sliced
+
+def select_kv_cache(cache, indices):
+    selected = DynamicCache()
+    idx_tensor = torch.tensor(indices, dtype=torch.long, device=DEVICE)
+    for i in range(len(cache.layers)):
+        k = cache.layers[i].keys[:, :, idx_tensor, :]
+        v = cache.layers[i].values[:, :, idx_tensor, :]
+        selected.update(k, v, i)
+    return selected
+
+
+def reposition_kv_cache(cache, old_positions, new_positions, bos_start=0):
+    delta = new_positions - old_positions
+    for L in range(len(cache.layers)):
+        lt = layer_types[L]
+        inv_freq = LAYER_INV_FREQS[lt]
+        k = cache.layers[L].keys
+        doc_keys = k[:, :, bos_start + 1:, :]
+        freqs = torch.einsum('i,j->ij', delta.float(), inv_freq)
+        emb = torch.cat([freqs, freqs], dim=-1)
+        cos_delta = emb.cos().to(k.dtype).unsqueeze(0).unsqueeze(0)
+        sin_delta = emb.sin().to(k.dtype).unsqueeze(0).unsqueeze(0)
+        doc_keys_new = doc_keys * cos_delta + rotate_half(doc_keys) * sin_delta
+        cache.layers[L].keys = torch.cat([
+            k[:, :, :bos_start + 1, :],
+            doc_keys_new,
+        ], dim=2)
+    return cache
+
+
+def score(doc_text, query_text, answer_text, prefix_token_ids=None):
+    # BOS-retained repositioning.
+    doc_ids = tokenizer(doc_text, add_special_tokens=False,
+                        truncation=True, max_length=1024).input_ids
+
+    if prefix_token_ids is not None:
+        P = len(prefix_token_ids)
+        NL = len(NEWLINE_IDS)
+        # Truncate doc so total Phase A tokens fit in sliding window cache.
+        # Sliding attention layers store only (sliding_window - 1) KV entries;
+        # select_kv_cache needs uniform indexing across all layers.
+        max_doc = SLIDING_CACHE_LIMIT - 1 - P - NL  # 1 for BOS
+        if len(doc_ids) > max_doc:
+            doc_ids = doc_ids[:max_doc]
+        D = len(doc_ids)
+        cond_ids = [BOS_ID] + list(prefix_token_ids) + NEWLINE_IDS + doc_ids
+        with torch.no_grad():
+            pa = model(input_ids=torch.tensor([cond_ids], device=DEVICE),
+                       use_cache=True)
+        cache = pa.past_key_values
+        del pa
+        keep_indices = [0] + list(range(1 + P + NL, len(cond_ids)))
+        cache = select_kv_cache(cache, keep_indices)
+        old_pos = torch.arange(1 + P + NL, 1 + P + NL + D, device=DEVICE)
+        new_pos = torch.arange(1, D + 1, device=DEVICE)
+        cache = reposition_kv_cache(cache, old_pos, new_pos, bos_start=0)
     else:
-        return tuple(
-            (k[:, :, start_idx:, :], v[:, :, start_idx:, :])
-            for k, v in cache
-        )
+        D = len(doc_ids)
+        with torch.no_grad():
+            pa = model(input_ids=torch.tensor([[BOS_ID] + doc_ids], device=DEVICE),
+                       use_cache=True)
+        cache = pa.past_key_values
+        del pa
 
-
-def score(doc_text, query_text, answer_text, prefix_text=None,
-          position_offset=0, remove_bos=False):
-    # Score NLL of answer tokens using two-phase KV cache approach.
-    #
-    # Three modes:
-    #   1. prefix_text given: [BOS + prefix + \n + doc], slice prefix+BOS from cache.
-    #   2. position_offset > 0: doc at offset RoPE positions, no prefix tokens.
-    #      BOS at position 0, doc at offset..offset+D. BOS always removed.
-    #   3. remove_bos=True: like bare but BOS sliced from cache.
-    # Default (all False/0): bare with BOS in cache.
-
-    # --- Phase A: Conditioning ---
-    if prefix_text is not None:
-        # Standard prefixed mode
-        prefix_ids = tokenizer(prefix_text + "\n", add_special_tokens=True,
-                               truncation=True, max_length=512).input_ids
-        doc_ids = tokenizer(doc_text, add_special_tokens=False,
-                            truncation=True, max_length=1536).input_ids
-        cond_ids = prefix_ids + doc_ids
-        slice_start = len(prefix_ids)
-        custom_pos = None
-        # Last token at position len(cond_ids)-1, Phase B starts after
-        phase_b_start = len(cond_ids)
-
-    elif position_offset > 0:
-        # Position offset mode: no prefix, doc at offset positions
-        cond_ids = tokenizer(doc_text, add_special_tokens=True,
-                             truncation=True, max_length=2048).input_ids
-        slice_start = 1  # always remove BOS in this mode
-        # BOS at position 0, doc tokens at offset..offset+D
-        n_doc = len(cond_ids) - 1  # exclude BOS
-        pos_list = [0] + list(range(position_offset, position_offset + n_doc))
-        custom_pos = torch.tensor([pos_list], dtype=torch.long, device=DEVICE)
-        # Last doc token at position offset + n_doc - 1
-        phase_b_start = position_offset + n_doc
-
-    else:
-        # Bare mode (optionally remove BOS)
-        cond_ids = tokenizer(doc_text, add_special_tokens=True,
-                             truncation=True, max_length=2048).input_ids
-        slice_start = 1 if remove_bos else 0
-        custom_pos = None
-        phase_b_start = len(cond_ids)
-
-    cond_tensor = torch.tensor([cond_ids], dtype=torch.long, device=DEVICE)
-
-    fwd_kwargs = {'input_ids': cond_tensor, 'use_cache': True}
-    if custom_pos is not None:
-        fwd_kwargs['position_ids'] = custom_pos
-
-    with torch.no_grad():
-        phase_a = model(**fwd_kwargs)
-
-    cache = phase_a.past_key_values
-    del phase_a
-
-    if slice_start > 0:
-        cache = slice_kv_cache(cache, slice_start)
-
-    # --- Phase B: Inference with query + answer ---
-    query_part_ids = tokenizer("\n" + query_text + "\n",
-                               add_special_tokens=False).input_ids
+    phase_b_start = D + 1
+    query_ids = tokenizer("\n" + query_text + "\n",
+                          add_special_tokens=False).input_ids
     answer_ids = tokenizer(answer_text, add_special_tokens=False,
                            truncation=True, max_length=256).input_ids
-
     if not answer_ids:
         del cache
         return 0.0
 
-    phase_b_ids = query_part_ids + answer_ids
-    phase_b_tensor = torch.tensor([phase_b_ids], dtype=torch.long, device=DEVICE)
-
-    pos_ids = torch.arange(phase_b_start, phase_b_start + len(phase_b_ids),
-                           device=DEVICE).unsqueeze(0)
-    cache_position = torch.arange(phase_b_start, phase_b_start + len(phase_b_ids),
-                                  device=DEVICE)
+    pb_ids = query_ids + answer_ids
+    pos = torch.arange(phase_b_start, phase_b_start + len(pb_ids), device=DEVICE)
 
     with torch.no_grad():
-        phase_b = model(
-            input_ids=phase_b_tensor,
+        pb = model(
+            input_ids=torch.tensor([pb_ids], device=DEVICE),
             past_key_values=cache,
-            position_ids=pos_ids,
-            cache_position=cache_position,
+            position_ids=pos.unsqueeze(0),
             use_cache=False,
         )
 
-    logits = phase_b.logits
-    n_query_part = len(query_part_ids)
-    n_answer = len(answer_ids)
-
-    answer_logits = logits[0, n_query_part - 1 : n_query_part - 1 + n_answer, :]
-    answer_targets = torch.tensor(answer_ids, dtype=torch.long, device=DEVICE)
-
-    log_probs = F.log_softmax(answer_logits, dim=-1)
-    token_log_probs = log_probs.gather(1, answer_targets.unsqueeze(1)).squeeze(1)
-    mean_nll = -token_log_probs.mean().item()
-
-    del cache, phase_b, logits, log_probs
-    return mean_nll
+    n_q = len(query_ids)
+    logits = pb.logits[0, n_q - 1:n_q - 1 + len(answer_ids), :].float()
+    targets = torch.tensor(answer_ids, device=DEVICE)
+    nll = -F.log_softmax(logits, dim=-1).gather(
+        1, targets.unsqueeze(1)).squeeze(1).mean().item()
+    del cache, pb
+    return nll
 
 
-def score_full_sequence(doc_text, query_text, answer_text):
-    # Single-pass scoring for validation (bare equivalent).
-    doc_ids = tokenizer(doc_text, add_special_tokens=True,
-                        truncation=True, max_length=2048).input_ids
-    query_part_ids = tokenizer("\n" + query_text + "\n",
-                               add_special_tokens=False).input_ids
-    answer_ids = tokenizer(answer_text, add_special_tokens=False,
-                           truncation=True, max_length=256).input_ids
-
-    if not answer_ids:
-        return 0.0
-
-    all_ids = doc_ids + query_part_ids + answer_ids
-    input_tensor = torch.tensor([all_ids], dtype=torch.long, device=DEVICE)
-
+def generate_text(input_text, prompt_text, max_new_tokens=50):
+    messages = [
+        {"role": "user",
+         "content": f"{prompt_text}\n\n{input_text}"}
+    ]
+    chat_text = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+    inputs = tokenizer(chat_text, return_tensors="pt",
+                       truncation=True, max_length=1024).to(DEVICE)
     with torch.no_grad():
-        outputs = model(input_ids=input_tensor, use_cache=False)
-
-    logits = outputs.logits
-    n_doc = len(doc_ids)
-    n_query = len(query_part_ids)
-    n_answer = len(answer_ids)
-
-    start = n_doc + n_query - 1
-    answer_logits = logits[0, start : start + n_answer, :]
-    answer_targets = torch.tensor(answer_ids, dtype=torch.long, device=DEVICE)
-
-    log_probs = F.log_softmax(answer_logits, dim=-1)
-    token_log_probs = log_probs.gather(1, answer_targets.unsqueeze(1)).squeeze(1)
-    mean_nll = -token_log_probs.mean().item()
-
-    del outputs, logits, log_probs
-    return mean_nll
+        output_ids = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            temperature=0.7,
+            top_p=0.9,
+            do_sample=True,
+        )
+    new_tokens = output_ids[0, inputs['input_ids'].shape[1]:]
+    raw_text = tokenizer.decode(new_tokens, skip_special_tokens=True)
+    cleaned = raw_text.strip().split("\n")[0].strip()
+    cleaned = cleaned.strip('"').strip("'").strip()
+    cleaned = " ".join(cleaned.split()[:20])
+    return cleaned
 
 
-print("Scoring functions defined.")
-print(f"\nMode verification:")
-print(f"  score(doc, q, a)                     → bare (BOS in cache)")
-print(f"  score(doc, q, a, remove_bos=True)    → bare_no_bos")
-print(f"  score(doc, q, a, position_offset=20) → pos_offset (BOS removed)")
-print(f"  score(doc, q, a, prefix_text='...')   → prefixed (BOS+prefix sliced)")
+def make_prefix(token_ids, Q):
+    if len(token_ids) >= Q:
+        return token_ids[:Q]
+    else:
+        padded = token_ids * ((Q // max(len(token_ids), 1)) + 1)
+        return padded[:Q]
 
-# Show how newline_only tokenizes
-nl_ids = tokenizer("\n", add_special_tokens=True).input_ids
-print(f"\n  newline_only prefix_ids: {nl_ids} ({len(nl_ids)} tokens)")
-print(f"  Token names: {[tokenizer.decode([t]) for t in nl_ids]}")
+
+# LLM surrogate prompts
+PROMPT_PARAPHRASE = (
+    "Rephrase this search query using completely different words but keeping "
+    "the same meaning. Keep it to 5-8 words. Output only the rephrased query."
+)
+PROMPT_SAME_TOPIC = (
+    "Write a question about the same topic as this document but asking for "
+    "DIFFERENT information. Keep it to 5-8 words. Output only the question."
+)
+PROMPT_EXTRACT = (
+    "List the key facts from this document as a brief comma-separated list. "
+    "Output only the fact list, nothing else."
+)
+PROMPT_QUESTION = (
+    "What question does this document answer? Write only the question, "
+    "nothing else. Keep it to 5-10 words."
+)
+PROMPT_SUMMARIZE = (
+    "Summarize this document in one sentence. Output only the summary, nothing else."
+)
+
+# Condition definitions
+COND_NAMES = [
+    'bare', 'random_tokens', 'repeat_token', 'scrambled_oracle',
+    'unrelated_query', 'same_topic', 'paraphrase', 'oracle',
+    'llm_extract', 'llm_question', 'llm_summarize',
+    'extractor_matched', 'adversarial_matched',
+]
+
+COND_PREFIX_MAP = {
+    'random_tokens': 'prefix_random_tokens',
+    'repeat_token': 'prefix_repeat_token',
+    'scrambled_oracle': 'prefix_scrambled_oracle',
+    'unrelated_query': 'prefix_unrelated_query',
+    'same_topic': 'prefix_same_topic',
+    'paraphrase': 'prefix_paraphrase',
+    'oracle': 'prefix_oracle',
+    'llm_extract': 'prefix_llm_extract',
+    'llm_question': 'prefix_llm_question',
+    'llm_summarize': 'prefix_llm_summarize',
+    'extractor_matched': 'prefix_extractor_matched',
+    'adversarial_matched': 'prefix_adversarial_matched',
+}
+
+PREFIX_KEYS = list(COND_PREFIX_MAP.values())
+
+# Fixed-text prefixes
+EXTRACTOR_TEXT = "Extract all key data points, facts, entities, and specific attributes from the following text."
+ADVERSARIAL_TEXT = "The recipe calls for two cups of flour, one cup of sugar, and a pinch of salt mixed together."
+
+SCORING_KEY = 'bos_retained_token_matched_v03'
+
+print(f"\nSetup complete. Functions defined: score, generate_text, make_prefix")
+print(f"Conditions: {len(COND_NAMES)} ({len(COND_PREFIX_MAP)} prefixed + bare)")
 """)
 
 
-# ===== Cell 4: Load data =====
-code(r"""# Cell 4: Load MS MARCO data and generate per-sample prefixes
-from lib.data import count_words
+# ===== Cell 3: Dataset loading =====
+code(r"""# Cell 3: Load SQuAD 2.0, TriviaQA, HotpotQA (MS MARCO reused from Exp 02)
 from datasets import load_dataset
 
-print("Loading MS MARCO v1.1 validation...")
-ds = load_dataset("microsoft/ms_marco", "v1.1", split="validation")
+all_samples = {}  # ds_name -> list of 400 sample dicts
 
-all_candidates = []
-for item in ds:
-    if len(all_candidates) >= 3 * N_SAMPLES:
-        break
-    passages = item.get('passages', {})
-    ptexts = passages.get('passage_text', [])
-    is_sel = passages.get('is_selected', [])
-    query = item.get('query', '')
-    answers = item.get('answers', [])
-    well_formed = item.get('wellFormedAnswers', [])
-    answer = None
-    if well_formed and len(well_formed) > 0 and well_formed[0] not in ('[]', ''):
-        answer = well_formed[0]
-    elif answers and len(answers) > 0 and answers[0] != 'No Answer Present.':
-        answer = answers[0]
-    if not answer:
+# Per-dataset seeds for reproducible sampling
+DS_SEEDS = {
+    'squad_v2': SEED + 100,
+    'triviaqa': SEED + 200,
+    'hotpotqa': SEED + 300,
+}
+
+# ---- SQuAD 2.0 ----
+print("=" * 70)
+print("Loading SQuAD 2.0 validation...")
+ds_squad = load_dataset("rajpurkar/squad_v2", split="validation")
+
+squad_candidates = []
+for item in ds_squad:
+    answers = item.get('answers', {})
+    answer_texts = answers.get('text', [])
+    if not answer_texts:
         continue
-    for pt, sel in zip(ptexts, is_sel):
-        wc = count_words(pt)
-        if sel == 1 and 30 <= wc <= 300:
-            all_candidates.append({
-                'passage': pt, 'query': query, 'answer': answer,
-                'word_count': wc,
-            })
-            break
+    passage = item['context']
+    query = item['question']
+    answer = answer_texts[0]
+    wc = count_words(passage)
+    if 30 <= wc <= 500 and count_words(answer) >= 1:
+        squad_candidates.append({
+            'passage': passage, 'query': query, 'answer': answer,
+            'word_count': wc,
+        })
 
-print(f"Total candidates: {len(all_candidates)}")
-np.random.seed(SEED)
-indices = np.random.permutation(len(all_candidates))
-samples = [all_candidates[i] for i in indices[:N_SAMPLES]]
-del ds, all_candidates
+print(f"SQuAD 2.0 candidates: {len(squad_candidates)}")
+np.random.seed(DS_SEEDS['squad_v2'])
+indices = np.random.permutation(len(squad_candidates))[:N_SAMPLES]
+all_samples['squad_v2'] = [squad_candidates[i] for i in indices]
+del ds_squad, squad_candidates
 gc.collect()
 
-# Build word pool from passage text
-all_words = []
-for s in samples:
-    all_words.extend(s['passage'].split())
-pyrandom.seed(SEED + 99)
-pyrandom.shuffle(all_words)
-word_pool = all_words
+# ---- TriviaQA ----
+print("\nLoading TriviaQA rc.wikipedia validation...")
+ds_trivia = load_dataset("mandarjoshi/trivia_qa", "rc.wikipedia", split="validation")
 
-# Generate per-sample prefixes at different lengths
-for i, s in enumerate(samples):
-    pool_offset = i * 50
+trivia_candidates = []
+for item in ds_trivia:
+    entity_pages = item.get('entity_pages', {})
+    wiki_contexts = entity_pages.get('wiki_context', [])
+    if not wiki_contexts or not wiki_contexts[0]:
+        continue
+    # Take first 500 words of first wiki context
+    words = wiki_contexts[0].split()[:500]
+    passage = ' '.join(words)
+    query = item['question']
+    answer_val = item['answer']['value']
+    aliases = item['answer'].get('aliases', [])
 
-    # single_word: 1 word from pool
-    s['single_word'] = word_pool[pool_offset]
+    # Check if answer or any alias appears in passage (case-insensitive)
+    passage_lower = passage.lower()
+    found = answer_val.lower() in passage_lower
+    if not found:
+        for alias in aliases:
+            if alias.lower() in passage_lower:
+                found = True
+                break
+    if not found:
+        continue
 
-    # random_3w: 3 words
-    s['random_3w'] = " ".join(word_pool[pool_offset + 1:pool_offset + 4])
+    wc = count_words(passage)
+    if 30 <= wc <= 500 and count_words(answer_val) >= 1:
+        trivia_candidates.append({
+            'passage': passage, 'query': query, 'answer': answer_val,
+            'word_count': wc,
+        })
 
-    # random_5w: 5 words
-    s['random_5w'] = " ".join(word_pool[pool_offset + 4:pool_offset + 9])
+print(f"TriviaQA candidates: {len(trivia_candidates)}")
+np.random.seed(DS_SEEDS['triviaqa'])
+indices = np.random.permutation(len(trivia_candidates))[:N_SAMPLES]
+all_samples['triviaqa'] = [trivia_candidates[i] for i in indices]
+del ds_trivia, trivia_candidates
+gc.collect()
 
-    # random_15w: 15 words
-    s['random_15w'] = " ".join(word_pool[pool_offset + 9:pool_offset + 24])
+# ---- HotpotQA ----
+print("\nLoading HotpotQA distractor validation...")
+ds_hotpot = load_dataset("hotpotqa/hotpot_qa", "distractor", split="validation")
 
-print(f"Loaded {len(samples)} samples")
-print(f"Mean passage words: {np.mean([s['word_count'] for s in samples]):.0f}")
-print(f"Mean query words: {np.mean([len(s['query'].split()) for s in samples]):.1f}")
+hotpot_candidates = []
+for item in ds_hotpot:
+    context = item.get('context', {})
+    sf = item.get('supporting_facts', {})
+    ctx_titles = context.get('title', [])
+    ctx_sentences = context.get('sentences', [])
+    sf_titles = sf.get('title', [])
+    sf_sent_ids = sf.get('sent_id', [])
 
-# Show actual token counts for each prefix type
-print(f"\nPrefix token counts (sample 0):")
-for name, text in [('newline_only', ''),
-                    ('single_word', samples[0]['single_word']),
-                    ('random_3w', samples[0]['random_3w']),
-                    ('random_5w', samples[0]['random_5w']),
-                    ('random_15w', samples[0]['random_15w'])]:
-    prefix_ids = tokenizer(text + "\n", add_special_tokens=True).input_ids
-    print(f"  {name:<16} {len(prefix_ids):>3} tok  S={len(prefix_ids):<4}  "
-          f"text: {repr(text[:40])}")
+    # Build title -> sentences mapping
+    title_to_sents = {}
+    for title, sents in zip(ctx_titles, ctx_sentences):
+        title_to_sents[title] = sents
 
-print(f"\n  pos_offset_4:   S=4   (matches ~single_word)")
-print(f"  pos_offset_20:  S=20  (matches ~random_15w)")
+    # Extract supporting fact sentences
+    passage_parts = []
+    for title, sid in zip(sf_titles, sf_sent_ids):
+        if title in title_to_sents and sid < len(title_to_sents[title]):
+            passage_parts.append(title_to_sents[title][sid])
+
+    if not passage_parts:
+        continue
+    passage = ' '.join(passage_parts)
+    query = item['question']
+    answer = item['answer']
+    wc = count_words(passage)
+    if 30 <= wc <= 500 and count_words(answer) >= 1:
+        hotpot_candidates.append({
+            'passage': passage, 'query': query, 'answer': answer,
+            'word_count': wc,
+        })
+
+print(f"HotpotQA candidates: {len(hotpot_candidates)}")
+np.random.seed(DS_SEEDS['hotpotqa'])
+indices = np.random.permutation(len(hotpot_candidates))[:N_SAMPLES]
+all_samples['hotpotqa'] = [hotpot_candidates[i] for i in indices]
+del ds_hotpot, hotpot_candidates
+gc.collect()
+
+# Summary
+print("\n" + "=" * 70)
+print("Dataset loading summary:")
+for ds_name in NEW_DATASETS:
+    samps = all_samples[ds_name]
+    print(f"\n  {ds_name}: {len(samps)} samples")
+    print(f"    Mean passage words: {np.mean([s['word_count'] for s in samps]):.0f}")
+    print(f"    Mean answer words: {np.mean([count_words(s['answer']) for s in samps]):.0f}")
+    print(f"    Mean query words: {np.mean([count_words(s['query']) for s in samps]):.0f}")
+    print(f"    Example query: {samps[0]['query'][:70]}...")
+    print(f"    Example answer: {samps[0]['answer'][:70]}...")
 """)
 
 
-# ===== Cell 5: Validation =====
-code(r"""# Cell 5: Validate all scoring modes
+# ===== Cell 4: MS MARCO reuse from Exp 02 =====
+code(r"""# Cell 4: Reuse MS MARCO results from Exp 02
 print("=" * 70)
-print("VALIDATION")
+print("Loading MS MARCO results from Exp 02")
 print("=" * 70)
 
-# 1. Bare cached vs full-sequence
-print("\n--- Bare: cached vs full-sequence ---")
-max_diff = 0.0
-for i in range(5):
-    s = samples[i]
-    nll_cached = score(s['passage'], s['query'], s['answer'])
-    nll_full = score_full_sequence(s['passage'], s['query'], s['answer'])
-    diff = abs(nll_cached - nll_full)
-    max_diff = max(max_diff, diff)
-    status = "OK" if diff < 0.01 else "~"
-    print(f"  Sample {i}: cached={nll_cached:.6f}, full={nll_full:.6f}, "
-          f"diff={diff:.6f} [{status}]")
-if max_diff < 0.1:
-    print(f"  PASSED (max diff = {max_diff:.6f}, bf16 rounding)")
-else:
-    print(f"  WARNING: max diff = {max_diff:.6f}")
+assert EXP02_DIR.exists(), f"Exp 02 results not found at {EXP02_DIR}"
+exp02_ckpt = json.loads((EXP02_DIR / "checkpoint.json").read_text())
+assert exp02_ckpt.get('scoring') == 'bos_retained_token_matched_v02', \
+    f"Unexpected scoring key: {exp02_ckpt.get('scoring')}"
+exp02_results = exp02_ckpt['results']
+assert len(exp02_results) == N_SAMPLES, \
+    f"Expected {N_SAMPLES} results, got {len(exp02_results)}"
 
-# 2. All modes run without error on sample 0
-print(f"\n--- All modes on sample 0 ---")
-s = samples[0]
-nll_bare = score(s['passage'], s['query'], s['answer'])
-nll_no_bos = score(s['passage'], s['query'], s['answer'], remove_bos=True)
-nll_pos4 = score(s['passage'], s['query'], s['answer'], position_offset=4)
-nll_pos20 = score(s['passage'], s['query'], s['answer'], position_offset=20)
-nll_nl = score(s['passage'], s['query'], s['answer'], prefix_text="")
-nll_1w = score(s['passage'], s['query'], s['answer'], prefix_text=s['single_word'])
-nll_3w = score(s['passage'], s['query'], s['answer'], prefix_text=s['random_3w'])
-nll_5w = score(s['passage'], s['query'], s['answer'], prefix_text=s['random_5w'])
-nll_15w = score(s['passage'], s['query'], s['answer'], prefix_text=s['random_15w'])
-nll_oracle = score(s['passage'], s['query'], s['answer'], prefix_text=s['query'])
+# Extract bare NLLs and select hard 40%
+msmarco_bare = np.array([r['nll_bare'] for r in exp02_results])
+N_HARD = int(N_SAMPLES * HARD_FRAC)
+sorted_idx = np.argsort(msmarco_bare)[::-1]  # descending (hardest first)
+msmarco_hard_idx = np.sort(sorted_idx[:N_HARD])  # restore original order
 
-print(f"  {'bare':<20} NLL = {nll_bare:.6f}")
-print(f"  {'bare_no_bos':<20} NLL = {nll_no_bos:.6f}  delta = {nll_bare - nll_no_bos:+.4f}")
-print(f"  {'pos_offset_4':<20} NLL = {nll_pos4:.6f}  delta = {nll_bare - nll_pos4:+.4f}")
-print(f"  {'pos_offset_20':<20} NLL = {nll_pos20:.6f}  delta = {nll_bare - nll_pos20:+.4f}")
-print(f"  {'newline_only':<20} NLL = {nll_nl:.6f}  delta = {nll_bare - nll_nl:+.4f}")
-print(f"  {'single_word':<20} NLL = {nll_1w:.6f}  delta = {nll_bare - nll_1w:+.4f}")
-print(f"  {'random_3w':<20} NLL = {nll_3w:.6f}  delta = {nll_bare - nll_3w:+.4f}")
-print(f"  {'random_5w':<20} NLL = {nll_5w:.6f}  delta = {nll_bare - nll_5w:+.4f}")
-print(f"  {'random_15w':<20} NLL = {nll_15w:.6f}  delta = {nll_bare - nll_15w:+.4f}")
-print(f"  {'oracle':<20} NLL = {nll_oracle:.6f}  delta = {nll_bare - nll_oracle:+.4f}")
+print(f"MS MARCO: {N_SAMPLES} total, selecting top {HARD_FRAC*100:.0f}% = {N_HARD} hard samples")
+print(f"Bare NLL range: {msmarco_bare.min():.4f} - {msmarco_bare.max():.4f}")
+print(f"Hard cutoff (min NLL in hard set): {msmarco_bare[msmarco_hard_idx].min():.4f}")
+print(f"Hard samples mean bare NLL: {msmarco_bare[msmarco_hard_idx].mean():.4f}")
+
+# Build hard_nlls for MS MARCO
+hard_nlls = {}  # ds_name -> {cond_name: np.array}
+hard_metadata = {}  # ds_name -> {n_total, n_hard, ...}
+
+hard_nlls['ms_marco'] = {}
+for cond in COND_NAMES:
+    arr = np.array([exp02_results[i][f'nll_{cond}'] for i in msmarco_hard_idx])
+    hard_nlls['ms_marco'][cond] = arr
+
+hard_metadata['ms_marco'] = {
+    'n_total': N_SAMPLES,
+    'n_hard': N_HARD,
+    'source': 'exp02_reuse',
+    'mean_passage_words': float(np.mean([exp02_results[i]['passage_words']
+                                          for i in msmarco_hard_idx])),
+    'mean_query_tokens': float(np.mean([exp02_results[i]['Q']
+                                         for i in msmarco_hard_idx])),
+    'mean_answer_words': float(np.mean([count_words(exp02_results[i]['answer'])
+                                         for i in msmarco_hard_idx])),
+}
+
+# Quick sanity check: bare should match
+assert np.allclose(hard_nlls['ms_marco']['bare'],
+                   msmarco_bare[msmarco_hard_idx]), "Bare NLL mismatch"
+
+print(f"\nMS MARCO hard samples loaded:")
+print(f"  N_hard: {N_HARD}")
+print(f"  Mean passage words: {hard_metadata['ms_marco']['mean_passage_words']:.0f}")
+print(f"  Mean query tokens: {hard_metadata['ms_marco']['mean_query_tokens']:.0f}")
+print(f"  Conditions: {len(COND_NAMES)}")
+
+# Show condition summary for MS MARCO hard set
+bare_h = hard_nlls['ms_marco']['bare']
+print(f"\n  {'Condition':<24} {'NLL':>8} {'d vs bare':>10} {'sem delta d':>12}")
+print(f"  {'-'*58}")
+for cond in COND_NAMES:
+    nlls_h = hard_nlls['ms_marco'][cond]
+    mean_nll = nlls_h.mean()
+    if cond == 'bare':
+        print(f"  {cond:<24} {mean_nll:>8.4f} {'--':>10} {'--':>12}")
+    else:
+        d_bare = cohens_d(bare_h - nlls_h)
+        if cond == 'random_tokens':
+            print(f"  {cond:<24} {mean_nll:>8.4f} {d_bare:>+10.3f} {'(ref)':>12}")
+        else:
+            sem_delta = hard_nlls['ms_marco']['random_tokens'] - nlls_h
+            d_sem = cohens_d(sem_delta)
+            print(f"  {cond:<24} {mean_nll:>8.4f} {d_bare:>+10.3f} {d_sem:>+12.3f}")
+
+del exp02_ckpt, exp02_results
+gc.collect()
+""")
+
+
+# ===== Cell 5: Bare scoring for new datasets =====
+code(r"""# Cell 5: Bare NLL scoring for SQuAD, TriviaQA, HotpotQA — select hard 40%
+print("=" * 70)
+print("BARE SCORING — 3 new datasets x 400 samples")
+print("=" * 70)
+
+hard_indices = {}   # ds_name -> np.array of indices into all_samples
+hard_samples = {}   # ds_name -> list of hard sample dicts
+
+for ds_name in NEW_DATASETS:
+    print(f"\n--- {ds_name} ({N_SAMPLES} samples) ---")
+    samples = all_samples[ds_name]
+    bare_ckpt_path = RESULTS_DIR / f"bare_{ds_name}.json"
+
+    bare_nlls = []
+    start_idx = 0
+
+    # Try to resume from checkpoint
+    if bare_ckpt_path.exists():
+        ckpt = json.loads(bare_ckpt_path.read_text())
+        if (ckpt.get('n_total') == N_SAMPLES and
+            ckpt.get('scoring') == SCORING_KEY and
+            ckpt.get('dataset') == ds_name):
+            saved_queries = ckpt.get('queries_first50', [])
+            current_queries = [s['query'][:50] for s in samples[:len(saved_queries)]]
+            if saved_queries == current_queries:
+                bare_nlls = ckpt['bare_nlls']
+                start_idx = len(bare_nlls)
+                print(f"  Resuming from checkpoint: {start_idx}/{N_SAMPLES}")
+
+    if start_idx < N_SAMPLES:
+        t0 = time.time()
+        for i in tqdm(range(start_idx, N_SAMPLES), initial=start_idx,
+                      total=N_SAMPLES, desc=f"Bare {ds_name}"):
+            s = samples[i]
+            nll = score(s['passage'], s['query'], s['answer'])
+            bare_nlls.append(nll)
+
+            if (i + 1) % 20 == 0 or i == N_SAMPLES - 1:
+                ckpt = {
+                    'dataset': ds_name,
+                    'n_total': N_SAMPLES,
+                    'scoring': SCORING_KEY,
+                    'bare_nlls': bare_nlls,
+                    'queries_first50': [s['query'][:50]
+                                        for s in samples[:len(bare_nlls)]],
+                    'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+                }
+                bare_ckpt_path.write_text(json.dumps(ckpt))
+                elapsed = time.time() - t0
+                done = i - start_idx + 1
+                eta = (N_SAMPLES - i - 1) * elapsed / done if done > 0 else 0
+                tqdm.write(f"  Checkpoint {i+1}/{N_SAMPLES} | "
+                           f"{elapsed/60:.1f}m | ETA {eta/60:.1f}m")
+
+        elapsed = time.time() - t0
+        print(f"  Bare scoring complete in {elapsed/60:.1f} min")
+
+    bare_arr = np.array(bare_nlls)
+
+    # Select hard 40%
+    N_HARD = int(N_SAMPLES * HARD_FRAC)
+    sorted_idx = np.argsort(bare_arr)[::-1]
+    h_idx = np.sort(sorted_idx[:N_HARD])
+    hard_indices[ds_name] = h_idx
+
+    # Build hard_samples with bare NLL attached
+    hs = []
+    for idx in h_idx:
+        s = dict(samples[idx])  # copy
+        s['nll_bare'] = bare_arr[idx]
+        s['original_idx'] = int(idx)
+        hs.append(s)
+    hard_samples[ds_name] = hs
+
+    # Initialize hard_nlls with bare
+    hard_nlls[ds_name] = {'bare': bare_arr[h_idx]}
+
+    hard_metadata[ds_name] = {
+        'n_total': N_SAMPLES,
+        'n_hard': N_HARD,
+        'source': 'scored',
+        'mean_passage_words': float(np.mean([s['word_count'] for s in hs])),
+        'mean_query_tokens': 0.0,  # filled in after tokenization
+        'mean_answer_words': float(np.mean([count_words(s['answer']) for s in hs])),
+    }
+
+    print(f"  Hard cutoff: {bare_arr[h_idx].min():.4f}")
+    print(f"  Hard mean bare NLL: {bare_arr[h_idx].mean():.4f}")
+    print(f"  Easy mean bare NLL: {np.delete(bare_arr, h_idx).mean():.4f}")
+
+gc.collect()
+torch.cuda.empty_cache()
+
+print("\n" + "=" * 70)
+print("Hard sample selection complete:")
+for ds_name in NEW_DATASETS:
+    n_h = len(hard_samples[ds_name])
+    print(f"  {ds_name}: {n_h} hard samples (mean bare NLL: "
+          f"{hard_nlls[ds_name]['bare'].mean():.4f})")
+""")
+
+
+# ===== Cell 6: LLM surrogate generation =====
+code(r"""# Cell 6: Generate LLM surrogates for hard samples of 3 new datasets
+print("=" * 70)
+print("LLM SURROGATE GENERATION — 3 datasets x ~160 hard samples x 5 surrogates")
+print("=" * 70)
+
+surrogates_all = {}  # ds_name -> list of surrogates for hard samples
+
+for ds_name in NEW_DATASETS:
+    hs = hard_samples[ds_name]
+    n_hard = len(hs)
+    surr_path = RESULTS_DIR / f"surrogates_{ds_name}.json"
+
+    print(f"\n--- {ds_name} ({n_hard} hard samples) ---")
+
+    surrogates = []
+    start_idx = 0
+
+    if surr_path.exists():
+        surr_ckpt = json.loads(surr_path.read_text())
+        if (surr_ckpt.get('dataset') == ds_name and
+            surr_ckpt.get('n_hard') == n_hard):
+            saved_queries = [s.get('query', '')[:50]
+                             for s in surr_ckpt.get('surrogates', [])]
+            current_queries = [s['query'][:50] for s in hs[:len(saved_queries)]]
+            if saved_queries == current_queries:
+                surrogates = surr_ckpt['surrogates']
+                start_idx = len(surrogates)
+                print(f"  Resuming from {start_idx}/{n_hard}")
+
+    if start_idx < n_hard:
+        t0 = time.time()
+        ds_seed_offset = DS_SEEDS[ds_name]
+
+        for i in tqdm(range(start_idx, n_hard), initial=start_idx,
+                      total=n_hard, desc=f"Gen {ds_name}"):
+            s = hs[i]
+            entry = {'query': s['query']}
+
+            doc_words = s['passage'].split()[:200]
+            doc_input = f"Document:\n{' '.join(doc_words)}"
+
+            torch.manual_seed(ds_seed_offset + i * 10)
+            entry['paraphrase'] = generate_text(
+                f"Query: {s['query']}", PROMPT_PARAPHRASE
+            )
+
+            torch.manual_seed(ds_seed_offset + i * 10 + 1)
+            entry['same_topic'] = generate_text(doc_input, PROMPT_SAME_TOPIC)
+
+            torch.manual_seed(ds_seed_offset + i * 10 + 2)
+            entry['llm_extract'] = generate_text(doc_input, PROMPT_EXTRACT)
+
+            torch.manual_seed(ds_seed_offset + i * 10 + 3)
+            entry['llm_question'] = generate_text(doc_input, PROMPT_QUESTION)
+
+            torch.manual_seed(ds_seed_offset + i * 10 + 4)
+            entry['llm_summarize'] = generate_text(doc_input, PROMPT_SUMMARIZE)
+
+            surrogates.append(entry)
+
+            if (i + 1) % 20 == 0 or i == n_hard - 1:
+                surr_ckpt = {
+                    'dataset': ds_name,
+                    'n_hard': n_hard,
+                    'surrogates': surrogates,
+                    'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+                }
+                surr_path.write_text(json.dumps(surr_ckpt))
+                elapsed = time.time() - t0
+                done = i - start_idx + 1
+                eta = (n_hard - i - 1) * elapsed / done if done > 0 else 0
+                tqdm.write(f"  Gen checkpoint {i+1}/{n_hard} | "
+                           f"{elapsed/60:.1f}m | ETA {eta/60:.1f}m")
+
+        elapsed = time.time() - t0
+        print(f"  Generation complete in {elapsed/60:.1f} min")
+    else:
+        print(f"  Loaded {len(surrogates)} cached surrogates")
+
+    surrogates_all[ds_name] = surrogates
+
+    # Show examples
+    for j in range(min(2, n_hard)):
+        print(f"\n  Sample {j}: query='{surrogates[j]['query'][:50]}'")
+        for key in ['paraphrase', 'same_topic', 'llm_extract']:
+            print(f"    {key:<15}: {surrogates[j].get(key, 'N/A')[:50]}")
 
 gc.collect()
 torch.cuda.empty_cache()
 """)
 
 
-# ===== Cell 6: Scoring loop =====
-code(r"""# Cell 6: Scoring loop — 10 conditions x 400 samples
+# ===== Cell 7: Prefix construction + validation =====
+code(r"""# Cell 7: Build per-sample token-level prefix IDs for hard samples + validation
 print("=" * 70)
-print("SCORING ALL CONDITIONS")
+print("PREFIX CONSTRUCTION + VALIDATION")
 print("=" * 70)
 
-COND_NAMES = [
-    'bare', 'oracle', 'bare_no_bos',
-    'pos_offset_4', 'pos_offset_20',
-    'newline_only', 'single_word', 'random_3w', 'random_5w', 'random_15w',
+# Pre-tokenize fixed texts
+extractor_ids = tokenizer(EXTRACTOR_TEXT, add_special_tokens=False).input_ids
+adversarial_ids = tokenizer(ADVERSARIAL_TEXT, add_special_tokens=False).input_ids
+special_ids = set(tokenizer.all_special_ids)
+
+for ds_name in NEW_DATASETS:
+    hs = hard_samples[ds_name]
+    surrs = surrogates_all[ds_name]
+    n_hard = len(hs)
+
+    print(f"\n--- {ds_name} ({n_hard} hard samples) ---")
+
+    pyrandom.seed(DS_SEEDS[ds_name] + 200)
+    np.random.seed(DS_SEEDS[ds_name] + 300)
+
+    for i, s in enumerate(hs):
+        surr = surrs[i]
+        q_ids = tokenizer(s['query'], add_special_tokens=False).input_ids
+        Q = len(q_ids)
+        s['Q'] = Q
+
+        # 1. oracle: exact query token IDs
+        s['prefix_oracle'] = q_ids
+
+        # 2. random_tokens: random vocab IDs (excluding special)
+        rand_ids = []
+        while len(rand_ids) < Q:
+            tid = np.random.randint(0, VOCAB_SIZE)
+            if tid not in special_ids:
+                rand_ids.append(int(tid))
+        s['prefix_random_tokens'] = rand_ids[:Q]
+
+        # 3. repeat_token
+        s['prefix_repeat_token'] = [1000] * Q
+
+        # 4. scrambled_oracle
+        shuffled = list(q_ids)
+        pyrandom.shuffle(shuffled)
+        s['prefix_scrambled_oracle'] = shuffled
+
+        # 5. unrelated_query: other hard sample's query
+        other_idx = (i + n_hard // 2) % n_hard
+        other_q_ids = tokenizer(hs[other_idx]['query'],
+                                add_special_tokens=False).input_ids
+        s['prefix_unrelated_query'] = make_prefix(other_q_ids, Q)
+
+        # 6. same_topic
+        topic_ids = tokenizer(surr['same_topic'],
+                              add_special_tokens=False).input_ids
+        s['prefix_same_topic'] = make_prefix(topic_ids, Q)
+
+        # 7. paraphrase
+        para_ids = tokenizer(surr['paraphrase'],
+                             add_special_tokens=False).input_ids
+        s['prefix_paraphrase'] = make_prefix(para_ids, Q)
+
+        # 8. llm_extract
+        extract_ids = tokenizer(surr['llm_extract'],
+                                add_special_tokens=False).input_ids
+        s['prefix_llm_extract'] = make_prefix(extract_ids, Q)
+
+        # 9. llm_question
+        question_ids = tokenizer(surr['llm_question'],
+                                 add_special_tokens=False).input_ids
+        s['prefix_llm_question'] = make_prefix(question_ids, Q)
+
+        # 10. llm_summarize
+        summarize_ids = tokenizer(surr['llm_summarize'],
+                                  add_special_tokens=False).input_ids
+        s['prefix_llm_summarize'] = make_prefix(summarize_ids, Q)
+
+        # 11. extractor_matched
+        s['prefix_extractor_matched'] = make_prefix(extractor_ids, Q)
+
+        # 12. adversarial_matched
+        s['prefix_adversarial_matched'] = make_prefix(adversarial_ids, Q)
+
+    # Update metadata with query token stats
+    q_lens = [s['Q'] for s in hs]
+    hard_metadata[ds_name]['mean_query_tokens'] = float(np.mean(q_lens))
+    print(f"  Q tokens — mean: {np.mean(q_lens):.1f}, "
+          f"median: {np.median(q_lens):.0f}, "
+          f"min: {np.min(q_lens)}, max: {np.max(q_lens)}")
+
+    # Verify all prefixes have exactly Q tokens
+    errors = 0
+    for i, s in enumerate(hs):
+        Q = s['Q']
+        for key in PREFIX_KEYS:
+            if len(s[key]) != Q:
+                print(f"  ERROR: Sample {i} {key}: len={len(s[key])} != Q={Q}")
+                errors += 1
+    assert errors == 0, f"{ds_name}: {errors} prefix length mismatches!"
+    print(f"  All {len(PREFIX_KEYS)} prefix types verified for {n_hard} samples")
+
+# ================================================================
+# VALIDATION TESTS
+# ================================================================
+print("\n" + "=" * 70)
+print("VALIDATION TESTS")
+print("=" * 70)
+
+# Test 1: Bare two-phase matches single-pass
+print("\n--- Test 1: Bare two-phase matches single-pass ---")
+doc_text_t = "The cat sat on the mat near the door of the house by the lake"
+query_text_t = "Where did the cat sit?"
+answer_text_t = "on the mat"
+doc_ids_t = tokenizer(doc_text_t, add_special_tokens=False).input_ids
+D_t = len(doc_ids_t)
+query_ids_t = tokenizer("\n" + query_text_t + "\n", add_special_tokens=False).input_ids
+answer_ids_t = tokenizer(answer_text_t, add_special_tokens=False).input_ids
+
+full_ids = [BOS_ID] + doc_ids_t + query_ids_t + answer_ids_t
+with torch.no_grad():
+    out_full = model(input_ids=torch.tensor([full_ids], device=DEVICE))
+n_ctx = 1 + D_t + len(query_ids_t)
+logits_full = out_full.logits[0, n_ctx - 1:n_ctx - 1 + len(answer_ids_t), :].float()
+targets_t = torch.tensor(answer_ids_t, device=DEVICE)
+nll_single = -F.log_softmax(logits_full, dim=-1).gather(
+    1, targets_t.unsqueeze(1)).squeeze(1).mean().item()
+del out_full
+
+nll_bare = score(doc_text_t, query_text_t, answer_text_t)
+diff_pct = abs(nll_single - nll_bare) / nll_single * 100
+print(f"  Single-pass NLL: {nll_single:.6f}")
+print(f"  Two-phase bare:  {nll_bare:.6f} (diff: {diff_pct:.2f}%)")
+assert diff_pct < 1.0, f"Bare doesn't match single-pass: {diff_pct}%"
+print(f"  PASSED")
+
+# Test 2: Prefixed scoring on first hard sample from first new dataset
+print("\n--- Test 2: Prefixed scoring runs correctly ---")
+test_ds = NEW_DATASETS[0]
+ts = hard_samples[test_ds][0]
+nll_b = score(ts['passage'], ts['query'], ts['answer'])
+nll_o = score(ts['passage'], ts['query'], ts['answer'],
+              prefix_token_ids=ts['prefix_oracle'])
+nll_r = score(ts['passage'], ts['query'], ts['answer'],
+              prefix_token_ids=ts['prefix_random_tokens'])
+print(f"  [{test_ds}] Bare:          {nll_b:.4f}")
+print(f"  [{test_ds}] Oracle:        {nll_o:.4f}  delta={nll_b - nll_o:+.4f}")
+print(f"  [{test_ds}] Random tokens: {nll_r:.4f}  delta={nll_b - nll_r:+.4f}")
+assert 0 < nll_b < 20 and 0 < nll_o < 20 and 0 < nll_r < 20
+print("  PASSED")
+
+# Test 3: Token-matching invariant
+print("\n--- Test 3: Token-matching invariant ---")
+Q = ts['Q']
+for key in PREFIX_KEYS:
+    assert len(ts[key]) == Q, f"{key}: {len(ts[key])} != Q={Q}"
+print(f"  All 12 prefixed conditions have Q={Q} tokens")
+print("  PASSED")
+
+gc.collect()
+torch.cuda.empty_cache()
+print("\nALL VALIDATION TESTS PASSED")
+""")
+
+
+# ===== Cell 8: Full scoring loop =====
+code(r"""# Cell 8: Full 12-condition scoring for hard samples of 3 new datasets
+print("=" * 70)
+print("FULL SCORING — 12 prefixed conditions x ~160 hard samples x 3 datasets")
+print("=" * 70)
+
+for ds_name in NEW_DATASETS:
+    hs = hard_samples[ds_name]
+    n_hard = len(hs)
+    ckpt_path = RESULTS_DIR / f"checkpoint_{ds_name}.json"
+
+    print(f"\n--- {ds_name} ({n_hard} hard samples x 12 conditions) ---")
+
+    ds_results = []
+    start_idx = 0
+
+    if ckpt_path.exists():
+        ckpt = json.loads(ckpt_path.read_text())
+        if (ckpt.get('dataset') == ds_name and
+            ckpt.get('scoring') == SCORING_KEY and
+            ckpt.get('n_hard') == n_hard):
+            saved_queries = [r['query'][:50] for r in ckpt.get('results', [])]
+            current_queries = [s['query'][:50] for s in hs[:len(saved_queries)]]
+            if saved_queries == current_queries:
+                ds_results = ckpt['results']
+                start_idx = len(ds_results)
+                print(f"  Resuming from checkpoint: {start_idx}/{n_hard}")
+
+    if start_idx < n_hard:
+        t0 = time.time()
+
+        for i in tqdm(range(start_idx, n_hard), initial=start_idx,
+                      total=n_hard, desc=f"Score {ds_name}"):
+            s = hs[i]
+            result = {
+                'query': s['query'],
+                'answer': s['answer'],
+                'passage_words': s['word_count'],
+                'Q': s['Q'],
+                'nll_bare': float(s['nll_bare']),
+            }
+
+            for cond_name, prefix_key in COND_PREFIX_MAP.items():
+                result[f'nll_{cond_name}'] = score(
+                    s['passage'], s['query'], s['answer'],
+                    prefix_token_ids=s[prefix_key]
+                )
+
+            ds_results.append(result)
+
+            if (i + 1) % 20 == 0 or i == n_hard - 1:
+                ckpt = {
+                    'dataset': ds_name,
+                    'n_hard': n_hard,
+                    'scoring': SCORING_KEY,
+                    'results': ds_results,
+                    'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+                }
+                ckpt_path.write_text(json.dumps(ckpt))
+                elapsed = time.time() - t0
+                done = i - start_idx + 1
+                eta = (n_hard - i - 1) * elapsed / done if done > 0 else 0
+                tqdm.write(f"  Checkpoint {i+1}/{n_hard} | "
+                           f"{elapsed/60:.1f}m | ETA {eta/60:.1f}m")
+
+            gc.collect()
+            torch.cuda.empty_cache()
+
+        elapsed = time.time() - t0
+        print(f"  Scoring complete in {elapsed/60:.1f} min")
+    else:
+        print(f"  Loaded {len(ds_results)} cached results")
+
+    # Populate hard_nlls for this dataset
+    for cond in COND_NAMES:
+        hard_nlls[ds_name][cond] = np.array(
+            [r[f'nll_{cond}'] for r in ds_results])
+
+    # Sanity check: bare NLLs should match
+    bare_from_results = np.array([r['nll_bare'] for r in ds_results])
+    bare_from_cell5 = hard_nlls[ds_name]['bare']
+    assert np.allclose(bare_from_results, bare_from_cell5, atol=0.01), \
+        f"{ds_name}: bare NLL mismatch between Cell 5 and Cell 8"
+    # Use the fresh bare from Cell 5 (scored directly)
+    hard_nlls[ds_name]['bare'] = bare_from_cell5
+
+gc.collect()
+torch.cuda.empty_cache()
+
+print("\n" + "=" * 70)
+print("All scoring complete. Datasets in hard_nlls:")
+for ds_name in DATASET_NAMES:
+    n = len(hard_nlls[ds_name]['bare'])
+    print(f"  {ds_name}: {n} hard samples x {len(COND_NAMES)} conditions")
+""")
+
+
+# ===== Cell 9: Per-dataset results =====
+code(r"""# Cell 9: Per-dataset analysis — condition tables, semantic gradient, LLM vs generic
+print("=" * 70)
+print("PER-DATASET ANALYSIS")
+print("=" * 70)
+
+# Relevance ordering for gradient test (excluding random_tokens = reference)
+GRADIENT_CONDS = [
+    ('scrambled_oracle', 1),
+    ('unrelated_query', 2),
+    ('same_topic', 3),
+    ('paraphrase', 4),
+    ('oracle', 5),
 ]
 
-results = []
-start_idx = 0
+per_dataset_analysis = {}
 
-if CHECKPOINT_PATH.exists():
-    ckpt = json.loads(CHECKPOINT_PATH.read_text())
-    if ckpt.get('n_total') == N_SAMPLES and len(ckpt.get('results', [])) > 0:
-        saved_queries = [r['query'][:50] for r in ckpt['results']]
-        current_queries = [s['query'][:50] for s in samples[:len(saved_queries)]]
-        if saved_queries == current_queries:
-            results = ckpt['results']
-            start_idx = len(results)
-            print(f"Resuming from checkpoint: {start_idx}/{N_SAMPLES}")
+for ds_name in DATASET_NAMES:
+    nlls = hard_nlls[ds_name]
+    n_hard = len(nlls['bare'])
+    bare = nlls['bare']
+    random_base = nlls['random_tokens']
 
-if start_idx == 0:
-    print(f"Starting fresh: {len(COND_NAMES)} conditions x {N_SAMPLES} samples")
+    print(f"\n{'='*70}")
+    print(f"  {ds_name.upper()} — {n_hard} hard samples")
+    print(f"{'='*70}")
 
-t0 = time.time()
+    analysis = {}
 
-for i in tqdm(range(start_idx, N_SAMPLES), initial=start_idx, total=N_SAMPLES,
-              desc="Scoring"):
-    s = samples[i]
-    query = s['query']
-    passage = s['passage']
-    answer = s['answer']
+    # ---- Part A: Condition table ----
+    print(f"\n  {'Cond':<24} {'NLL':>7} {'d bare':>8} {'sem d':>8} "
+          f"{'win%':>6} {'p':>10} {'sig':>4}")
+    print(f"  {'-'*72}")
 
-    result = {
-        'query': query,
-        'answer': answer,
-        'passage_words': s['word_count'],
-        'query_words': len(query.split()),
+    for cond in COND_NAMES:
+        c_nlls = nlls[cond]
+        mean_nll = c_nlls.mean()
+
+        if cond == 'bare':
+            print(f"  {cond:<24} {mean_nll:>7.3f} {'--':>8} {'--':>8} "
+                  f"{'--':>6} {'--':>10} {'--':>4}")
+            analysis[cond] = {'mean_nll': float(mean_nll)}
+            continue
+
+        diff_bare = bare - c_nlls
+        d_bare = cohens_d(diff_bare)
+        _, p_bare = stats.ttest_1samp(diff_bare, 0)
+
+        if cond == 'random_tokens':
+            win_pct = 100 * np.mean(diff_bare > 0)
+            sig = ('***' if p_bare < 0.001 else '**' if p_bare < 0.01
+                   else '*' if p_bare < 0.05 else 'ns')
+            print(f"  {cond:<24} {mean_nll:>7.3f} {d_bare:>+8.3f} {'(ref)':>8} "
+                  f"{win_pct:>5.1f}% {p_bare:>10.2e} {sig:>4}")
+            analysis[cond] = {
+                'mean_nll': float(mean_nll), 'd_bare': float(d_bare),
+                'semantic_delta_d': 0.0, 'p_bare': float(p_bare),
+            }
+        else:
+            sem_delta = random_base - c_nlls
+            d_sem = cohens_d(sem_delta)
+            _, p_sem = stats.ttest_1samp(sem_delta, 0)
+            win_pct = 100 * np.mean(sem_delta > 0)
+            sig = ('***' if p_sem < 0.001 else '**' if p_sem < 0.01
+                   else '*' if p_sem < 0.05 else 'ns')
+            print(f"  {cond:<24} {mean_nll:>7.3f} {d_bare:>+8.3f} {d_sem:>+8.3f} "
+                  f"{win_pct:>5.1f}% {p_sem:>10.2e} {sig:>4}")
+            analysis[cond] = {
+                'mean_nll': float(mean_nll), 'd_bare': float(d_bare),
+                'semantic_delta_d': float(d_sem), 'p_semantic': float(p_sem),
+            }
+
+    # ---- Part B: Semantic gradient test ----
+    print(f"\n  Semantic gradient (within hard examples):")
+    grad_ranks = []
+    grad_ds = []
+    for cond, rank in GRADIENT_CONDS:
+        sem_d = cohens_d(random_base - nlls[cond])
+        grad_ranks.append(rank)
+        grad_ds.append(sem_d)
+        print(f"    [{rank}] {cond:<22} sem_delta_d={sem_d:+.4f}")
+
+    rho, p_grad = stats.spearmanr(grad_ranks, grad_ds)
+    sig = ('***' if p_grad < 0.001 else '**' if p_grad < 0.01
+           else '*' if p_grad < 0.05 else 'ns')
+    print(f"    Spearman rho: {rho:+.3f} (p={p_grad:.4f}) {sig}")
+
+    if rho > 0.8 and p_grad < 0.10:
+        verdict = "MONOTONIC gradient"
+    elif rho > 0.5:
+        verdict = "PARTIAL gradient"
+    elif rho > 0:
+        verdict = "WEAK positive trend"
+    else:
+        verdict = "NO gradient"
+    print(f"    --> {verdict}")
+    analysis['gradient'] = {
+        'rho': float(rho), 'p': float(p_grad), 'verdict': verdict,
     }
 
-    # 1. bare
-    result['nll_bare'] = score(passage, query, answer)
+    # ---- Part C: LLM doc-specific vs generic ----
+    print(f"\n  LLM doc-specific vs generic task-framing:")
+    llm_pairs = [
+        ('llm_extract', 'extractor_matched'),
+        ('llm_question', 'extractor_matched'),
+        ('llm_summarize', 'extractor_matched'),
+    ]
+    for llm_cond, gen_cond in llm_pairs:
+        diff = nlls[gen_cond] - nlls[llm_cond]  # pos = LLM better
+        d = cohens_d(diff)
+        _, p = stats.ttest_1samp(diff, 0)
+        win = 100 * np.mean(diff > 0)
+        sig = ('***' if p < 0.001 else '**' if p < 0.01
+               else '*' if p < 0.05 else 'ns')
+        print(f"    {llm_cond} vs {gen_cond}: d={d:+.3f}, "
+              f"LLM wins {win:.1f}%, p={p:.2e} {sig}")
 
-    # 2. oracle
-    result['nll_oracle'] = score(passage, query, answer, prefix_text=query)
+    per_dataset_analysis[ds_name] = analysis
 
-    # 3. bare_no_bos
-    result['nll_bare_no_bos'] = score(passage, query, answer, remove_bos=True)
-
-    # 4. pos_offset_4 (S=4, matches ~single_word prefix length)
-    result['nll_pos_offset_4'] = score(passage, query, answer, position_offset=4)
-
-    # 5. pos_offset_20 (S=20, matches ~random_15w prefix length)
-    result['nll_pos_offset_20'] = score(passage, query, answer, position_offset=20)
-
-    # 6. newline_only (prefix_text="" → BOS + \n only)
-    result['nll_newline_only'] = score(passage, query, answer, prefix_text="")
-
-    # 7. single_word
-    result['nll_single_word'] = score(passage, query, answer,
-                                      prefix_text=s['single_word'])
-
-    # 8. random_3w
-    result['nll_random_3w'] = score(passage, query, answer,
-                                    prefix_text=s['random_3w'])
-
-    # 9. random_5w
-    result['nll_random_5w'] = score(passage, query, answer,
-                                    prefix_text=s['random_5w'])
-
-    # 10. random_15w
-    result['nll_random_15w'] = score(passage, query, answer,
-                                     prefix_text=s['random_15w'])
-
-    results.append(result)
-
-    if (i + 1) % 20 == 0 or i == N_SAMPLES - 1:
-        ckpt = {
-            'n_total': N_SAMPLES,
-            'results': results,
-            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
-        }
-        CHECKPOINT_PATH.write_text(json.dumps(ckpt))
-        elapsed = time.time() - t0
-        done = i - start_idx + 1
-        eta = (N_SAMPLES - i - 1) * elapsed / done if done > 0 else 0
-        tqdm.write(f"  Checkpoint {i+1}/{N_SAMPLES} | {elapsed/60:.1f}m | ETA {eta/60:.1f}m")
-
-    gc.collect()
-    torch.cuda.empty_cache()
-
-elapsed = time.time() - t0
-print(f"\nScoring complete: {len(results)} samples, "
-      f"{len(COND_NAMES)} conditions in {elapsed/60:.1f} min")
+gc.collect()
+torch.cuda.empty_cache()
 """)
 
 
-# ===== Cell 7: Results table =====
-code(r"""# Cell 7: Results table
+# ===== Cell 10: Cross-dataset analysis + verdict =====
+code(r"""# Cell 10: Cross-dataset meta-analysis, consistency, and verdict
 print("=" * 70)
-print(f"RESULTS (N={len(results)})")
+print("CROSS-DATASET ANALYSIS")
 print("=" * 70)
 
-# Extract arrays
-arrays = {}
-for name in COND_NAMES:
-    arrays[name] = np.array([r[f'nll_{name}'] for r in results])
-
-bare = arrays['bare']
-oracle = arrays['oracle']
-oracle_delta_mean = (bare - oracle).mean()
-
-print(f"\n  {'Condition':<20} {'NLL':>8} {'vs bare':>10} {'d':>8} "
-      f"{'Win%':>8} {'p':>12} {'sig':>5} {'Recovery':>10}")
+# ================================================================
+# PART 1: Cross-dataset condition comparison
+# ================================================================
+print(f"\n--- PART 1: Semantic delta d across datasets ---")
+print(f"\n  {'Condition':<24}", end="")
+for ds_name in DATASET_NAMES:
+    print(f" {ds_name[:10]:>10}", end="")
+print(f"  {'mean':>8} {'consistent':>10}")
 print(f"  {'-'*90}")
 
-analysis = {}
-for name in COND_NAMES:
-    nlls = arrays[name]
-    mean_nll = nlls.mean()
+cross_dataset = {}  # cond -> {ds_name: d, ...}
+for cond in COND_NAMES:
+    if cond in ('bare', 'random_tokens'):
+        continue
+    row = f"  {cond:<24}"
+    ds_vals = []
+    for ds_name in DATASET_NAMES:
+        sem_delta = hard_nlls[ds_name]['random_tokens'] - hard_nlls[ds_name][cond]
+        d = cohens_d(sem_delta)
+        row += f" {d:>+10.3f}"
+        ds_vals.append(d)
+    mean_d = np.mean(ds_vals)
+    same_sign = all(v >= 0 for v in ds_vals) or all(v <= 0 for v in ds_vals)
+    row += f"  {mean_d:>+8.3f} {'YES' if same_sign else 'NO':>10}"
+    print(row)
+    cross_dataset[cond] = {ds: float(d) for ds, d in zip(DATASET_NAMES, ds_vals)}
+    cross_dataset[cond]['mean'] = float(mean_d)
+    cross_dataset[cond]['consistent_sign'] = same_sign
 
-    if name == 'bare':
-        print(f"  {name:<20} {mean_nll:>8.4f} {'--':>10} {'--':>8} "
-              f"{'--':>8} {'--':>12} {'--':>5} {'--':>10}")
-        analysis[name] = {'mean_nll': float(mean_nll)}
+# ================================================================
+# PART 2: Fixed-effects meta-analysis
+# ================================================================
+print(f"\n--- PART 2: Fixed-Effects Meta-Analysis ---")
+print(f"\n  {'Condition':<24} {'pooled_d':>9} {'SE':>8} {'z':>8} "
+      f"{'p':>10} {'95% CI':>16} {'sig':>4}")
+print(f"  {'-'*82}")
+
+meta_results = {}
+for cond in COND_NAMES:
+    if cond in ('bare', 'random_tokens'):
+        continue
+
+    # Per-dataset estimates
+    ds_effects = []
+    for ds_name in DATASET_NAMES:
+        sem_delta = hard_nlls[ds_name]['random_tokens'] - hard_nlls[ds_name][cond]
+        n = len(sem_delta)
+        d = cohens_d(sem_delta)
+        se = np.sqrt(1.0/n + d**2 / (2.0*n))
+        ds_effects.append((d, se, n))
+
+    # Fixed-effects pooling
+    weights = [1.0 / (se**2) for _, se, _ in ds_effects]
+    w_sum = sum(weights)
+    pooled_d = sum(w * d for (d, _, _), w in zip(ds_effects, weights)) / w_sum
+    pooled_se = 1.0 / np.sqrt(w_sum)
+    z = pooled_d / pooled_se if pooled_se > 0 else 0.0
+    p = 2 * stats.norm.sf(abs(z))
+    ci_lo = pooled_d - 1.96 * pooled_se
+    ci_hi = pooled_d + 1.96 * pooled_se
+    sig = ('***' if p < 0.001 else '**' if p < 0.01
+           else '*' if p < 0.05 else 'ns')
+
+    print(f"  {cond:<24} {pooled_d:>+9.4f} {pooled_se:>8.4f} {z:>+8.2f} "
+          f"{p:>10.2e} [{ci_lo:>+.3f}, {ci_hi:>+.3f}] {sig:>4}")
+    meta_results[cond] = {
+        'pooled_d': float(pooled_d), 'se': float(pooled_se),
+        'z': float(z), 'p': float(p),
+        'ci_lo': float(ci_lo), 'ci_hi': float(ci_hi),
+    }
+
+# ================================================================
+# PART 3: Semantic gradient across datasets
+# ================================================================
+print(f"\n--- PART 3: Semantic Gradient Per Dataset ---")
+print(f"\n  {'Dataset':<16} {'rho':>8} {'p':>10} {'verdict':>20}")
+print(f"  {'-'*58}")
+
+all_rhos = []
+for ds_name in DATASET_NAMES:
+    grad_ranks = []
+    grad_ds = []
+    for cond, rank in GRADIENT_CONDS:
+        sem_d = cohens_d(hard_nlls[ds_name]['random_tokens'] -
+                         hard_nlls[ds_name][cond])
+        grad_ranks.append(rank)
+        grad_ds.append(sem_d)
+    rho, p = stats.spearmanr(grad_ranks, grad_ds)
+    all_rhos.append(rho)
+    if rho > 0.8 and p < 0.10:
+        verdict = "MONOTONIC"
+    elif rho > 0.5:
+        verdict = "PARTIAL"
+    elif rho > 0:
+        verdict = "WEAK"
     else:
-        diff = bare - nlls
-        d = cohens_d(diff)
-        win_pct = 100 * np.mean(diff > 0)
-        _, p_val = stats.ttest_1samp(diff, 0)
-        sig = '***' if p_val < 0.001 else '**' if p_val < 0.01 else '*' if p_val < 0.05 else 'ns'
+        verdict = "NONE"
+    print(f"  {ds_name:<16} {rho:>+8.3f} {p:>10.4f} {verdict:>20}")
 
-        if oracle_delta_mean > 0:
-            recovery = diff.mean() / oracle_delta_mean * 100
-            rec_str = f"{recovery:>9.1f}%"
-        else:
-            recovery = float('nan')
-            rec_str = "n/a"
+mean_rho = np.mean(all_rhos)
+print(f"\n  Mean rho across datasets: {mean_rho:+.3f}")
+n_positive = sum(1 for r in all_rhos if r > 0)
+print(f"  Datasets with positive gradient: {n_positive}/{len(DATASET_NAMES)}")
 
-        print(f"  {name:<20} {mean_nll:>8.4f} {diff.mean():>+10.4f} {d:>+8.3f} "
-              f"{win_pct:>7.1f}% {p_val:>12.2e} {sig:>5} {rec_str:>10}")
-        analysis[name] = {
-            'mean_nll': float(mean_nll), 'delta': float(diff.mean()),
-            'd': float(d), 'win_pct': float(win_pct), 'p': float(p_val),
-            'recovery': float(recovery) if not np.isnan(recovery) else None,
-        }
-""")
-
-
-# ===== Cell 8: Mechanism isolation analysis =====
-code(r"""# Cell 8: Mechanism isolation — three-factor decomposition
-print("=" * 70)
-print("MECHANISM ISOLATION")
-print("=" * 70)
-
-# -----------------------------------------------------------------------
-# Three-factor decomposition of the total structural effect
-# Total: bare → random_15w (the effect of a 15-word random prefix)
-# Factor 1: BOS removal           (bare → bare_no_bos)
-# Factor 2: Position offset       (bare_no_bos → pos_offset_20)
-# Factor 3: Attention enrichment  (pos_offset_20 → random_15w)
-# -----------------------------------------------------------------------
-
-total = bare - arrays['random_15w']
-f1 = bare - arrays['bare_no_bos']
-f2 = arrays['bare_no_bos'] - arrays['pos_offset_20']
-f3 = arrays['pos_offset_20'] - arrays['random_15w']
-
-print(f"\n{'='*60}")
-print(f"  THREE-FACTOR DECOMPOSITION")
-print(f"  Total structural effect: bare → random_15w")
-print(f"{'='*60}")
-
-total_mean = total.mean()
-total_d = cohens_d(total)
-_, total_p = stats.ttest_1samp(total, 0)
-print(f"\n  TOTAL: NLL delta = {total_mean:+.4f}, d = {total_d:+.4f}, "
-      f"p = {total_p:.2e}")
-
-for label, factor, explanation in [
-    ("Factor 1: BOS removal", f1, "bare → bare_no_bos"),
-    ("Factor 2: Position offset", f2, "bare_no_bos → pos_offset_20"),
-    ("Factor 3: Attention enrichment", f3, "pos_offset_20 → random_15w"),
-]:
-    f_mean = factor.mean()
-    f_d = cohens_d(factor)
-    _, f_p = stats.ttest_1samp(factor, 0)
-    f_sig = '***' if f_p < 0.001 else '**' if f_p < 0.01 else '*' if f_p < 0.05 else 'ns'
-    if total_mean > 0:
-        pct = f_mean / total_mean * 100
-    else:
-        pct = 0
-    print(f"\n  {label}  ({explanation})")
-    print(f"    NLL delta = {f_mean:+.4f}  ({pct:>5.1f}% of total)")
-    print(f"    d = {f_d:+.4f}, p = {f_p:.2e} ({f_sig})")
-
-# Sum check
-sum_factors = f1.mean() + f2.mean() + f3.mean()
-print(f"\n  Sum check: {f1.mean():.4f} + {f2.mean():.4f} + {f3.mean():.4f} "
-      f"= {sum_factors:.4f} vs total {total_mean:.4f}")
-
-# -----------------------------------------------------------------------
-# Position offset dose-response
-# -----------------------------------------------------------------------
-print(f"\n{'='*60}")
-print(f"  POSITION OFFSET DOSE-RESPONSE")
-print(f"  (all with BOS removed, no prefix tokens)")
-print(f"{'='*60}")
-
-print(f"\n  {'Condition':<20} {'S':>4} {'d vs bare':>10} {'d vs bare_no_bos':>18} {'p':>12}")
+# ================================================================
+# PART 4: Dataset properties
+# ================================================================
+print(f"\n--- PART 4: Dataset Properties ---")
+print(f"\n  {'Dataset':<16} {'N_hard':>6} {'pass_w':>8} {'ans_w':>8} "
+      f"{'Q_tok':>8} {'bare NLL':>10} {'best_sem_d':>10}")
 print(f"  {'-'*70}")
-for name, S in [('bare_no_bos', 0), ('pos_offset_4', 4), ('pos_offset_20', 20)]:
-    diff_vs_bare = bare - arrays[name]
-    diff_vs_nobos = arrays['bare_no_bos'] - arrays[name]
-    d_b = cohens_d(diff_vs_bare)
-    d_nb = cohens_d(diff_vs_nobos)
-    _, p_nb = stats.ttest_1samp(diff_vs_nobos, 0)
-    sig = '***' if p_nb < 0.001 else '**' if p_nb < 0.01 else '*' if p_nb < 0.05 else 'ns'
-    print(f"  {name:<20} {S:>4} {d_b:>+10.4f} {d_nb:>+18.4f} {p_nb:>12.2e} {sig}")
 
-# -----------------------------------------------------------------------
-# Saturation curve — where does the effect plateau?
-# -----------------------------------------------------------------------
-print(f"\n{'='*60}")
-print(f"  SATURATION CURVE")
-print(f"  (real prefix tokens: when does benefit plateau?)")
-print(f"{'='*60}")
+for ds_name in DATASET_NAMES:
+    meta = hard_metadata[ds_name]
+    bare_mean = hard_nlls[ds_name]['bare'].mean()
 
-print(f"\n  {'Condition':<16} {'~words':>8} {'d vs bare':>10} {'recovery':>10} {'p':>12}")
-print(f"  {'-'*62}")
-for name, nw in [('newline_only', '0'),
-                  ('single_word', '1'),
-                  ('random_3w', '3'),
-                  ('random_5w', '5'),
-                  ('random_15w', '15')]:
-    diff = bare - arrays[name]
-    d = cohens_d(diff)
-    _, p = stats.ttest_1samp(diff, 0)
-    sig = '***' if p < 0.001 else '**' if p < 0.01 else '*' if p < 0.05 else 'ns'
-    rec = diff.mean() / oracle_delta_mean * 100 if oracle_delta_mean > 0 else 0
-    print(f"  {name:<16} {nw:>8} {d:>+10.4f} {rec:>9.1f}% {p:>12.2e} {sig}")
+    # Find condition with highest semantic delta d
+    best_cond = None
+    best_d = -999
+    for cond in COND_NAMES:
+        if cond in ('bare', 'random_tokens'):
+            continue
+        sem_d = cohens_d(hard_nlls[ds_name]['random_tokens'] -
+                         hard_nlls[ds_name][cond])
+        if sem_d > best_d:
+            best_d = sem_d
+            best_cond = cond
 
-# Pairwise: does adding more words help significantly?
-print(f"\n  Pairwise (does adding more words help beyond previous level?):")
-pairs = [('newline_only', 'single_word'),
-         ('single_word', 'random_3w'),
-         ('random_3w', 'random_5w'),
-         ('random_5w', 'random_15w')]
-for a, b in pairs:
-    diff_ab = arrays[a] - arrays[b]  # positive = b better
-    d_ab = cohens_d(diff_ab)
-    _, p_ab = stats.ttest_1samp(diff_ab, 0)
-    sig = '***' if p_ab < 0.001 else '**' if p_ab < 0.01 else '*' if p_ab < 0.05 else 'ns'
-    print(f"  {a:<16} → {b:<16} d = {d_ab:+.4f} ({sig})")
+    print(f"  {ds_name:<16} {meta['n_hard']:>6} "
+          f"{meta['mean_passage_words']:>8.0f} "
+          f"{meta['mean_answer_words']:>8.1f} "
+          f"{meta['mean_query_tokens']:>8.1f} "
+          f"{bare_mean:>10.3f} {best_d:>+10.3f}")
 
-# -----------------------------------------------------------------------
-# Matched comparison: pos_offset vs prefix at same approximate S
-# -----------------------------------------------------------------------
-print(f"\n{'='*60}")
-print(f"  POSITION-MATCHED COMPARISONS")
-print(f"  (same approximate offset, with vs without prefix tokens)")
-print(f"{'='*60}")
-
-for pos_name, prefix_name, approx_s in [
-    ('pos_offset_4', 'single_word', '~4'),
-    ('pos_offset_20', 'random_15w', '~20'),
-]:
-    diff = arrays[pos_name] - arrays[prefix_name]  # positive = prefix better
-    d = cohens_d(diff)
-    _, p = stats.ttest_1samp(diff, 0)
-    sig = '***' if p < 0.001 else '**' if p < 0.01 else '*' if p < 0.05 else 'ns'
-    print(f"\n  S≈{approx_s}: {pos_name} vs {prefix_name}")
-    print(f"    pos_offset NLL = {arrays[pos_name].mean():.4f}")
-    print(f"    prefix     NLL = {arrays[prefix_name].mean():.4f}")
-    print(f"    diff d = {d:+.4f} ({sig})")
-    if d > 0.05:
-        print(f"    → Prefix tokens ADD value beyond position offset alone")
-    elif d < -0.05:
-        print(f"    → Prefix tokens HURT — position alone is better?!")
-    else:
-        print(f"    → No significant difference — position alone explains it")
-""")
-
-
-# ===== Cell 9: Verdict + save =====
-code(r"""# Cell 9: Verdict and interpretation
-print("=" * 70)
-print("VERDICT — Exp 03: Position vs Attention Isolation")
+# ================================================================
+# VERDICT
+# ================================================================
+print("\n" + "=" * 70)
+print("VERDICT — Exp 03: Hard-Example Semantic Isolation Across Datasets")
 print("=" * 70)
 
 print(f"\nModel: {MODEL_NAME}")
-print(f"N: {len(results)} samples (MS MARCO v1.1)")
+print(f"Scoring: BOS-retained repositioning + token-level prefix matching")
+print(f"Datasets: {len(DATASET_NAMES)} ({', '.join(DATASET_NAMES)})")
+print(f"Hard selection: top {HARD_FRAC*100:.0f}% by bare NLL")
 
-# Recall the three factors
-total_mean = (bare - arrays['random_15w']).mean()
-f1_mean = (bare - arrays['bare_no_bos']).mean()
-f2_mean = (arrays['bare_no_bos'] - arrays['pos_offset_20']).mean()
-f3_mean = (arrays['pos_offset_20'] - arrays['random_15w']).mean()
+# Key findings
+print(f"\n--- Key findings ---")
 
-print(f"\n--- Structural effect decomposition ---")
-print(f"  Total (bare → random_15w): {total_mean:+.4f}")
-if total_mean > 0:
-    print(f"  Factor 1 — BOS removal:     {f1_mean:+.4f} ({f1_mean/total_mean*100:>5.1f}%)")
-    print(f"  Factor 2 — Position offset:  {f2_mean:+.4f} ({f2_mean/total_mean*100:>5.1f}%)")
-    print(f"  Factor 3 — Attention enrich: {f3_mean:+.4f} ({f3_mean/total_mean*100:>5.1f}%)")
+# 1. Does the semantic gradient emerge in hard examples?
+n_gradient = sum(1 for r in all_rhos if r > 0.5)
+print(f"\n  1. Semantic gradient in hard examples:")
+print(f"     {n_gradient}/{len(DATASET_NAMES)} datasets show partial/monotonic gradient")
+print(f"     Mean Spearman rho: {mean_rho:+.3f}")
+if n_gradient >= 3:
+    print(f"     --> YES: gradient generalizes across datasets")
+elif n_gradient >= 2:
+    print(f"     --> PARTIAL: gradient in {n_gradient}/{len(DATASET_NAMES)} datasets")
+else:
+    print(f"     --> NO: gradient does not consistently emerge")
 
-# Interpretation
-print(f"\n--- Interpretation ---")
-_, f1_p = stats.ttest_1samp(bare - arrays['bare_no_bos'], 0)
-_, f2_p = stats.ttest_1samp(arrays['bare_no_bos'] - arrays['pos_offset_20'], 0)
-_, f3_p = stats.ttest_1samp(arrays['pos_offset_20'] - arrays['random_15w'], 0)
+# 2. Which conditions have significant semantic benefit?
+print(f"\n  2. Conditions with significant semantic benefit (pooled p<0.05):")
+sig_conds = [(c, m) for c, m in meta_results.items() if m['p'] < 0.05]
+sig_conds.sort(key=lambda x: x[1]['pooled_d'], reverse=True)
+for cond, m in sig_conds:
+    print(f"     {cond:<24} pooled_d={m['pooled_d']:+.3f} "
+          f"[{m['ci_lo']:+.3f}, {m['ci_hi']:+.3f}]")
+if not sig_conds:
+    print(f"     (none)")
 
-for label, pct, p in [("BOS removal", f1_mean/total_mean*100 if total_mean > 0 else 0, f1_p),
-                        ("Position offset", f2_mean/total_mean*100 if total_mean > 0 else 0, f2_p),
-                        ("Attention enrichment", f3_mean/total_mean*100 if total_mean > 0 else 0, f3_p)]:
-    sig = "SIGNIFICANT" if p < 0.05 else "not significant"
-    print(f"  {label:<24} {pct:>5.1f}%  ({sig}, p={p:.2e})")
+# 3. Cross-dataset consistency
+n_consistent = sum(1 for v in cross_dataset.values() if v.get('consistent_sign'))
+print(f"\n  3. Cross-dataset sign consistency:")
+print(f"     {n_consistent}/{len(cross_dataset)} conditions have same sign across all 4 datasets")
 
-# Saturation
-d_1w = cohens_d(bare - arrays['single_word'])
-d_15w = cohens_d(bare - arrays['random_15w'])
-if d_15w > 0:
-    print(f"\n  Saturation: 1 word achieves {d_1w/d_15w*100:.0f}% of 15-word effect")
+# 4. LLM doc-specific vs generic
+print(f"\n  4. LLM doc-specific vs generic (pooled):")
+for cond in ['llm_extract', 'llm_question', 'llm_summarize']:
+    if cond in meta_results:
+        m = meta_results[cond]
+        gen_cond = 'extractor_matched'
+        gm = meta_results.get(gen_cond, {})
+        print(f"     {cond:<22} pooled_d={m['pooled_d']:+.3f}  "
+              f"{gen_cond} pooled_d={gm.get('pooled_d', 0):+.3f}")
 
-# All conditions summary
-print(f"\n--- All conditions ---")
-for name in COND_NAMES:
-    if name == 'bare':
-        print(f"  {name:<20} NLL = {arrays[name].mean():.4f}")
-    else:
-        d = cohens_d(bare - arrays[name])
-        _, p = stats.ttest_1samp(bare - arrays[name], 0)
-        sig = '***' if p < 0.001 else '**' if p < 0.01 else '*' if p < 0.05 else 'ns'
-        print(f"  {name:<20} NLL = {arrays[name].mean():.4f}  d = {d:+.4f} ({sig})")
+# Ranked conditions by pooled d
+print(f"\n  5. All conditions ranked by pooled semantic delta d:")
+ranked = sorted(meta_results.items(), key=lambda x: x[1]['pooled_d'], reverse=True)
+for cond, m in ranked:
+    sig = ('***' if m['p'] < 0.001 else '**' if m['p'] < 0.01
+           else '*' if m['p'] < 0.05 else 'ns')
+    print(f"     {cond:<24} d={m['pooled_d']:+.4f} ({sig})")
 
-# Save
+# ================================================================
+# SAVE RESULTS
+# ================================================================
 final_results = {
-    'experiment': 'v4_decoder_only_exp03_position_vs_attention',
+    'experiment': 'v4_exp03_hard_semantic_cross_dataset',
     'model': MODEL_NAME,
-    'dataset': 'ms_marco_v1.1',
-    'n_samples': len(results),
+    'scoring': 'bos_retained_repositioning_token_matched',
+    'hard_fraction': HARD_FRAC,
+    'datasets': DATASET_NAMES,
+    'n_samples_per_dataset': N_SAMPLES,
     'seed': SEED,
     'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
-    'conditions': {k: v for k, v in analysis.items()},
+    'per_dataset': {},
+    'meta_analysis': meta_results,
+    'cross_dataset': cross_dataset,
+    'gradient': {
+        'per_dataset_rho': {ds: float(r) for ds, r in zip(DATASET_NAMES, all_rhos)},
+        'mean_rho': float(mean_rho),
+    },
+    'hard_metadata': {ds: hard_metadata[ds] for ds in DATASET_NAMES},
 }
+
+for ds_name in DATASET_NAMES:
+    final_results['per_dataset'][ds_name] = per_dataset_analysis.get(ds_name, {})
 
 with open(RESULTS_DIR / 'results.json', 'w') as f:
     json.dump(final_results, f, indent=2)
@@ -813,7 +1413,7 @@ print("Done!")
 
 
 # ===== Write notebook =====
-out_path = "experiments/decoder_only/03/03_position_vs_attention.ipynb"
+out_path = "experiments/decoder_only/03/03_hard_semantic_cross_dataset.ipynb"
 with open(out_path, 'w') as f:
     nbf.write(nb, f)
 

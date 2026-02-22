@@ -6,13 +6,14 @@ Two parallel experiment tracks:
 
 1. **Encoder-decoder** (Exp 01): Production-realistic test — does enrichment become
    redundant once the decoder already has the query as input?
-2. **Decoder-only** (Exps 01-07): Systematic investigation of KV cache priming in
-   causal LMs. Isolates structural vs semantic mechanisms.
+2. **Decoder-only** (Exps 01-03): Systematic investigation of KV cache priming in
+   causal LMs. Isolates structural vs semantic mechanisms. Old Exps 02-07 archived.
 
 ## Models
 - **T5Gemma 2 4B-4B**: Encoder-decoder (v4 Exp 01). See `directed_kvcache_v3/CLAUDE.md`.
-- **Gemma 3 4B-IT** (`google/gemma-3-4b-it`): All decoder-only experiments (Exps 01-07).
-  Also used for LLM surrogate generation in Exp 06. BF16, ~8GB VRAM.
+- **Gemma 3 12B-IT** (`google/gemma-3-12b-it`): Decoder-only Exps 01 (rerun), 02, and 03.
+  BF16, single GPU. Used for both LLM surrogate generation and scoring.
+- **Gemma 3 4B-IT** (`google/gemma-3-4b-it`): Archived decoder-only Exps 06-07.
   Prior executed notebooks used Gemma 2 2B (Exp 01) and Gemma 3 4B-PT (Exps 02-05).
 
 ## Directory structure
@@ -24,19 +25,30 @@ directed_kvcache_v4/
   archive/
     01_encoder_decoder/             # Archived encoder-decoder experiment (T5Gemma)
   results/
-    decoder_only/exp01-07/          # Decoder-only experiment outputs
+    decoder_only/exp01/             # Exp 01 outputs
+    decoder_only/exp02/             # Exp 02 outputs
+    decoder_only/exp03/             # Exp 03 outputs
   experiments/
-    decoder_only/01-07/             # Decoder-only experiments
+    decoder_only/01/                # Exp 01: Surrogate prefix conditioning (rerun)
+    decoder_only/02/                # Exp 02: Token-matched semantic probing
+    decoder_only/03/                # Exp 03: Hard-example semantic isolation (cross-dataset)
+    decoder_only/archive/           # Archived old 02-07 (look-ahead bug / different model)
 ```
 
-## Decoder-only technical approach
+## Decoder-only technical approach (CORRECTED — BOS-retained repositioning)
 Two-phase KV cache scoring:
 - **Phase A** (conditioning): `[BOS] + prefix_ids + [\n] + doc_ids` → build KV cache
-  → slice first `1 + len(prefix) + len(\n)` entries → only doc KV remains
-- **Phase B** (inference): `[\n + query + \n] + answer_ids` with custom `position_ids`
-  starting at `phase_b_start` → score NLL on answer tokens only
-- `slice_kv_cache()` helper removes prefix entries from `DynamicCache`
-- Token-level prefix matching (Exps 05-07): all prefixed conditions use exactly Q
+  → `select_kv_cache()` keeps BOS + doc entries (skips prefix + \n)
+  → `reposition_kv_cache()` rotates doc keys from `[1+P+NL,...,P+NL+D]` to `[1,...,D]`
+  → Cache has `1+D` entries (BOS at 0, doc at positions 1..D)
+- **Phase B** (inference): `[\n + query + \n] + answer_ids` with `position_ids`
+  starting at `D+1`. `cache_position` auto-generated from `cache.get_seq_length()=1+D`.
+  No explicit `cache_position` — this prevents the 1-token look-ahead bug.
+- **CRITICAL BUG FIX**: Previous approach sliced BOS, leaving cache length=D but
+  cache_position=D+1. The causal mask `kv_idx <= q_idx` with q_idx=D+1 allowed
+  attending to the NEXT Phase B token (1-token look-ahead). ALL Exps 01-05 results
+  were inflated by this bug. Fix: retain BOS so cache length=D+1=cache_position.
+- Token-level prefix matching (Exp 02): all prefixed conditions use exactly Q
   token IDs (Q = number of query tokens), equalizing BOS removal, position offset,
   and cache length across conditions
 
@@ -49,59 +61,105 @@ Two-phase KV cache scoring:
 
 ## Decoder-Only Experiment Log
 
-### Exp 01: Surrogate KV Caching (Gemma 2 2B, N=400, SEED=42)
-ALL surrogates beat oracle (recovery >100%), including adversarial. Oracle d=+0.440,
-surr_reasonant d=+0.647 (146% recovery). Effect is primarily structural — prefix
-length, not content, drives the benefit.
+### Exp 01: Surrogate KV Caching — RERUN with look-ahead fix (Gemma 3 12B-IT, N=400, SEED=42)
+**BOS-retained repositioning (corrected).** Previous results (Gemma 2 2B) were entirely
+driven by a 1-token look-ahead bug. With correct masking:
+- **Oracle HURTS**: d=-0.151 (**), win=32.0% — conditioning worsens NLL
+- **surr_extractor is BEST**: d=+0.264 (***), win=68.0% — data extraction prompt helps
+- **surr_universal weak**: d=+0.079 (ns). Other surrogates near zero.
+- **adversarial neutral**: d=+0.007 (ns). Off-topic prefix has no effect.
+- **adv_instruct HURTS**: d=-0.199 (***). Anti-instruction corrupts representations.
+- **oracle_full HURTS MOST**: d=-0.362 (***). Full cache (Phase B attends to prefix) worst.
+- **Ranking**: surr_extractor best in 28.2% of samples (mean rank 3.55), oracle worst
+  among semantic conditions (mean rank 6.71).
+- **Hardness gradient**: Oracle hurts in Q1-Q4, helps slightly only in Q5 (hardest).
+The effect IS semantic (content-dependent), but oracle conditioning is counter-productive.
+Task-framing prefixes (data extraction) can modestly improve document representations.
 
-### Exp 02: Length vs Content Decomposition (Gemma 3 4B-PT, N=400)
-Switched to larger model. Oracle d=+0.638. Random text of oracle length achieves 94%
-recovery (d=+0.561). Semantic surrogates degrade relative to oracle on Gemma 3. Confirms
-length, not content, is the driver. Structure accounts for 82-88% of the effect.
+### Exp 02: Token-Matched Semantic Probing with LLM Surrogates (Gemma 3 12B-IT, N=400, SEED=42) — PENDING
+Definitive experiment eliminating ALL structural confounds via token-level prefix matching.
+13 conditions spanning full semantic gradient + LLM document-specific surrogates.
+BOS-retained repositioning on same model as Exp 01 rerun.
+- **Semantic gradient**: random_tokens, repeat_token, scrambled_oracle, unrelated_query,
+  same_topic (LLM), paraphrase (LLM), oracle — tests monotonicity with Spearman rho
+- **LLM surrogates**: llm_extract, llm_question, llm_summarize — document-specific
+  conditioning generated by same model
+- **Fixed controls**: extractor_matched (generic task-framing), adversarial_matched
+- **Key analyses**: structural decomposition (random/oracle ratio), LLM doc-specific vs
+  generic (paired test), hardness interaction (5 quintiles x 13 conditions), per-sample
+  ranking
+- **Token invariant**: all 12 prefixed conditions use exactly Q tokens per sample
 
-### Exp 03: Position vs Attention Isolation (Gemma 3 4B-PT, N=400)
-Mechanism is **RoPE position offset** — doc tokens attending at higher absolute positions.
-pos_offset_4 d=+0.779 (144% recovery, beats oracle). BOS removal alone d=+0.456 (56%).
-Single newline prefix d=+0.754 (128%). Peak benefit at small position shifts (S=4 >> S=20).
+### Exp 03: Hard-Example Semantic Isolation Across Datasets (Gemma 3 12B-IT, N=400×4, SEED=42)
+Isolates the semantic effect by restricting to hard examples (top 40% by bare NLL) and
+measuring semantic delta above the structural baseline (condition - random_tokens).
+Tests generalization across 4 diverse QA datasets: MS MARCO, SQuAD 2.0, TriviaQA, HotpotQA.
+- **MS MARCO**: reuses Exp 02 results (same model, same scoring)
+- **3 new datasets**: SQuAD 2.0, TriviaQA (rc.wikipedia), HotpotQA (distractor)
+- **13 conditions**: same as Exp 02 (token-level matched)
+- **Hard selection**: top 40% by bare NLL per dataset (~160 samples each)
+- **Key metric**: semantic_delta(C) = NLL(random_tokens) - NLL(C)
+- BOS-retained repositioning + token-level prefix matching (identical to Exp 02)
+- **Bug fix**: Sliding attention layers cache only (sliding_window-1) entries. When
+  Phase A total tokens > 1023, select_kv_cache indexed OOB. Fix: dynamically truncate
+  doc to fit within sliding cache limit when prefix is present.
+- **Results** (pooled across 4 datasets, ranked by semantic delta d):
+  - **extractor_matched d=+0.357 (\*\*\*)**: generic task-framing BEST by far
+  - adversarial_matched d=+0.169 (\*\*\*)
+  - repeat_token d=+0.124 (\*\*)
+  - llm_summarize d=+0.052 (ns), llm_extract d=-0.023 (ns)
+  - paraphrase d=-0.122 (\*\*), same_topic d=-0.229 (\*\*\*)
+  - **oracle d=-0.253 (\*\*\*)**: oracle HURTS even in hard examples
+  - **llm_question d=-0.343 (\*\*\*)**: worst LLM surrogate
+- **Semantic gradient**: 0/4 datasets show monotonic gradient (mean rho=+0.15, ns)
+- **LLM doc-specific vs generic**: generic extractor_matched BEATS all LLM surrogates
+  across all 4 datasets (p<0.001). Document-specific content does NOT help.
+- **Cross-dataset consistency**: 7/11 conditions have same sign across all 4 datasets
 
-### Exp 04: Position Sweep + Cache Surgery (Gemma 3 4B-PT, N=400)
-Smooth position offset curve peaking at S=4. **prune_first_3** (remove BOS + first 3 doc
-tokens from cache) achieves d=+0.803 (136% recovery) — best condition overall. Cache
-surgery (pruning attention sinks) is more effective than prefix co-encoding.
-
-### Exp 05: Semantic Priming in Isolation (Gemma 3 4B-PT, N=400)
-All structural confounds equalized via **token-level prefix matching** (exactly Q tokens
-per condition). With structure controlled: oracle d=+0.638 (100%), repeat_token d=+0.589
-(97%), random_tokens d=+0.575 (98%), unrelated_query d=+0.614 (99%). All semantic
-variants cluster within 96-102%. Semantic content has **negligible** effect on decoder-only
-priming. best_structural (prune_first_3) still dominant at d=+0.803 (136%).
-
-### Exp 06: Graded Semantic Relevance (Gemma 3 4B-IT, N=400, SEED=42) — PENDING
-Port of v3 Exp 12. Single model (Gemma 3 4B-IT) for both surrogate generation and scoring.
-7 conditions across the full semantic gradient (random → scrambled →
-unrelated → same_topic → paraphrase → oracle), all token-level matched. Tests whether a
-monotonic semantic gradient exists in decoder-only (v3 found rho=+0.943, p=0.005 in
-encoder-decoder).
-
-### Exp 07: Swapped-Query Paired Contrasts (Gemma 3 4B-IT, N=400, SEED=43) — PENDING
-Port of v3 Exp 13. Maximum-power paired test: same doc scored with real vs swapped query,
-token-level matched. 4 conditions (bare, oracle, swapped, random_matched). Tests whether
-the paired semantic signal (v3: d=+0.166, p=2.3e-04, 33.4% semantic fraction) replicates
-in decoder-only.
+### Old Exps 02-07: ARCHIVED
+Old Exps 02-05 invalidated by 1-token look-ahead bug. Old Exps 06-07 used slice_kv_cache
+without BOS retention on Gemma 3 4B-IT — not directly comparable. All moved to
+`experiments/decoder_only/archive/`.
 
 ---
 
 ## Key Findings (Decoder-Only)
 
-1. **Mechanism is structural (RoPE + attention sinks), NOT semantic.**
-   Position offset and BOS/sink pruning explain >95% of the benefit.
-2. **Cache surgery beats co-encoding.** prune_first_3 (d=+0.803) > oracle (d=+0.638).
-3. **Token-level matching confirms near-zero semantics.** With structure equalized,
-   all prefix content variants (oracle, random, repeat) perform within 4% of each other.
-4. **Sharp contrast with v3 encoder-decoder.** v3 T5Gemma shows 10-15% semantic component
-   via bidirectional encoder enrichment. Decoder-only has no such mechanism.
-5. **Exps 06-07 will test whether any residual semantic gradient exists** when measured
-   with the same fine-grained methodology used in v3.
+### CRITICAL: 1-token look-ahead bug invalidates Exps 01-05
+All previous Exps 01-05 used `cache_position = position_ids = [D+1,...]` after slicing
+BOS from cache (cache length = D). The causal mask `kv_idx <= q_idx` with q_idx=D+1
+allowed attending to the NEXT Phase B token. This inflated all results (oracle d=+0.44
+to +0.80). The "structural benefit" (RoPE shift, BOS removal) was entirely look-ahead.
+
+### Corrected findings (Exp 01 rerun, Gemma 3 12B-IT, N=400)
+1. **Oracle conditioning HURTS** (d=-0.151, **). The real query as prefix worsens NLL.
+2. **Task-framing prefixes can help.** surr_extractor d=+0.264 (***). Data extraction
+   prompt improves doc representations for downstream QA.
+3. **The effect IS semantic** — content determines direction: surr_extractor (+0.26),
+   adversarial (0.00), oracle (-0.15), adv_instruct (-0.20), oracle_full (-0.36).
+4. **Full cache worst.** Phase B attending to prefix cache entries hurts most (d=-0.36).
+5. **Hardness interaction.** Oracle helps only for Q5 (hardest 20% of questions).
+6. **Previous "structural" findings were look-ahead artifacts.** RoPE position shift,
+   BOS removal, attention sink pruning — all driven by the masking bug.
+7. **Exps 02-07 archived.** Exps 02-05 had look-ahead bug; Exps 06-07 used different
+   model/approach. Exp 02 supersedes with token-matched design on same model.
+
+### Exp 03: Cross-dataset hard-example analysis (Gemma 3 12B-IT, N=160×4)
+1. **No semantic gradient in hard examples.** 0/4 datasets show monotonic gradient
+   (mean Spearman rho=+0.15, all ns). Even restricting to hard samples doesn't reveal
+   a meaningful content-relevance → NLL relationship.
+2. **Generic task-framing BEST.** extractor_matched pooled d=+0.357 (***), consistent
+   across all 4 datasets. The effect is robust and domain-general.
+3. **LLM doc-specific content does NOT help beyond generic framing.** All 3 LLM surrogates
+   (extract, question, summarize) LOSE to generic extractor_matched (p<0.001 each).
+   Document-specific conditioning hurts compared to generic task framing.
+4. **Oracle HURTS in hard examples too.** oracle pooled d=-0.253 (***). The actual query
+   as prefix worsens NLL even when restricted to the hardest questions.
+5. **Structural effects dominate.** repeat_token (d=+0.124, **) outperforms all semantic
+   conditions except extractor_matched and adversarial_matched. Content is less important
+   than the structural "activation" of task-framing tokens.
+6. **Cross-dataset consistency.** 7/11 conditions have consistent sign across all 4 datasets.
+   The pattern is robust: generic framing helps, semantic content hurts or is neutral.
 
 ## Known pitfalls
 - See `directed_kvcache_v3/CLAUDE.md` for all architecture notes and pitfalls
@@ -109,3 +167,16 @@ in decoder-only.
 - Never commit `.env` or HF tokens
 - Use `#` comments inside `code(r"""...""")` blocks, not `"""..."""` docstrings
 - Decoder-only notebooks use `sys.path.insert(0, "../../..")` (3 levels up from experiment dir)
+- **CRITICAL: cache_position in Phase B** — NEVER pass explicit `cache_position` to Phase B
+  when using `past_key_values`. Let the model auto-generate it from `cache.get_seq_length()`.
+  Passing `cache_position > cache.get_seq_length()` creates a look-ahead in `kv_idx <= q_idx`.
+  The fix: retain BOS in cache so length matches expected position, or omit `cache_position`.
+- **CRITICAL: sliding window cache limit** — Gemma 3 sliding attention layers cache only
+  `sliding_window - 1` entries (1023 for window=1024). When `select_kv_cache()` uses
+  uniform indices across all layers, total Phase A tokens must not exceed this limit.
+  Fix: dynamically truncate doc to `SLIDING_CACHE_LIMIT - 1 - P - NL` when prefix is used.
+  Otherwise `IndexKernel.cu:111` assert (OOB index on sliding layers).
+- **CRITICAL: use `dtype=` not `torch_dtype=`** for model loading — `torch_dtype` is deprecated
+  in newer transformers and may cause warnings or errors.
+- Run papermill from experiment directory (`cd experiments/decoder_only/01 && papermill ...`)
+  to ensure `sys.path.insert(0, "../../..")` resolves correctly.
