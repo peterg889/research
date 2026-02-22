@@ -1,0 +1,55 @@
+{
+  "experiment": "v4_exp03_neural_bridge",
+  "model": "google/t5gemma-2-4b-4b",
+  "dataset": "neural-bridge/rag-dataset-12000",
+  "n_samples": 500,
+  "seed": 42,
+  "timestamp": "2026-02-19 20:23:41",
+  "dataset_stats": {
+    "mean_query_words": 17.806,
+    "mean_doc_words": 604.158,
+    "mean_answer_words": 42.944
+  },
+  "key_result": {
+    "enrichment_with_query_d": 0.3064612816167762,
+    "enrichment_no_query_d": 0.5915491881109143,
+    "ratio_pct": 51.806559416545994,
+    "structural_fraction_pct": 203.51030800593307
+  },
+  "conditions": {
+    "bare": {
+      "mean_nll": 0.6754638671875
+    },
+    "oracle_trunc": {
+      "mean_nll": 0.6538740234375,
+      "delta": 0.02158984375,
+      "d": 0.3064612816167762,
+      "win_pct": 64.60000000000001,
+      "p": 2.1440246839682616e-11
+    },
+    "surr_doc_trunc": {
+      "mean_nll": 0.6515244140625,
+      "delta": 0.023939453125,
+      "d": 0.5023723512546575,
+      "win_pct": 71.39999999999999,
+      "p": 2.938093853103579e-26
+    },
+    "random_trunc": {
+      "mean_nll": 0.644033203125,
+      "delta": 0.0314306640625,
+      "d": 0.6236802981372311,
+      "win_pct": 75.6,
+      "p": 1.4565631414940332e-37
+    },
+    "bare_nq": {
+      "mean_nll": 1.31350390625
+    },
+    "oracle_trunc_nq": {
+      "mean_nll": 1.22393359375,
+      "delta": 0.0895703125,
+      "d": 0.5915491881109143,
+      "win_pct": 85.0,
+      "p": 1.8797940993245506e-34
+    }
+  }
+}

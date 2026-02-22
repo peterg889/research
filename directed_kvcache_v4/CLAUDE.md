@@ -4,36 +4,162 @@
 
 Two parallel experiment tracks:
 
-1. **Encoder-decoder** (Exp 01): Production-realistic test — does enrichment become
+1. **Encoder-decoder** (Exps 01-10): Production-realistic test — does enrichment become
    redundant once the decoder already has the query as input?
 2. **Decoder-only** (Exps 01-03): Systematic investigation of KV cache priming in
    causal LMs. Isolates structural vs semantic mechanisms. Old Exps 02-07 archived.
+3. **Prefix LM** (Exps 01-03): Causal vs bidirectional prefix attention on decoder-only models.
 
 ## Models
-- **T5Gemma 2 4B-4B**: Encoder-decoder (v4 Exp 01). See `directed_kvcache_v3/CLAUDE.md`.
-- **Gemma 3 12B-IT** (`google/gemma-3-12b-it`): Decoder-only Exps 01 (rerun), 02, and 03.
-  BF16, single GPU. Used for both LLM surrogate generation and scoring.
+- **T5Gemma 2 4B-4B**: Encoder-decoder (v4 Exps 01-10). See `directed_kvcache_v3/CLAUDE.md`.
+- **Gemma 3 12B-IT** (`google/gemma-3-12b-it`): Decoder-only Exps 01 (rerun), 02, and 03;
+  Prefix LM Exps 01-03. BF16, single GPU. Used for both LLM surrogate generation and scoring.
 - **Gemma 3 4B-IT** (`google/gemma-3-4b-it`): Archived decoder-only Exps 06-07.
   Prior executed notebooks used Gemma 2 2B (Exp 01) and Gemma 3 4B-PT (Exps 02-05).
+- **Cross-model** (Exp 09): flan-t5-base, flan-t5-large, flan-t5-xl, bart-large.
+
+## Experiment plan
+See `EXPERIMENT_PLAN.md` for the full experiment log and forward plan.
+
+## Key results
+
+**Exp 01** (MS MARCO, ~98 tok docs): Enrichment survives with query in decoder: d=+0.228
+(61% of v3 baseline). Mechanism shifted: structural component collapsed (85%→35%),
+content now dominant. Doc-keyword surrogate works (d=+0.148, 65% of oracle). Template fails.
+
+**Exp 02** (MS MARCO, padded 98–4096 tok): Enrichment GROWS with doc length. Oracle d
+rises from +0.238 to +0.439. Random prefix significant at 256+ tokens — structural
+mechanism regains dominance on longer docs even with query in decoder.
+
+**Exp 03** (neural-bridge, naturally ~604w docs): Surrogates beat oracle. Random d=+0.624
+> surr_doc d=+0.502 > oracle d=+0.306. Structural fraction 204%. Real query creates
+semantic interference on long docs. ANY short prefix works — no surrogate generation needed.
+
+**Exp 04** (MS MARCO, prefix content sweep): kw10 is best surrogate (d=+0.186, 82% oracle).
+Keyword density is inverted-U (kw10 > kw5 > kw20). First sentence is catastrophic
+(d=-0.298). Document-specific keywords ≈ wrong-doc keywords (ns). Benefit is ~72%
+vocabulary-type, ~28% semantic. Optimal prefix: 10-15 disconnected keyword-like tokens.
+
+**Exp 05** (Truncation wound mechanism): The first-sentence catastrophe requires BOTH
+coherence AND overlap — interaction effect d=-0.361. Wrong-doc coherent sentence: +0.063
+(harmless). Shuffled same-doc sentence: +0.078 (harmless). Only the combination is
+catastrophic. Deep bidirectional bonds + truncation = dangling references.
+
+**Exp 06** (Factoid split): Reverses v3 pattern — long answers (>5w) show STRONGER v4
+enrichment (d=+0.412 vs +0.284). Structural fraction increases with answer length (33%
+at 1-2w to 74% at 21+w). 3-5w sweet spot: surrogate beats oracle (101%).
+
+**Exp 07** (Decoder attention probing): 2×2 factorial confirms 35% redundancy between
+encoder prefix and decoder query (interaction d=+0.316, ***). Query tokens absorb only
+5.5% of answer attention — modest buffer. Main finding: oracle encoding shifts answer-token
+budget from cross-attention (37%→13%) to self-attention (63%→87%). The structural collapse
+is because decoder query reduces cross-attention reliance, not because query acts as a
+large attention buffer.
+
+**Exp 08** (Decoder length control, 500/500): CORRECTS Exp 07. The "35% redundancy" is
+**entirely a length artifact**. 2×3 factorial {bare,oracle}×{nq,random_q,q}: with bare
+encoder, nq→q improvement is 55% length + 45% semantic. With oracle encoder, length
+effect vanishes (d=-0.014, ns) — 100% semantic. Interaction: length component d=+0.324
+(102% of total d=+0.316), semantic component d=-0.097 (slightly super-additive, ns).
+Encoder and decoder provide INDEPENDENT semantic benefits but REDUNDANT structural
+benefits. Random decoder tokens absorb 14.3% attention (vs 5.5% for real query, 2.6×).
+
+**Exp 09** (Cross-model sweep): Enrichment GENERALIZES to all 4 models tested.
+flan-t5-base d=+0.251 (***), flan-t5-large d=+0.320 (***), flan-t5-xl d=+0.430 (***),
+bart-large d=+0.144 (**). Structural fraction varies wildly: 7% (flan-t5-xl) to 77%
+(flan-t5-large). Flan-T5 models have negative d_dec_q (query in decoder HURTS — against
+their training distribution). Inverted-U for structural fraction vs model quality.
+
+**Exp 10** (T5 size scaling, planned): Tests standard (non-instruction-tuned) T5 models
+(t5-small through t5-3b) for a clean size-scaling curve. Flan-T5 had negative d_dec_q
+(query in decoder hurts — against training distribution), so standard T5 should give
+cleaner results.
+
+**Prefix LM Exp 01** (Gemma 3 12B IT, COMPLETE): Bidirectional attention HURTS
+decoder-only models (d=-0.727, ***) — disrupts causal-trained representations. BUT
+causal prefixes work: d_causal_oracle=+0.452 (***), d_causal_random=+0.475 (***),
+d_causal_surr_doc=+0.461 (***). All surrogates help under causal attention. Under
+prefix_lm, oracle enrichment is ns (d=+0.059, p=0.19). Structural fraction 140%.
+The enrichment transfers via the CAUSAL channel, not bidirectionality. Two-pass
+design: Phase A caches [BOS,surr,doc] KVs, Phase B evaluates [query,answer].
 
 ## Directory structure
 ```
 directed_kvcache_v4/
-  .env                              # symlink -> v3/.env
-  CLAUDE.md                         # This file
-  lib/                              # symlinks -> v3/lib
-  archive/
-    01_encoder_decoder/             # Archived encoder-decoder experiment (T5Gemma)
-  results/
-    decoder_only/exp01/             # Exp 01 outputs
-    decoder_only/exp02/             # Exp 02 outputs
-    decoder_only/exp03/             # Exp 03 outputs
+  .env                          # symlink -> v3/.env
+  CLAUDE.md                     # This file
+  EXPERIMENT_PLAN.md            # Experiment log + forward plan
+  lib/                          # Shared analysis/data utilities
+  results/exp01/                # Encoder-decoder experiment outputs
+  results/exp02/
+  results/exp03/
+  results/exp08/
+  results/exp09/
+  results/prefix_lm_exp01/
+  results/decoder_only/exp01/   # Decoder-only experiment outputs
+  results/decoder_only/exp02/
+  results/decoder_only/exp03/
   experiments/
+    encoder_decoder/            # T5Gemma encoder-decoder experiments
+      01/
+        01_production_kv_cache.ipynb
+        build_exp01.py
+        build_examples.py
+        01_examples.ipynb
+      02/
+        02_length_scaling.ipynb
+        build_exp02.py
+      03/
+        03_neural_bridge.ipynb
+        build_exp03.py
+      04/
+        04_prefix_optimization.ipynb
+        build_exp04.py
+      05/
+        05_truncation_wound.ipynb
+        build_exp05.py
+      06/
+        06_factoid_split.ipynb
+        build_exp06.py
+      07/
+        07_decoder_attention_probing.ipynb
+        build_exp07.py
+      08/
+        08_decoder_length_control.ipynb
+        build_exp08.py
+      09/
+        09_cross_model_sweep.ipynb
+        build_exp09.py
+      10/
+        10_t5_size_scaling.ipynb
+        build_exp10.py
+    prefix_lm/              # Decoder-only prefix LM experiments
+      01/
+        01_prefix_lm_enrichment.ipynb
+        build_exp01.py
+        test_attention_masks.py
+      02/
+        02_semantic_isolation.ipynb
+        build_exp02.py
+      03/
+        03_surrogate_content_sweep.ipynb
+        build_exp03.py
     decoder_only/01/                # Exp 01: Surrogate prefix conditioning (rerun)
     decoder_only/02/                # Exp 02: Token-matched semantic probing
     decoder_only/03/                # Exp 03: Hard-example semantic isolation (cross-dataset)
     decoder_only/archive/           # Archived old 02-07 (look-ahead bug / different model)
 ```
+
+## Path convention
+Notebooks live at `experiments/{encoder_decoder,prefix_lm}/XX/` — three levels below v4 root.
+Inside notebook code cells: `sys.path.insert(0, "../../..")` to reach lib/.
+Results: `Path("../../../results/expXX")` or `Path("../../../results/prefix_lm_expXX")`.
+Decoder-only notebooks use the same convention from `experiments/decoder_only/XX/`.
+
+## Encoder-decoder technical approach
+- `decoder_input_ids = [BOS] + query_tokens + answer_tokens` passed explicitly
+- NLL computed only on answer token positions
+- Encoder outputs pre-computed with optional prefix truncation (cross-attention masking)
 
 ## Decoder-only technical approach (CORRECTED — BOS-retained repositioning)
 Two-phase KV cache scoring:
@@ -51,11 +177,6 @@ Two-phase KV cache scoring:
 - Token-level prefix matching (Exp 02): all prefixed conditions use exactly Q
   token IDs (Q = number of query tokens), equalizing BOS removal, position offset,
   and cache length across conditions
-
-## Encoder-decoder technical approach
-- `decoder_input_ids = [BOS] + query_tokens + answer_tokens` passed explicitly
-- NLL computed only on answer token positions
-- Encoder outputs pre-computed with optional prefix truncation (cross-attention masking)
 
 ---
 

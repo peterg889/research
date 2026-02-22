@@ -1,0 +1,42 @@
+{
+  "experiment": "v4_exp08_decoder_length_control",
+  "model": "google/t5gemma-2-4b-4b",
+  "dataset": "ms_marco_v1.1",
+  "n_samples": 500,
+  "seed": 42,
+  "probe_layers": [
+    0,
+    17,
+    33
+  ],
+  "timestamp": "2026-02-21 00:28:26",
+  "nll": {
+    "bare_nq": 3.6834375,
+    "bare_random_q": 3.113513671875,
+    "bare_q": 2.553734375,
+    "oracle_trunc_nq": 2.99694140625,
+    "oracle_trunc_random_q": 3.0264482421875,
+    "oracle_trunc_q": 2.39665234375
+  },
+  "nll_decomposition": {
+    "bare": {
+      "total": 0.3088698476093699,
+      "length": 0.1696059693040238,
+      "semantic": 0.3170914452592
+    },
+    "oracle": {
+      "total": 0.2276073601417207,
+      "length": -0.014325022504073609,
+      "semantic": 0.32374209013962446
+    }
+  },
+  "prefix_attention": {
+    "random_bare": 0.14298089,
+    "query_bare": 0.05455924
+  },
+  "interaction_decomposition": {
+    "d_int_total": 0.31609737157527185,
+    "d_int_length": 0.3237975729464698,
+    "d_int_semantic": -0.09684356658599494
+  }
+}
