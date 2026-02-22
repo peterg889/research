@@ -76,6 +76,19 @@ bart-large d=+0.144 (**). Structural fraction varies wildly: 7% (flan-t5-xl) to 
 (flan-t5-large). Flan-T5 models have negative d_dec_q (query in decoder HURTS — against
 their training distribution). Inverted-U for structural fraction vs model quality.
 
+**Exp 10** (T5 size scaling, planned): Tests standard (non-instruction-tuned) T5 models
+(t5-small through t5-3b) for a clean size-scaling curve. Flan-T5 had negative d_dec_q
+(query in decoder hurts — against training distribution), so standard T5 should give
+cleaner results.
+
+**Prefix LM Exp 01** (Gemma 3 12B IT, COMPLETE): Bidirectional attention HURTS
+decoder-only models (d=-0.727, ***) — disrupts causal-trained representations. BUT
+causal prefixes work: d_causal_oracle=+0.452 (***), d_causal_random=+0.475 (***),
+d_causal_surr_doc=+0.461 (***). All surrogates help under causal attention. Under
+prefix_lm, oracle enrichment is ns (d=+0.059, p=0.19). Structural fraction 140%.
+The enrichment transfers via the CAUSAL channel, not bidirectionality. Two-pass
+design: Phase A caches [BOS,surr,doc] KVs, Phase B evaluates [query,answer].
+
 ## Directory structure
 ```
 directed_kvcache_v4/
@@ -88,6 +101,7 @@ directed_kvcache_v4/
   results/exp03/
   results/exp08/
   results/exp09/
+  results/prefix_lm_exp01/
   experiments/
     encoder_decoder/            # T5Gemma encoder-decoder experiments
       01/
@@ -119,12 +133,26 @@ directed_kvcache_v4/
       09/
         09_cross_model_sweep.ipynb
         build_exp09.py
+      10/
+        10_t5_size_scaling.ipynb
+        build_exp10.py
+    prefix_lm/              # Decoder-only prefix LM experiments
+      01/
+        01_prefix_lm_enrichment.ipynb
+        build_exp01.py
+        test_attention_masks.py
+      02/
+        02_semantic_isolation.ipynb
+        build_exp02.py
+      03/
+        03_surrogate_content_sweep.ipynb
+        build_exp03.py
 ```
 
 ## Path convention
-Notebooks live at `experiments/encoder_decoder/XX/` — three levels below v4 root.
+Notebooks live at `experiments/{encoder_decoder,prefix_lm}/XX/` — three levels below v4 root.
 Inside notebook code cells: `sys.path.insert(0, "../../..")` to reach lib/.
-Results: `Path("../../../results/expXX")`.
+Results: `Path("../../../results/expXX")` or `Path("../../../results/prefix_lm_expXX")`.
 
 ## Known pitfalls
 - See `directed_kvcache_v3/CLAUDE.md` for all architecture notes and pitfalls

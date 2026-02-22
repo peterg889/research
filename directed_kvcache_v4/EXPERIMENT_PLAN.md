@@ -560,6 +560,106 @@ NLL only (no attention probes), SDPA attention for speed. Sequential model loadi
 
 **Files**: `experiments/encoder_decoder/09/`, `results/exp09/`
 
+### Exp 10: T5 Size Scaling (PLANNED)
+
+**Question**: Does the enrichment effect scale with model size in standard (non-instruction-tuned) T5? Flan-T5 had negative d_dec_q (query in decoder hurts), which confounds the v4 setup. Standard T5 should give a cleaner scaling curve.
+
+**Design**: 4 models (t5-small 60M, t5-base 220M, t5-large 770M, t5-3b 3B), 6 conditions per model (bare, oracle_trunc, surr_doc_trunc, random_trunc, bare_nq, oracle_trunc_nq). Same 500 MS MARCO samples, SEED=42.
+
+**Key questions**:
+- Does enrichment scale with model size?
+- Do standard T5 models have positive d_dec_q (unlike flan-T5)?
+- How does structural fraction vary with size within one architecture family?
+
+**Files**: `experiments/encoder_decoder/10/`, `results/exp10/`
+
+---
+
+## Prefix LM Experiments
+
+### Prefix LM Exp 01: Enrichment with Gemma 3 12B IT (COMPLETE)
+
+**Question**: Does surrogate-enriched prefix LM attention transfer the enrichment
+effect to a decoder-only model?
+
+**Answer**: NOT via bidirectional attention — but YES via causal prefixes.
+
+**Design**: `google/gemma-3-12b-it`, bfloat16, eager attention, custom 4D masks via
+Gemma 3's dict-based API. Two-pass: Phase A caches [BOS, surr, doc] KVs with
+`use_cache=True`, Phase B evaluates [query, answer] using `past_key_values`.
+10 conditions (2 attention modes × 4 prefix types + 2 controls). N=500 MS MARCO,
+SEED=42. Completed in 20.4 min.
+
+**Results**:
+
+| # | Condition | Mean NLL | d vs baseline | p | sig |
+|---|-----------|----------|--------------|---|-----|
+| 1 | causal_bare | 2.957 | — | — | — |
+| 2 | causal_oracle_trunc | 1.968 | +0.452 | 6.0e-22 | *** |
+| 3 | causal_random_trunc | 2.298 | +0.475 | 7.1e-24 | *** |
+| 4 | causal_surr_doc_trunc | 2.122 | +0.461 | 9.5e-23 | *** |
+| 5 | prefix_lm_bare | 4.976 | -0.727 | 5.7e-48 | *** |
+| 6 | prefix_lm_oracle_trunc | 4.874 | +0.059 (vs plm_bare) | 0.19 | ns |
+| 7 | prefix_lm_random_trunc | 4.868 | +0.083 (vs plm_bare) | 0.07 | ns |
+| 8 | prefix_lm_surr_doc_trunc | 5.087 | -0.061 (vs plm_bare) | 0.18 | ns |
+| 9 | causal_bare_nq | 3.951 | — | — | — |
+| 10 | prefix_lm_oracle_trunc_nq | 5.352 | -0.579 (vs c_bare_nq) | 3.0e-33 | *** |
+
+**Key comparisons**:
+
+| Metric | d | sig | Interpretation |
+|--------|---|-----|---------------|
+| d_bidirectional (plm_bare vs c_bare) | **-0.727** | *** | Bidirectional HURTS |
+| d_causal_oracle (c_oracle vs c_bare) | **+0.452** | *** | Causal prefix works |
+| d_causal_random (c_random vs c_bare) | **+0.475** | *** | Random works too |
+| d_causal_surr_doc (c_surr vs c_bare) | **+0.461** | *** | Keywords work |
+| d_oracle under prefix_lm | +0.059 | ns | No enrichment under bidir |
+| d_dec_q (c_bare vs c_bare_nq) | +0.468 | *** | Query in decoder helps |
+| structural_fraction (plm) | 140% | — | All structural under plm |
+
+**Key findings**:
+
+1. **Bidirectional attention is catastrophic (d=-0.727, ***)**. Gemma 3 was trained
+   with causal attention — giving it bidirectional disrupts its learned representations.
+   prefix_lm_bare NLL is 4.98 vs causal_bare 2.96. Every prefix_lm condition is far
+   worse than its causal counterpart (d = -0.73 to -0.82 across all prefix types).
+
+2. **Causal prefixes provide strong enrichment (d≈+0.46, all ***)**. Under standard
+   causal attention, doc tokens can attend to preceding surrogate tokens. This provides
+   a strong benefit — comparable to encoder-decoder enrichment. The causal mask doesn't
+   block doc→surrogate attention (unlike encoder-decoder where cross-attention mask
+   directly controls access).
+
+3. **Almost entirely structural**: random d=+0.475 ≥ oracle d=+0.452. No semantic
+   content needed — any tokens prepended before the document under causal attention
+   help. This mirrors the encoder-decoder structural mechanism.
+
+4. **Decoder query helps (d=+0.468, ***)**: Having the query in the continuation
+   (Phase B) provides significant benefit, consistent with encoder-decoder v4 findings.
+
+5. **prefix_lm_oracle_trunc_nq is WORSE than causal_bare_nq (d=-0.579, ***)**:
+   Even the strongest prefix_lm condition (oracle enrichment, no query) can't
+   compensate for the damage from bidirectional attention.
+
+**Mechanistic interpretation**: The enrichment effect discovered in encoder-decoder
+models (Exp 01-09) DOES transfer to decoder-only models, but only through the
+**causal channel**. The prefix LM approach (retrofitting bidirectional attention)
+is the wrong mechanism for causal-trained models — it violates their training
+distribution. Instead, simply prepending tokens before the document under the
+model's native causal attention provides the same structural enrichment benefit.
+This is both simpler and more effective.
+
+**Implications**:
+- For decoder-only models, "enrichment" = just prepend any short text before the
+  document in the prompt. No special attention masks needed.
+- The structural mechanism (attention redistribution from prefix tokens) operates
+  identically under causal and bidirectional attention — but bidirectional attention
+  introduces catastrophic side effects on causal-trained models.
+- This validates the production approach: prepend a short prefix to the document
+  context in a standard autoregressive prompt.
+
+**Files**: `experiments/prefix_lm/01/`, `results/prefix_lm_exp01/`
+
 ---
 
 ## Deferred Experiments
