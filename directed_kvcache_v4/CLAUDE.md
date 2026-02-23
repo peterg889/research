@@ -2,17 +2,17 @@
 
 ## Overview
 
-Two parallel experiment tracks:
+Three parallel experiment tracks:
 
 1. **Encoder-decoder** (Exps 01-10): Production-realistic test — does enrichment become
    redundant once the decoder already has the query as input?
-2. **Decoder-only** (Exps 01-03): Systematic investigation of KV cache priming in
+2. **Decoder-only** (Exps 01-05): Systematic investigation of KV cache priming in
    causal LMs. Isolates structural vs semantic mechanisms. Old Exps 02-07 archived.
 3. **Prefix LM** (Exps 01-03): Causal vs bidirectional prefix attention on decoder-only models.
 
 ## Models
 - **T5Gemma 2 4B-4B**: Encoder-decoder (v4 Exps 01-10). See `directed_kvcache_v3/CLAUDE.md`.
-- **Gemma 3 12B-IT** (`google/gemma-3-12b-it`): Decoder-only Exps 01 (rerun), 02, and 03;
+- **Gemma 3 12B-IT** (`google/gemma-3-12b-it`): Decoder-only Exps 01-05;
   Prefix LM Exps 01-03. BF16, single GPU. Used for both LLM surrogate generation and scoring.
 - **Gemma 3 4B-IT** (`google/gemma-3-4b-it`): Archived decoder-only Exps 06-07.
   Prior executed notebooks used Gemma 2 2B (Exp 01) and Gemma 3 4B-PT (Exps 02-05).
@@ -99,6 +99,8 @@ directed_kvcache_v4/
   results/decoder_only/exp01/   # Decoder-only experiment outputs
   results/decoder_only/exp02/
   results/decoder_only/exp03/
+  results/decoder_only/exp04/
+  results/decoder_only/exp05/
   experiments/
     encoder_decoder/            # T5Gemma encoder-decoder experiments
       01/
@@ -147,6 +149,8 @@ directed_kvcache_v4/
     decoder_only/01/                # Exp 01: Surrogate prefix conditioning (rerun)
     decoder_only/02/                # Exp 02: Token-matched semantic probing
     decoder_only/03/                # Exp 03: Hard-example semantic isolation (cross-dataset)
+    decoder_only/04/                # Exp 04: Instruction framing decomposition
+    decoder_only/05/                # Exp 05: Prefix scaling + new benchmarks
     decoder_only/archive/           # Archived old 02-07 (look-ahead bug / different model)
 ```
 
@@ -237,6 +241,43 @@ Tests generalization across 4 diverse QA datasets: MS MARCO, SQuAD 2.0, TriviaQA
   across all 4 datasets (p<0.001). Document-specific content does NOT help.
 - **Cross-dataset consistency**: 7/11 conditions have same sign across all 4 datasets
 
+### Exp 04: Instruction Framing Decomposition (Gemma 3 12B-IT, N=160×4, SEED=42)
+8 diverse instruction prefixes (extraction, comprehension, generation, classification) tested
+coherent vs scrambled across 4 datasets. Three-level decomposition: structural / vocabulary / meaning.
+- **comprehend is BEST**: pooled d=+0.470 (***), consistent across all 4 datasets
+- **comprehend is ONLY instruction with positive meaning effect**: d=+0.235 (***), all 4 datasets positive
+- **Scrambled often matches/beats coherent**: 6/8 instructions have negative meaning component
+- **Vocabulary dominates**: 49-84% of total effect across instructions, meaning mostly ≤0
+- **H1 rejected**: extraction framing NOT specifically better than non-extraction (d=+0.021, ns)
+- **H4 supported**: extraction vocabulary activates representations when scrambled (d=+0.177, ***)
+- **H5 refuted**: longer instruction > shorter repeated is false (d=-0.176, ***)
+- **generate_qa worst**: pooled d=+0.014 (ns) — question generation framing doesn't help
+- **extract_entities damaged by meaning**: d=-0.269 (***) — entity extraction words help, but
+  coherent order hurts (probably primes entity listing instead of QA)
+- Loaded baselines from Exp 03 (bare, random_tokens, repeat_token, extractor_matched, adversarial_matched)
+
+### Exp 05: Prefix Scaling — New Benchmarks + Length Optimization (Gemma 3 12B-IT, N=160×7, SEED=42)
+Scales the prefix effect across two dimensions: task diversity (3 new benchmarks) and prefix
+length (L=32, 64, 128, 256 tokens). Two phases: Phase A (Q-matched on new datasets) and
+Phase B (fixed-length scaling across all 7 datasets).
+- **New benchmarks**: DROP (discrete reasoning), BoolQ (boolean QA), RACE-high (exam comprehension)
+- **Phase A pooled**: comprehend d=+0.414 (***), extract_general d=+0.270 (***) across 7 datasets
+- **Best combo**: comprehend @ L=64, pooled d=+0.396 (***) across 7 datasets
+- **KEY REVERSAL — meaning grows with length**: At Q-matched, meaning was -11% of total.
+  At L=64, meaning rises to **50%** of total (d=+0.304, ***). Vocabulary drops from 65% to 39%.
+  This reverses Exp 04's conclusion that meaning is negligible.
+- **Decomposition at L=64**: structural 11%, vocabulary 39%, meaning 50%
+- **DROP is standout**: comprehend d=+0.914, extract_general d=+1.078 at L=64 — largest effects
+  seen in any experiment. Discrete reasoning over text benefits most from prefix priming.
+- **BoolQ anomaly**: ALL prefixes HURT (d=-0.45 to -1.02). Yes/No answers are too short to
+  benefit; prefix shifts probability mass away from these tokens.
+- **RACE accuracy**: bare 17.5% → extract_general Q-matched 25.0% (+43% relative improvement).
+  Prefix improves MC prediction accuracy, not just NLL.
+- **Length curve**: effect peaks at L=64, slight decline at L=128-256 (overfitting to instruction?)
+- **Ceiling**: ~10% NLL reduction at L=64 (mean 0.70 nats, max 1.66 nats)
+- **Task × length interaction**: DROP maintains d>0.8 at all lengths. RACE stable at d≈0.6.
+  BoolQ consistently negative. MS MARCO flat and small.
+
 ### Old Exps 02-07: ARCHIVED
 Old Exps 02-05 invalidated by 1-token look-ahead bug. Old Exps 06-07 used slice_kv_cache
 without BOS retention on Gemma 3 4B-IT — not directly comparable. All moved to
@@ -281,6 +322,41 @@ to +0.80). The "structural benefit" (RoPE shift, BOS removal) was entirely look-
    than the structural "activation" of task-framing tokens.
 6. **Cross-dataset consistency.** 7/11 conditions have consistent sign across all 4 datasets.
    The pattern is robust: generic framing helps, semantic content hurts or is neutral.
+
+### Exp 04: Instruction framing decomposition (Gemma 3 12B-IT, N=160×4)
+1. **Comprehend is the single best prefix.** pooled d=+0.470 (***), beating extract_general
+   (d=+0.357) and all other instructions. It is also the ONLY instruction where word order
+   helps (meaning d=+0.235, ***). For all other instructions, coherent order is neutral or harmful.
+2. **Vocabulary is the dominant mechanism.** 49-84% of the total effect comes from vocabulary
+   tokens, not their arrangement. Scrambled extraction tokens work almost as well as coherent.
+3. **Extraction framing is NOT specifically better.** Extraction-framing instructions (extract_general,
+   extract_entities, etc.) are NOT better than non-extraction framings (comprehend, classify) when
+   matched for vocabulary quality. H1 rejected (d=+0.021, ns).
+4. **generate_qa is catastrophically unhelpful.** pooled d=+0.014 (ns). Question generation framing
+   provides zero benefit — the model doesn't activate useful representations from this framing.
+5. **Entity extraction is damaged by meaning.** extract_entities meaning d=-0.269 (***).
+   Coherent entity listing primes the wrong task (listing entities vs answering questions).
+
+### Exp 05: Prefix scaling across benchmarks and lengths (Gemma 3 12B-IT, N=160×7)
+1. **Meaning effect GROWS with prefix length** — the key finding. At Q-matched (~7-19 tokens),
+   meaning was -11% of total. At L=64, meaning is **50%** (d=+0.304, ***). This reverses
+   the Exp 04 conclusion that meaning is negligible — it just needs more tokens to manifest.
+2. **Optimal prefix length is L=64.** Comprehend @ L=64 achieves pooled d=+0.396 across 7
+   datasets. Performance peaks at 64, slight decline at 128-256.
+3. **DROP is a standout dataset.** comprehend d=+0.914, extract_general d=+1.078 at L=64 —
+   the largest effects in any decoder-only experiment. Discrete reasoning tasks (counting,
+   arithmetic, sorting over text) benefit most from prefix priming.
+4. **BoolQ is a counter-example.** ALL prefixes hurt on BoolQ (d=-0.45 to -1.02). When
+   answers are single tokens (Yes/No), prefix priming shifts probability mass away from
+   these tokens rather than toward them.
+5. **RACE accuracy improves.** bare 17.5% → extract_general 25.0% (+43% relative). The NLL
+   improvement translates to better MC prediction accuracy.
+6. **Three-level decomposition shifts with length.** At L=32: structural 10%, vocabulary 65%,
+   meaning 25%. At L=64: structural 11%, vocabulary 39%, meaning 50%. Vocabulary saturates;
+   meaning continues to grow.
+7. **Task-type determines benefit magnitude.** Ranking: DROP (d≈0.9) > RACE (d≈0.6) >
+   SQuAD/HotpotQA (d≈0.5-0.7) > TriviaQA (d≈0.3-0.4) > MS MARCO (d≈0.1) > BoolQ (d<0).
+   Complex reasoning and longer answers benefit most.
 
 ## Known pitfalls
 - See `directed_kvcache_v3/CLAUDE.md` for all architecture notes and pitfalls
