@@ -2,9 +2,11 @@
 
 ## Overview
 
-Systematic investigation of KV cache priming in causal LMs (Exps 01-06).
+Systematic investigation of KV cache priming in causal LMs (Exps 01-09).
 Isolates structural vs semantic mechanisms using two-phase scoring with
-BOS-retained repositioning. Old Exps 02-07 archived (look-ahead bug / different model).
+BOS-retained repositioning. Exps 07-09 discover that per-tensor KV cache
+normalization universally improves NLL beyond single-pass ground truth.
+Old Exps 02-07 archived (look-ahead bug / different model).
 
 ## Model
 
@@ -41,10 +43,13 @@ experiments/decoder_only/
   04/                # Exp 04: Instruction framing decomposition
   05/                # Exp 05: Prefix scaling + new benchmarks
   06/                # Exp 06: Hero run — 14-dataset meta-analysis
+  07/                # Exp 07: Simulated KV cache quantization
+  08/                # Exp 08: Quantization diagnosis (H_A-H_E)
+  09/                # Exp 09: Scale normalization as production fix
   archive/           # Archived old 02-07 (look-ahead bug / different model)
 
 results/decoder_only/
-  exp01/ exp02/ exp03/ exp04/ exp05/ exp06/
+  exp01/ exp02/ exp03/ exp04/ exp05/ exp06/ exp07/ exp08/ exp09/
 ```
 
 ---
@@ -174,6 +179,48 @@ Exp 05 datasets for a 14-dataset meta-analysis. N=500 sampled per dataset, 200 h
   At L=64: structural 29%, vocab 21%, meaning 50%. Meaning needs ≥64 tokens to dominate.
 - **Hypothesis outcomes**: H2 (GSM8K reasoning > answer length) SUPPORTED. H3 (ROPES
   BoolQ-like) REFUTED (d=+0.49). H4 (QuALITY MC improvement) weak support.
+
+### Exp 07: Simulated KV Cache Quantization (Gemma 3 12B-IT, N=160×4, SEED=42)
+Tested whether simulated int8/int4 quantization of the KV cache degrades NLL after
+two-phase scoring. Surprising result: int8 **improves** NLL on all 4 datasets and
+all 3 conditioning levels.
+- **Universal improvement**: int8 improves 84-100% of samples (DROP: 100%)
+- **Difficulty-dependent**: 2.4-11x stronger for hard samples (r=0.69-0.92 with bare NLL)
+- **Bare shows LARGEST improvement** — rules out RoPE repositioning artifacts
+- **Prefixed caches have 3x lower quantization error**, yet both improve
+- **int4**: helps prefixed caches but hurts bare (precision threshold)
+
+### Exp 08: Diagnosing the Quantization Benefit (Gemma 3 12B-IT, N=160×6, SEED=42)
+Factorial experiment (2 conditioning × 10 perturbation) diagnosing WHY int8 improves NLL.
+Expanded to 6 datasets: DROP, MS MARCO, GSM8K, HotpotQA, ROPES, RACE-high.
+- **H_C (scale normalization) SUPPORTED**: int16 (32767 levels, negligible rounding) captures
+  77-100% of int8 benefit. The `absmax/qmax` normalization step is the mechanism.
+- **H_A/H_D (regularization vs structure)**: Gaussian noise matched to int8 error std does NOT
+  replicate the benefit. Not regularization — grid structure matters.
+- **H_B (outlier suppression)**: clip_3sigma helps on some datasets but not others. Secondary.
+- **H_E (K vs V)**: K and V contribute roughly equally.
+- **Per-tensor > per-head**: Coarser normalization scope helps more (supports H_C).
+- **Two-phase gap ≈ 0**: bare_bf16 ≈ single_pass — the normalization doesn't fix a
+  two-phase deficiency; it makes the model BETTER than single-pass.
+
+### Exp 09: Scale Normalization as Production Fix (Gemma 3 12B-IT, N=200×10, SEED=42)
+Hero experiment testing explicit normalization across 10 diverse datasets. 3 conditioning
+(bare, comprehend_64, random_64) × 5 corrections (bf16, int8, int16, norm_roundtrip,
+clip_3sigma) + single_pass. ~38K forward passes.
+- **norm_roundtrip IS the mechanism**: `(x / (absmax/127)) * (absmax/127)` — NO rounding,
+  NO clamping — captures **97%** of the int8 benefit (bare) and **96.5%** (prefix). The bf16
+  divide/multiply arithmetic round-trip alone is sufficient.
+- **Universal across 10 datasets**: bare+norm_roundtrip wins 77-100% of samples per dataset.
+  Cohen's d = -0.50 to -2.79. Works on extractive QA, retrieval, reasoning, and MC.
+- **Overshoots single-pass**: All corrections make the model BETTER than single-pass by
+  1-3 NLL points. The normalization is a form of KV cache regularization, not bug correction.
+- **72% independent from prefix**: Normalization after prefix conditioning still provides
+  73% of its standalone benefit. Only 28% overlap — they fix different things.
+- **Quintile gradient**: Harder samples benefit more (Q5/Q1 ratio typically 2-5x).
+- **clip_3sigma inconsistent**: Helps on DROP/GSM8K but hurts on MS MARCO/Quoref.
+  Outlier clipping is NOT the right production fix.
+- **Recommendation**: `norm_roundtrip` (or equivalently int16) should be a standard
+  post-Phase A correction. It's nearly free computationally and universally beneficial.
 
 ### Old Exps 02-07: ARCHIVED
 Old Exps 02-05 invalidated by 1-token look-ahead bug. Old Exps 06-07 used slice_kv_cache

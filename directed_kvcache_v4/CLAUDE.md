@@ -7,22 +7,24 @@ improves document representations for downstream QA:
 
 1. **Encoder-decoder** (Exps 01-10): Production-realistic test — does enrichment become
    redundant once the decoder already has the query as input?
-2. **Decoder-only** (Exps 01-06): Systematic investigation of KV cache priming in
-   causal LMs. Isolates structural vs semantic mechanisms. Old Exps 02-07 archived.
+2. **Decoder-only** (Exps 01-09): Systematic investigation of KV cache priming in
+   causal LMs. Isolates structural vs semantic mechanisms. Exps 07-09 discover that
+   KV cache normalization universally improves NLL. Old Exps 02-07 archived.
 3. **Prefix LM** (Exps 01-03): Causal vs bidirectional prefix attention on decoder-only models.
 
 ## Experiment Notes
 
 - **`ENCODER_DECODER_NOTES.md`** — Encoder-decoder experiment log (Exps 01-10),
   Prefix LM experiments, v3→v4 mechanism analysis, research arc summary.
-- **`DECODER_ONLY_NOTES.md`** — Decoder-only experiment log (Exps 01-06),
-  technical approach (BOS-retained repositioning), key findings across 14 datasets.
+- **`DECODER_ONLY_NOTES.md`** — Decoder-only experiment log (Exps 01-09),
+  technical approach (BOS-retained repositioning), key findings across 14 datasets,
+  quantization diagnosis (Exps 07-08), and KV cache normalization (Exp 09).
 - **`EXPERIMENT_PLAN.md`** — Legacy file (same content now in `ENCODER_DECODER_NOTES.md`).
 
 ## Models
 
 - **T5Gemma 2 4B-4B**: Encoder-decoder (v4 Exps 01-10). See `directed_kvcache_v3/CLAUDE.md`.
-- **Gemma 3 12B-IT** (`google/gemma-3-12b-it`): Decoder-only Exps 01-06;
+- **Gemma 3 12B-IT** (`google/gemma-3-12b-it`): Decoder-only Exps 01-09;
   Prefix LM Exps 01-03. BF16, single GPU. Used for both LLM surrogate generation and scoring.
 - **Gemma 3 4B-IT** (`google/gemma-3-4b-it`): Archived decoder-only Exps 06-07.
   Prior executed notebooks used Gemma 2 2B (Exp 01) and Gemma 3 4B-PT (Exps 02-05).
@@ -50,13 +52,16 @@ directed_kvcache_v4/
   results/decoder_only/exp04/
   results/decoder_only/exp05/
   results/decoder_only/exp06/
+  results/decoder_only/exp07/
+  results/decoder_only/exp08/
+  results/decoder_only/exp09/
   experiments/
     encoder_decoder/            # T5Gemma encoder-decoder experiments
       01/ 02/ 03/ 04/ 05/ 06/ 07/ 08/ 09/ 10/
     prefix_lm/                  # Decoder-only prefix LM experiments
       01/ 02/ 03/
     decoder_only/               # Decoder-only KV cache priming
-      01/ 02/ 03/ 04/ 05/ 06/
+      01/ 02/ 03/ 04/ 05/ 06/ 07/ 08/ 09/
       archive/                  # Archived old 02-07 (look-ahead bug / different model)
 ```
 
