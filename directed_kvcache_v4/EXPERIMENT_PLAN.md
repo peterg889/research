@@ -660,6 +660,142 @@ This is both simpler and more effective.
 
 **Files**: `experiments/prefix_lm/01/`, `results/prefix_lm_exp01/`
 
+### Prefix LM Exp 04: Causal Ordering Experiments (04–04h, COMPLETE)
+
+A series of experiments probing the causal enrichment mechanism discovered in Exp 01.
+All use Gemma 3 12B IT, two-pass causal design, N=500 MS MARCO, SEED=42.
+
+#### Exp 04e: Semantic Amplification (COMPLETE)
+
+**Question**: Can we amplify the semantic component beyond the 105% structural fraction?
+
+**Conditions** (11): bare, oracle, random, oracle_3x, oracle_5x, random_long,
+relevant_sent, answer_vocab, pointer, oracle_plus_vocab, no_doc.
+
+**Key results** (vs random, which is the structural-only baseline):
+
+| Condition | d vs random | sig | What it is |
+|-----------|------------|-----|------------|
+| oracle_plus_vocab | +0.311 | *** | Query + answer∩doc overlap words |
+| oracle | +0.266 | *** | Real query |
+| pointer | +0.250 | *** | "the answer is about [keywords]" |
+| oracle_5x | +0.153 | *** | Query repeated 5× (worse than 1×) |
+| answer_vocab | -0.048 | ns | Answer∩doc overlap words alone |
+| relevant_sent | -0.416 | *** | Most answer-relevant doc sentence (HURTS) |
+
+**Hypotheses tested**:
+- H2 (prime too short): REJECTED — oracle_5x is worse than oracle (d=-0.239)
+- H3 (relevance hint needed): SUPPORTED — pointer and oracle_plus_vocab beat random
+
+#### Exp 04f: Attention Probing (COMPLETE)
+
+**Question**: Does the oracle create different attention patterns than random during
+Phase A, and does this difference predict the NLL benefit?
+
+**Answer**: Oracle attention differs significantly in all 13/13 probed layers. But
+the cross-sample correlation between attention difference and NLL benefit is r=+0.031
+(ns). The semantic signal exists in Phase A attention but does NOT survive truncation
+into Phase B.
+
+#### Exp 04g: Value Storage Enhancement (COMPLETE)
+
+**Question**: Can we force prime information into document representations so it
+survives truncation? Tested 5 mechanistic approaches (17 conditions total).
+
+**Approaches and results** (all vs oracle):
+
+| Approach | Implementation | Best result | Verdict |
+|----------|---------------|-------------|---------|
+| Attention boost | Add +N to doc→prime logits (N=2,4,8) | d=-0.154 (boost2) | HURTS |
+| Bidirectional | Unmask prime→doc attention | d=-0.228 | HURTS |
+| Chat format | Wrap prime in `<start_of_turn>` markers | d=-0.478 | HURTS |
+| Interspersed | [prime,chunk1,prime,chunk2,prime,chunk3] | d=-0.244 | HURTS |
+| Value injection | Add β·mean(prime_V) to doc_V post-hoc | d=-1.235 (β=1.0) | Catastrophic |
+| Pointer (reference) | "the answer is about [kw]" | d=+0.034 | ≈ oracle |
+| oracle_plus_vocab (reference) | Query + answer∩doc words | d=+0.089 * | Only winner |
+
+**Key insight**: More attention to prime does NOT improve NLL. Boost monotonically
+increases frac_prime but correlation with NLL at boost≥4 is r=-0.004. All mechanistic
+attempts to increase prime-to-doc information transfer HURT performance.
+
+#### Exp 04h: Token Contrastive Evaluation (COMPLETE)
+
+**Question**: Is the semantic signal concentrated on specific token types, and does
+enrichment improve discrimination between correct and wrong answers?
+
+**Token stratification** (oracle − random, by difficulty quartile):
+- Q1 (easy): d=+0.007, Q2: +0.031, Q3: +0.059, Q4 (hard): d=+0.097
+- Gradient: +0.090 across quartiles — semantic signal concentrated on hard tokens
+- Doc-dependent tokens: d=+0.109 vs doc-independent: d=+0.036
+
+**Contrastive discrimination** (wrong-answer pairing, AUC = P(correct < wrong)):
+- Oracle discrimination improvement vs bare: d=+0.193 (***)
+- Hard-token AUC: bare 39.2%, random 45.6%, oracle 53.6%
+- Oracle vs random discrimination gap strongest on hard tokens (Q4: d=+0.475, ***)
+
+**Verdict**: Semantic signal is real, concentrated on hard document-dependent tokens,
+and translates into measurable discrimination gain.
+
+---
+
+### What Improves Enrichment Beyond Structure
+
+Across Exp 04e–04h, only THREE approaches produce enrichment beyond the structural
+baseline (i.e., significantly beat random under causal attention):
+
+**1. Oracle query** (d=+0.266 vs random, ***)
+The real query. Sets the upper bound for content-dependent enrichment. Provides
+genuine semantic signal: question intent, answer framing, relevance cues. Short
+(~7.5 tokens) and non-overlapping with document content, so it avoids truncation
+wounds while delivering maximum information.
+
+**2. Vocabulary bridging — oracle_plus_vocab** (d=+0.311 vs random, ***)
+The query concatenated with answer∩document overlap words (up to 10 words that
+appear in BOTH the answer and the document). Example: if the query is "what is the
+capital of France" and the answer mentions "Paris" which also appears in the document,
+the prefix becomes "what is the capital of France paris france capital." This creates
+a **lexical bridge** — the overlap words are tokens the model will encounter in the
+document AND need for the answer, so their presence in the prefix during causal
+encoding primes the relevant document positions. This is the ONLY condition that
+significantly beats oracle itself (d=+0.089, p=0.046).
+
+**Why it works**: The causal attention mechanism means document tokens can attend to
+all preceding tokens including the prefix. When prefix tokens share vocabulary with
+both the answer and the document, they create a lexical association pathway: during
+encoding, document tokens containing "paris" attend to the prefix token "paris" and
+inherit contextual information from it (which also encodes the query context). This
+is a richer initialization than the document token would get from its own local
+context alone.
+
+**3. Explicit instruction — pointer** (d=+0.250 vs random, ***)
+The literal text `"the answer is about "` followed by 3-5 keywords from the
+answer∩document overlap. Example: `"the answer is about paris france capital"`.
+This leverages Gemma's instruction-tuning — the natural-language framing activates
+the model's instruction-following circuits, directing attention toward the named
+concepts during causal encoding. Unlike vocabulary bridging, it wraps the keywords
+in an instructed context that signals their importance.
+
+**Why it works**: Instruction-tuned models have learned to treat prefix text as
+task specification. The pointer format tells the model "these concepts matter,"
+which reshapes how document tokens incorporate information from the prefix during
+causal attention. The instruction framing adds a relevance signal on top of the
+raw vocabulary overlap.
+
+**What does NOT work** (all hurt or are ns vs random):
+- answer_vocab alone (d=-0.048, ns): Overlap words without the query lack direction
+- relevant_sent (d=-0.416, ***): Coherent extractive text causes truncation wounds
+- Repetition (oracle_5x: d=+0.153, weaker than 1×): More signal ≠ better signal
+- All mechanistic forcing (boost, bidir, chat, interspersed, value injection): HURT
+- Longer random prefix (random_long: d=-0.190 vs random): Length alone hurts
+
+**The pattern**: Successful approaches provide **compact semantic cues** (vocabulary
+overlap, question intent, instructed relevance) without creating deep attention
+dependencies that leave truncation wounds. Failed approaches either create
+destructive attention patterns (coherent text, forced attention) or try to bypass
+the natural attention mechanism (value injection). The model knows how to use
+semantic hints delivered through its native causal attention — you cannot improve
+on this by engineering the attention pattern externally.
+
 ---
 
 ## Deferred Experiments
@@ -770,3 +906,32 @@ redistribution; this structural benefit is redundant (both do the same thing). B
 SEMANTIC benefit of the encoder (enriching document representations with query content)
 and the SEMANTIC benefit of the decoder (having query tokens available during generation)
 are independent and additive.
+
+### Prefix LM: beyond structure (Exp 04e–04h)
+
+The prefix LM experiments on Gemma 3 12B IT confirmed causal enrichment is ~105%
+structural (random ≥ oracle). But probing deeper revealed that **genuine semantic
+signal exists** — it's just masked by the structural dominance in aggregate metrics.
+
+Token stratification (04h) showed semantic signal is concentrated on **hard,
+document-dependent tokens**: oracle-vs-random d goes from +0.007 (easy) to +0.097
+(hard). This translates into real discrimination: oracle improves correct-vs-wrong
+AUC from 39% (bare) to 54% on hard tokens (d=+0.193, ***).
+
+Attention probing (04f) confirmed oracle creates measurably different attention
+patterns in all 13 probed layers — but the cross-sample correlation with NLL benefit
+is r=+0.031 (ns). The semantic information exists during encoding but doesn't
+reliably survive through the Phase B cache.
+
+Five mechanistic attempts to force semantic information to survive (04g — attention
+boost, bidirectional attention, chat formatting, interspersed repetition, value
+injection) all HURT performance. More attention to prime ≠ better NLL (r=-0.004).
+
+Only two approaches beat random: **vocabulary bridging** (oracle_plus_vocab:
+d=+0.311 vs random) and **explicit instruction** (pointer: d=+0.250 vs random).
+Both work by providing compact semantic cues through the model's native causal
+attention — not by forcing attention patterns externally. Vocabulary bridging adds
+words shared between answer and document, creating lexical anchor points. The pointer
+template ("the answer is about [keywords]") leverages instruction-tuning to signal
+relevance. oracle_plus_vocab is the ONLY condition that significantly beats oracle
+itself (d=+0.089, p=0.046).
