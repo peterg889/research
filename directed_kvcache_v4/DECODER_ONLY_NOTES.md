@@ -71,7 +71,7 @@ driven by a 1-token look-ahead bug. With correct masking:
 The effect IS semantic (content-dependent), but oracle conditioning is counter-productive.
 Task-framing prefixes (data extraction) can modestly improve document representations.
 
-### Exp 02: Token-Matched Semantic Probing with LLM Surrogates (Gemma 3 12B-IT, N=400, SEED=42) — PENDING
+### Exp 02: Token-Matched Semantic Probing with LLM Surrogates (Gemma 3 12B-IT, N=400, SEED=42)
 Definitive experiment eliminating ALL structural confounds via token-level prefix matching.
 13 conditions spanning full semantic gradient + LLM document-specific surrogates.
 BOS-retained repositioning on same model as Exp 01 rerun.
@@ -84,6 +84,14 @@ BOS-retained repositioning on same model as Exp 01 rerun.
   generic (paired test), hardness interaction (5 quintiles x 13 conditions), per-sample
   ranking
 - **Token invariant**: all 12 prefixed conditions use exactly Q tokens per sample
+- **Results** (MS MARCO, N=400):
+  - **extractor_matched d=+0.132**: generic task-framing BEST
+  - repeat_token d=+0.147, llm_summarize d=+0.091, random_tokens d=+0.081
+  - llm_extract d=+0.070, paraphrase d=+0.029, adversarial_matched d=+0.041
+  - same_topic d=-0.050, unrelated_query d=-0.067, scrambled_oracle d=-0.088
+  - llm_question d=-0.098, **oracle d=-0.151**: oracle HURTS (replicates Exp 01)
+  - Semantic gradient NOT monotonic (confirms in Exp 03 pooled analysis)
+  - Results folded into Exp 03 as MS MARCO arm of 4-dataset pooled analysis
 
 ### Exp 03: Hard-Example Semantic Isolation Across Datasets (Gemma 3 12B-IT, N=400×4, SEED=42)
 Isolates the semantic effect by restricting to hard examples (top 40% by bare NLL) and

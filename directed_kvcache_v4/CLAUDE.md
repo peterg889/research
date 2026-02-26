@@ -39,27 +39,26 @@ directed_kvcache_v4/
   ENCODER_DECODER_NOTES.md      # Enc-dec + prefix LM experiment notes
   DECODER_ONLY_NOTES.md         # Decoder-only experiment notes
   EXPERIMENT_PLAN.md            # Legacy (enc-dec log, kept for reference)
-  lib/                          # Shared analysis/data utilities
-  results/exp01/                # Encoder-decoder experiment outputs
-  results/exp02/
-  results/exp03/
-  results/exp08/
-  results/exp09/
+  lib/                          # Shared library modules
+    __init__.py                 # Module docstring
+    analysis.py                 # cohens_d, win_rate, paired_ttest
+    cache.py                    # deep_copy_cache, make_prefix
+    data.py                     # count_words
+    quantization.py             # simulated_quantize, quantize_kv_cache,
+                                #   norm_roundtrip_kv_cache, clip_kv_cache
+    rope.py                     # build_layer_inv_freqs, get_layer_types,
+                                #   rotate_half, select_kv_cache,
+                                #   reposition_kv_cache
+    tests/                      # pytest suite (76 tests)
+  results/exp01/ ... exp09/     # Encoder-decoder experiment outputs
   results/prefix_lm_exp01/
-  results/decoder_only/exp01/   # Decoder-only experiment outputs
-  results/decoder_only/exp02/
-  results/decoder_only/exp03/
-  results/decoder_only/exp04/
-  results/decoder_only/exp05/
-  results/decoder_only/exp06/
-  results/decoder_only/exp07/
-  results/decoder_only/exp08/
-  results/decoder_only/exp09/
+  results/decoder_only/exp01/ ... exp09/  # Decoder-only experiment outputs
+  diagrams/                     # Manim presentation diagrams (01-08 PNGs + source)
   experiments/
     encoder_decoder/            # T5Gemma encoder-decoder experiments
       01/ 02/ 03/ 04/ 05/ 06/ 07/ 08/ 09/ 10/
     prefix_lm/                  # Decoder-only prefix LM experiments
-      01/ 02/ 03/
+      01/ 02/ 03/ 04/ 05/
     decoder_only/               # Decoder-only KV cache priming
       01/ 02/ 03/ 04/ 05/ 06/ 07/ 08/ 09/
       archive/                  # Archived old 02-07 (look-ahead bug / different model)
