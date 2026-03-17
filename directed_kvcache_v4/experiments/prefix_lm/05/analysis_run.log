@@ -1,0 +1,320 @@
+[NbConvertApp] Converting notebook experiments/prefix_lm/05/05_hero_run_analysis.ipynb to notebook
+Traceback (most recent call last):
+  File "/opt/conda/bin/jupyter-nbconvert", line 8, in <module>
+    sys.exit(main())
+  File "/opt/conda/lib/python3.10/site-packages/jupyter_core/application.py", line 283, in launch_instance
+    super().launch_instance(argv=argv, **kwargs)
+  File "/opt/conda/lib/python3.10/site-packages/traitlets/config/application.py", line 1075, in launch_instance
+    app.start()
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 420, in start
+    self.convert_notebooks()
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 597, in convert_notebooks
+    self.convert_single_notebook(notebook_filename)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 563, in convert_single_notebook
+    output, resources = self.export_single_notebook(
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 487, in export_single_notebook
+    output, resources = self.exporter.from_filename(
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 201, in from_filename
+    return self.from_file(f, resources=resources, **kw)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 220, in from_file
+    return self.from_notebook_node(
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/notebook.py", line 36, in from_notebook_node
+    nb_copy, resources = super().from_notebook_node(nb, resources, **kw)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 154, in from_notebook_node
+    nb_copy, resources = self._preprocess(nb_copy, resources)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 353, in _preprocess
+    nbc, resc = preprocessor(nbc, resc)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/preprocessors/base.py", line 48, in __call__
+    return self.preprocess(nb, resources)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/preprocessors/execute.py", line 103, in preprocess
+    self.preprocess_cell(cell, resources, index)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/preprocessors/execute.py", line 124, in preprocess_cell
+    cell = self.execute_cell(cell, index, store_history=True)
+  File "/opt/conda/lib/python3.10/site-packages/jupyter_core/utils/__init__.py", line 165, in wrapped
+    return loop.run_until_complete(inner)
+  File "/opt/conda/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/opt/conda/lib/python3.10/site-packages/nbclient/client.py", line 1062, in async_execute_cell
+    await self._check_raise_for_error(cell, cell_index, exec_reply)
+  File "/opt/conda/lib/python3.10/site-packages/nbclient/client.py", line 918, in _check_raise_for_error
+    raise CellExecutionError.from_cell_and_msg(cell, exec_reply_content)
+nbclient.exceptions.CellExecutionError: An error occurred while executing the following cell:
+------------------
+# Cell 22: Summary -- final tables, hypothesis tests, save results
+print("=" * 70)
+print("SUMMARY -- Prefix LM Exp 05: Hero Run")
+print("=" * 70)
+
+# --- Replication checks ---
+print(f"\n--- Replication Checks ---")
+
+# MS MARCO: d_oracle ~ +0.452, d_random ~ +0.475, structural ~ 105%
+cs_mm = dataset_summaries['msmarco']['cond_stats']
+d_orc_mm = cs_mm['oracle']['d_correct_vs_bare']
+d_rnd_mm = cs_mm['random']['d_correct_vs_bare']
+sf_mm = d_rnd_mm / d_orc_mm if d_orc_mm != 0 else float('nan')
+print(f"  MS MARCO: d_oracle={d_orc_mm:+.3f} (expected ~+0.452),"
+      f" d_random={d_rnd_mm:+.3f} (expected ~+0.475),"
+      f" structural={sf_mm:.0%} (expected ~105%)")
+
+# Contrastive sanity: AUC(bare) > 50% on all datasets
+print(f"\n  Contrastive sanity (AUC_bare > 50%, random negatives):")
+for ds in DATASET_NAMES:
+    auc_bare = dataset_summaries[ds]['cond_stats']['bare'].get('auc_rand', 0)
+    ok = "PASS" if auc_bare > 0.50 else "FAIL"
+    print(f"    {ds}: AUC(bare) = {auc_bare:.1%} [{ok}]")
+
+# --- Final ranked comparison ---
+common_conds = BOOLQ_CONDITIONS
+surr_conds_ranked = [cn for cn in common_conds if cn not in ('no_doc', 'bare')]
+
+print(f"\n--- Final Surrogate Ranking (d_correct vs bare, mean across 6 datasets) ---\n")
+print(f"  {'Rank':>4} {'Condition':<25} {'Category':<14} {'Mean_d':>8}", end="")
+for ds in DATASET_NAMES:
+    print(f" {ds[:6]:>8}", end="")
+print()
+print(f"  {'-'*(4+25+14+8+8*len(DATASET_NAMES))}")
+
+# Compute mean d across ALL datasets
+mean_d = {}
+for cn in surr_conds_ranked:
+    mean_d[cn] = np.mean([
+        dataset_summaries[ds]['cond_stats'][cn]['d_correct_vs_bare']
+        for ds in DATASET_NAMES
+    ])
+
+ranked = sorted(surr_conds_ranked, key=lambda c: -mean_d[c])
+for rank, cn in enumerate(ranked, 1):
+    cat = CONDITION_CATEGORIES[cn]
+    print(f"  {rank:>4} {cn:<25} {cat:<14} {mean_d[cn]:>+8.3f}", end="")
+    for ds in DATASET_NAMES:
+        d = dataset_summaries[ds]['cond_stats'][cn]['d_correct_vs_bare']
+        print(f" {d:>+8.3f}", end="")
+    print()
+
+# --- Hypothesis Tests ---
+print(f"\n--- Hypothesis Tests ---")
+
+# H1: LLM surrogates beat static instructions
+d_lq = np.mean([dataset_summaries[ds]['cond_stats']['llm_query']['d_correct_vs_bare']
+                 for ds in DATASET_NAMES])
+d_inst = np.mean([dataset_summaries[ds]['cond_stats']['instruct']['d_correct_vs_bare']
+                   for ds in DATASET_NAMES])
+h1 = d_lq > d_inst + 0.02
+print(f"  H1 (LLM > static): {'SUPPORTED' if h1 else 'NOT SUPPORTED'}"
+      f" (llm_query={d_lq:+.3f} vs instruct={d_inst:+.3f})")
+
+# H2: Token stratification generalizes across all 6 datasets
+gradients = [dataset_summaries[ds]['d_gradient_q4_q1'] for ds in DATASET_NAMES]
+h2 = sum(1 for g in gradients if g > 0.03) >= 4  # majority
+print(f"  H2 (stratification generalizes): {'SUPPORTED' if h2 else 'NOT SUPPORTED'}"
+      f" (positive in {sum(1 for g in gradients if g > 0.03)}/6 datasets)")
+print(f"      gradients: {dict(zip(DATASET_NAMES, [f'{g:+.3f}' for g in gradients]))}")
+
+# H3: Hard negatives reveal more signal than random negatives
+d_discrim_rand = [dataset_summaries[ds].get('d_discrim_rand', 0) for ds in DATASET_NAMES]
+d_discrim_hard = [dataset_summaries[ds].get('d_discrim_hard', 0) for ds in DATASET_NAMES]
+h3 = np.mean(d_discrim_hard) > np.mean(d_discrim_rand) + 0.02
+print(f"  H3 (hard neg > random neg discrimination): {'SUPPORTED' if h3 else 'NOT SUPPORTED'}"
+      f" (mean_hard={np.mean(d_discrim_hard):+.3f} vs mean_rand={np.mean(d_discrim_rand):+.3f})")
+
+# H4: Structural fraction varies by dataset characteristics
+sfs = [dataset_summaries[ds]['structural_fraction'] for ds in DATASET_NAMES]
+sf_range = max(sfs) - min(sfs)
+h4 = sf_range > 0.3
+print(f"  H4 (structural fraction varies): {'SUPPORTED' if h4 else 'NOT SUPPORTED'}"
+      f" (range={sf_range:.0%}, min={min(sfs):.0%}, max={max(sfs):.0%})")
+
+# H5: oracle_plus_vocab consistently beats oracle
+h5_wins = 0
+for ds in DATASET_NAMES:
+    d_opv = dataset_summaries[ds]['cond_stats']['oracle_plus_vocab']['d_correct_vs_bare']
+    d_orc = dataset_summaries[ds]['cond_stats']['oracle']['d_correct_vs_bare']
+    if d_opv > d_orc + 0.01:
+        h5_wins += 1
+h5 = h5_wins >= 4
+print(f"  H5 (opv > oracle consistently): {'SUPPORTED' if h5 else 'NOT SUPPORTED'}"
+      f" (wins {h5_wins}/6 datasets)")
+
+# H6: Pointer instruction competitive with oracle_plus_vocab
+d_ptr = np.mean([dataset_summaries[ds]['cond_stats']['pointer']['d_correct_vs_bare']
+                  for ds in DATASET_NAMES])
+d_opv = np.mean([dataset_summaries[ds]['cond_stats']['oracle_plus_vocab']['d_correct_vs_bare']
+                  for ds in DATASET_NAMES])
+h6 = abs(d_ptr - d_opv) < 0.05
+print(f"  H6 (pointer ~ opv): {'SUPPORTED' if h6 else 'NOT SUPPORTED'}"
+      f" (pointer={d_ptr:+.3f} vs opv={d_opv:+.3f})")
+
+# --- Save all results ---
+print(f"\n--- Saving Results ---")
+
+# Per-dataset results
+for ds in DATASET_NAMES:
+    ds_results = {
+        'experiment': 'prefix_lm_exp05_hero',
+        'dataset': ds,
+        'model': MODEL_NAME,
+        'n_samples': dataset_summaries[ds]['n_samples'],
+        'seed': SEED,
+        'conditions': dataset_summaries[ds]['conditions'],
+        'condition_categories': CONDITION_CATEGORIES,
+        'cond_stats': dataset_summaries[ds]['cond_stats'],
+        'structural_fraction': dataset_summaries[ds]['structural_fraction'],
+        'd_gradient_q4_q1': dataset_summaries[ds]['d_gradient_q4_q1'],
+        'dose_response': dataset_summaries[ds].get('dose_response'),
+        'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+    }
+    out_path = RESULTS_DIR / ds / 'results.json'
+    with open(out_path, 'w') as f:
+        json.dump(ds_results, f, indent=2)
+    print(f"  Saved {out_path}")
+
+# Cross-dataset results
+cross_results = {
+    'experiment': 'prefix_lm_exp05_hero',
+    'model': MODEL_NAME,
+    'seed': SEED,
+    'datasets': DATASET_NAMES,
+    'conditions': ALL_CONDITIONS,
+    'condition_categories': CONDITION_CATEGORIES,
+    'mean_d_correct': {cn: float(mean_d.get(cn, 0)) for cn in surr_conds_ranked},
+    'ranking': ranked,
+    'structural_fraction': {
+        ds: dataset_summaries[ds]['structural_fraction'] for ds in DATASET_NAMES
+    },
+    'hypotheses': {
+        'H1_llm_beats_static': h1,
+        'H2_stratification_generalizes': h2,
+        'H3_hard_neg_better': h3,
+        'H4_structural_varies': h4,
+        'H5_opv_beats_oracle': h5,
+        'H6_pointer_matches_opv': h6,
+    },
+    'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+}
+
+with open(RESULTS_DIR / 'cross_dataset_results.json', 'w') as f:
+    json.dump(cross_results, f, indent=2)
+print(f"  Saved {RESULTS_DIR / 'cross_dataset_results.json'}")
+
+print(f"\n{'='*70}")
+print(f"EXPERIMENT COMPLETE")
+print(f"{'='*70}")
+
+------------------
+
+----- stdout -----
+======================================================================
+SUMMARY -- Prefix LM Exp 05: Hero Run
+======================================================================
+
+--- Replication Checks ---
+  MS MARCO: d_oracle=+0.452 (expected ~+0.452), d_random=+0.475 (expected ~+0.475), structural=105% (expected ~105%)
+
+  Contrastive sanity (AUC_bare > 50%, random negatives):
+    msmarco: AUC(bare) = 83.0% [PASS]
+    squad: AUC(bare) = 95.0% [PASS]
+    neuralbridge: AUC(bare) = 99.8% [PASS]
+    boolq: AUC(bare) = 25.4% [FAIL]
+    triviaqa: AUC(bare) = 84.0% [PASS]
+    hotpotqa: AUC(bare) = 79.0% [PASS]
+
+--- Final Surrogate Ranking (d_correct vs bare, mean across 6 datasets) ---
+
+  Rank Condition                 Category         Mean_d   msmarc    squad   neural    boolq   trivia   hotpot
+  ---------------------------------------------------------------------------------------------------
+     1 oracle                    semantic         +0.682   +0.452   +0.823   -0.514   +1.868   +0.861   +0.598
+     2 doc_kw10                  extraction       +0.679   +0.461   +0.878   -0.497   +2.267   +0.506   +0.460
+     3 llm_keywords              LLM              +0.658   +0.466   +0.827   -0.393   +1.988   +0.543   +0.514
+     4 oracle_plus_vocab         semantic         +0.652   +0.474   +1.063
+----- stdout -----
+   -0.590   +1.517   +0.883   +0.566
+     5 llm_query                 LLM              +0.599   +0.488   +0.877   -0.451   +1.503   +0.668   +0.506
+     6 pointer                   semantic         +0.592   +0.521   +0.933   -0.451   +1.491   +0.440   +0.618
+     7 random                    structural       +0.437   +0.475   +0.658   -0.480   +1.518   +0.160   +0.292
+     8 instruct                  extraction       +0.351   +0.471   +0.742   -0.277   +0.876   +0.033   +0.262
+     9 llm_summary               LLM              +0.228   +0.425   +0.238   -0.631   +0.977   +0.286   +0.072
+
+--- Hypothesis Tests ---
+  H1 (LLM > static): SUPPORTED (llm_query=+0.599 vs instruct=+0.351)
+  H2 (stratification generalizes): SUPPORTED (positive in 5/6 datasets)
+      gradients: {'msmarco': '+0.090', 'squad': '+0.339', 'neuralbridge': '+0.001', 'boolq': '+0.577', 'triviaqa': '+1.044', 'hotpotqa': '+0.606'}
+  H3 (hard neg > random neg discrimination): NOT SUPPORTED (mean_hard=+0.172 vs mean_rand=+0.212)
+  H4 (structural fraction varies): SUPPORTED (range=86%, min=19%, max=105%)
+  H5 (opv > oracle consistently): NOT SUPPORTED (wins 3/6 datasets)
+  H6 (pointer ~ opv): NOT SUPPORTED (pointer=+0.592 vs opv=+0.652)
+
+--- Saving Results ---
+  Saved ../../../results/prefix_lm_exp05/msmarco/results.json
+  Saved ../../../results/prefix_lm_exp05/squad/results.json
+  Saved ../../../results/prefix_lm_exp05/neuralbridge/results.json
+  Saved ../../../results/prefix_lm_exp05/boolq/results.json
+  Saved ../../../results/prefix_lm_exp05/triviaqa/results.json
+  Saved ../../../results/prefix_lm_exp05/hotpotqa/results.json
+------------------
+
+[0;31m---------------------------------------------------------------------------[0m
+[0;31mTypeError[0m                                 Traceback (most recent call last)
+Cell [0;32mIn[12], line 155[0m
+[1;32m    131[0m cross_results [38;5;241m=[39m {
+[1;32m    132[0m     [38;5;124m'[39m[38;5;124mexperiment[39m[38;5;124m'[39m: [38;5;124m'[39m[38;5;124mprefix_lm_exp05_hero[39m[38;5;124m'[39m,
+[1;32m    133[0m     [38;5;124m'[39m[38;5;124mmodel[39m[38;5;124m'[39m: MODEL_NAME,
+[0;32m   (...)[0m
+[1;32m    151[0m     [38;5;124m'[39m[38;5;124mtimestamp[39m[38;5;124m'[39m: time[38;5;241m.[39mstrftime([38;5;124m'[39m[38;5;124m%[39m[38;5;124mY-[39m[38;5;124m%[39m[38;5;124mm-[39m[38;5;132;01m%d[39;00m[38;5;124m [39m[38;5;124m%[39m[38;5;124mH:[39m[38;5;124m%[39m[38;5;124mM:[39m[38;5;124m%[39m[38;5;124mS[39m[38;5;124m'[39m),
+[1;32m    152[0m }
+[1;32m    154[0m [38;5;28;01mwith[39;00m [38;5;28mopen[39m(RESULTS_DIR [38;5;241m/[39m [38;5;124m'[39m[38;5;124mcross_dataset_results.json[39m[38;5;124m'[39m, [38;5;124m'[39m[38;5;124mw[39m[38;5;124m'[39m) [38;5;28;01mas[39;00m f:
+[0;32m--> 155[0m     [43mjson[49m[38;5;241;43m.[39;49m[43mdump[49m[43m([49m[43mcross_results[49m[43m,[49m[43m [49m[43mf[49m[43m,[49m[43m [49m[43mindent[49m[38;5;241;43m=[39;49m[38;5;241;43m2[39;49m[43m)[49m
+[1;32m    156[0m [38;5;28mprint[39m([38;5;124mf[39m[38;5;124m"[39m[38;5;124m  Saved [39m[38;5;132;01m{[39;00mRESULTS_DIR[38;5;250m [39m[38;5;241m/[39m[38;5;250m [39m[38;5;124m'[39m[38;5;124mcross_dataset_results.json[39m[38;5;124m'[39m[38;5;132;01m}[39;00m[38;5;124m"[39m)
+[1;32m    158[0m [38;5;28mprint[39m([38;5;124mf[39m[38;5;124m"[39m[38;5;130;01m\n[39;00m[38;5;132;01m{[39;00m[38;5;124m'[39m[38;5;124m=[39m[38;5;124m'[39m[38;5;241m*[39m[38;5;241m70[39m[38;5;132;01m}[39;00m[38;5;124m"[39m)
+
+File [0;32m/opt/conda/lib/python3.10/json/__init__.py:179[0m, in [0;36mdump[0;34m(obj, fp, skipkeys, ensure_ascii, check_circular, allow_nan, cls, indent, separators, default, sort_keys, **kw)[0m
+[1;32m    173[0m     iterable [38;5;241m=[39m [38;5;28mcls[39m(skipkeys[38;5;241m=[39mskipkeys, ensure_ascii[38;5;241m=[39mensure_ascii,
+[1;32m    174[0m         check_circular[38;5;241m=[39mcheck_circular, allow_nan[38;5;241m=[39mallow_nan, indent[38;5;241m=[39mindent,
+[1;32m    175[0m         separators[38;5;241m=[39mseparators,
+[1;32m    176[0m         default[38;5;241m=[39mdefault, sort_keys[38;5;241m=[39msort_keys, [38;5;241m*[39m[38;5;241m*[39mkw)[38;5;241m.[39miterencode(obj)
+[1;32m    177[0m [38;5;66;03m# could accelerate with writelines in some versions of Python, at[39;00m
+[1;32m    178[0m [38;5;66;03m# a debuggability cost[39;00m
+[0;32m--> 179[0m [38;5;28;01mfor[39;00m chunk [38;5;129;01min[39;00m iterable:
+[1;32m    180[0m     fp[38;5;241m.[39mwrite(chunk)
+
+File [0;32m/opt/conda/lib/python3.10/json/encoder.py:431[0m, in [0;36m_make_iterencode.<locals>._iterencode[0;34m(o, _current_indent_level)[0m
+[1;32m    429[0m     [38;5;28;01myield from[39;00m _iterencode_list(o, _current_indent_level)
+[1;32m    430[0m [38;5;28;01melif[39;00m [38;5;28misinstance[39m(o, [38;5;28mdict[39m):
+[0;32m--> 431[0m     [38;5;28;01myield from[39;00m _iterencode_dict(o, _current_indent_level)
+[1;32m    432[0m [38;5;28;01melse[39;00m:
+[1;32m    433[0m     [38;5;28;01mif[39;00m markers [38;5;129;01mis[39;00m [38;5;129;01mnot[39;00m [38;5;28;01mNone[39;00m:
+
+File [0;32m/opt/conda/lib/python3.10/json/encoder.py:405[0m, in [0;36m_make_iterencode.<locals>._iterencode_dict[0;34m(dct, _current_indent_level)[0m
+[1;32m    403[0m         [38;5;28;01melse[39;00m:
+[1;32m    404[0m             chunks [38;5;241m=[39m _iterencode(value, _current_indent_level)
+[0;32m--> 405[0m         [38;5;28;01myield from[39;00m chunks
+[1;32m    406[0m [38;5;28;01mif[39;00m newline_indent [38;5;129;01mis[39;00m [38;5;129;01mnot[39;00m [38;5;28;01mNone[39;00m:
+[1;32m    407[0m     _current_indent_level [38;5;241m-[39m[38;5;241m=[39m [38;5;241m1[39m
+
+File [0;32m/opt/conda/lib/python3.10/json/encoder.py:405[0m, in [0;36m_make_iterencode.<locals>._iterencode_dict[0;34m(dct, _current_indent_level)[0m
+[1;32m    403[0m         [38;5;28;01melse[39;00m:
+[1;32m    404[0m             chunks [38;5;241m=[39m _iterencode(value, _current_indent_level)
+[0;32m--> 405[0m         [38;5;28;01myield from[39;00m chunks
+[1;32m    406[0m [38;5;28;01mif[39;00m newline_indent [38;5;129;01mis[39;00m [38;5;129;01mnot[39;00m [38;5;28;01mNone[39;00m:
+[1;32m    407[0m     _current_indent_level [38;5;241m-[39m[38;5;241m=[39m [38;5;241m1[39m
+
+File [0;32m/opt/conda/lib/python3.10/json/encoder.py:438[0m, in [0;36m_make_iterencode.<locals>._iterencode[0;34m(o, _current_indent_level)[0m
+[1;32m    436[0m         [38;5;28;01mraise[39;00m [38;5;167;01mValueError[39;00m([38;5;124m"[39m[38;5;124mCircular reference detected[39m[38;5;124m"[39m)
+[1;32m    437[0m     markers[markerid] [38;5;241m=[39m o
+[0;32m--> 438[0m o [38;5;241m=[39m [43m_default[49m[43m([49m[43mo[49m[43m)[49m
+[1;32m    439[0m [38;5;28;01myield from[39;00m _iterencode(o, _current_indent_level)
+[1;32m    440[0m [38;5;28;01mif[39;00m markers [38;5;129;01mis[39;00m [38;5;129;01mnot[39;00m [38;5;28;01mNone[39;00m:
+
+File [0;32m/opt/conda/lib/python3.10/json/encoder.py:179[0m, in [0;36mJSONEncoder.default[0;34m(self, o)[0m
+[1;32m    160[0m [38;5;28;01mdef[39;00m [38;5;21mdefault[39m([38;5;28mself[39m, o):
+[1;32m    161[0m [38;5;250m    [39m[38;5;124;03m"""Implement this method in a subclass such that it returns[39;00m
+[1;32m    162[0m [38;5;124;03m    a serializable object for ``o``, or calls the base implementation[39;00m
+[1;32m    163[0m [38;5;124;03m    (to raise a ``TypeError``).[39;00m
+[0;32m   (...)[0m
+[1;32m    177[0m 
+[1;32m    178[0m [38;5;124;03m    """[39;00m
+[0;32m--> 179[0m     [38;5;28;01mraise[39;00m [38;5;167;01mTypeError[39;00m([38;5;124mf[39m[38;5;124m'[39m[38;5;124mObject of type [39m[38;5;132;01m{[39;00mo[38;5;241m.[39m[38;5;18m__class__[39m[38;5;241m.[39m[38;5;18m__name__[39m[38;5;132;01m}[39;00m[38;5;124m [39m[38;5;124m'[39m
+[1;32m    180[0m                     [38;5;124mf[39m[38;5;124m'[39m[38;5;124mis not JSON serializable[39m[38;5;124m'[39m)
+
+[0;31mTypeError[0m: Object of type bool_ is not JSON serializable
+

@@ -1,0 +1,151 @@
+[NbConvertApp] Converting notebook experiments/prefix_lm/05/05_hero_run_restart.ipynb to notebook
+Traceback (most recent call last):
+  File "/opt/conda/bin/jupyter-nbconvert", line 8, in <module>
+    sys.exit(main())
+  File "/opt/conda/lib/python3.10/site-packages/jupyter_core/application.py", line 283, in launch_instance
+    super().launch_instance(argv=argv, **kwargs)
+  File "/opt/conda/lib/python3.10/site-packages/traitlets/config/application.py", line 1075, in launch_instance
+    app.start()
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 420, in start
+    self.convert_notebooks()
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 597, in convert_notebooks
+    self.convert_single_notebook(notebook_filename)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 563, in convert_single_notebook
+    output, resources = self.export_single_notebook(
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 487, in export_single_notebook
+    output, resources = self.exporter.from_filename(
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 201, in from_filename
+    return self.from_file(f, resources=resources, **kw)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 220, in from_file
+    return self.from_notebook_node(
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/notebook.py", line 36, in from_notebook_node
+    nb_copy, resources = super().from_notebook_node(nb, resources, **kw)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 154, in from_notebook_node
+    nb_copy, resources = self._preprocess(nb_copy, resources)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 353, in _preprocess
+    nbc, resc = preprocessor(nbc, resc)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/preprocessors/base.py", line 48, in __call__
+    return self.preprocess(nb, resources)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/preprocessors/execute.py", line 103, in preprocess
+    self.preprocess_cell(cell, resources, index)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/preprocessors/execute.py", line 124, in preprocess_cell
+    cell = self.execute_cell(cell, index, store_history=True)
+  File "/opt/conda/lib/python3.10/site-packages/jupyter_core/utils/__init__.py", line 165, in wrapped
+    return loop.run_until_complete(inner)
+  File "/opt/conda/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/opt/conda/lib/python3.10/site-packages/nbclient/client.py", line 1062, in async_execute_cell
+    await self._check_raise_for_error(cell, cell_index, exec_reply)
+  File "/opt/conda/lib/python3.10/site-packages/nbclient/client.py", line 918, in _check_raise_for_error
+    raise CellExecutionError.from_cell_and_msg(cell, exec_reply_content)
+nbclient.exceptions.CellExecutionError: An error occurred while executing the following cell:
+------------------
+# Cell 20: Analysis H -- Vocabulary bridge dose-response curve
+print("=" * 70)
+print("ANALYSIS H: VOCABULARY BRIDGE DOSE-RESPONSE")
+print("=" * 70)
+
+bridge_ns = [1, 3, 5, 10, 15, 20]
+bridge_conds = [f"vocab_bridge_{n}" for n in bridge_ns]
+
+all_sample_lists = {
+    'msmarco': msmarco_samples,
+    'squad': squad_samples,
+    'neuralbridge': neuralbridge_samples,
+    'boolq': boolq_samples,
+    'triviaqa': triviaqa_samples,
+    'hotpotqa': hotpotqa_samples,
+}
+
+for ds_name, results in all_datasets.items():
+    conditions = get_conditions_for_dataset(ds_name)
+    if 'vocab_bridge_1' not in conditions:
+        print(f"\n  {ds_name}: skipping (no dose-response conditions)")
+        dataset_summaries[ds_name]['dose_response'] = None
+        continue
+
+    N = len(results)
+    nll_correct = dataset_summaries[ds_name]['nll_correct']
+    print(f"\n{'='*50}")
+    print(f"  Dataset: {ds_name} (N={N})")
+    print(f"{'='*50}")
+
+    # Degeneracy check: how many samples have fewer overlap words than requested?
+    sample_list = all_sample_lists[ds_name]
+    print(f"\n  Overlap word availability:")
+    for n_bridge in bridge_ns:
+        key = f'vocab_bridge_{n_bridge}'
+        actual_ns = [s[f'{key}_actual_n'] for s in sample_list]
+        degen_rate = sum(1 for a in actual_ns if a < n_bridge) / len(actual_ns)
+        mean_actual = np.mean(actual_ns)
+        print(f"    bridge_{n_bridge}: mean_actual={mean_actual:.1f},"
+              f" degeneracy={degen_rate:.1%}")
+
+    # Dose-response: d vs bare and d vs random
+    print(f"\n  {'Condition':<25} {'d_vs_bare':>10} {'d_vs_random':>12}"
+          f" {'NLL':>8}")
+    print(f"  {'-'*60}")
+
+    # Include reference conditions
+    ref_conds = ['bare', 'random', 'oracle', 'oracle_plus_vocab']
+    for cn in ref_conds + bridge_conds:
+        if cn not in nll_correct:
+            continue
+        nll_m = nll_correct[cn].mean()
+        d_bare = cohens_d(nll_correct['bare'] - nll_correct[cn])
+        d_rand = cohens_d(nll_correct['random'] - nll_correct[cn])
+        print(f"  {cn:<25} {d_bare:>+10.3f} {d_rand:>+12.3f} {nll_m:>8.4f}")
+
+    # Also check contrastive AUC dose-response
+    gap_rand = dataset_summaries[ds_name]['gap_rand']
+    print(f"\n  Contrastive AUC dose-response (random negatives):")
+    print(f"  {'Condition':<25} {'AUC':>8} {'d(gap)':>8}")
+    print(f"  {'-'*44}")
+
+    for cn in ref_conds + bridge_conds:
+        if cn not in gap_rand:
+            continue
+        g = gap_rand[cn]
+        auc = (g > 0).mean()
+        d_gap = cohens_d(g)
+        print(f"  {cn:<25} {auc:>8.1%} {d_gap:>+8.3f}")
+
+    # Store dose-response data
+    dose_data = {}
+    for n_bridge in bridge_ns:
+        cn = f'vocab_bridge_{n_bridge}'
+        if cn in nll_correct:
+            dose_data[n_bridge] = {
+                'd_vs_bare': float(cohens_d(nll_correct['bare'] - nll_correct[cn])),
+                'd_vs_random': float(cohens_d(nll_correct['random'] - nll_correct[cn])),
+                'nll': float(nll_correct[cn].mean()),
+            }
+    dataset_summaries[ds_name]['dose_response'] = dose_data
+
+print(f"\n\nAnalysis H complete.")
+
+------------------
+
+----- stdout -----
+======================================================================
+ANALYSIS H: VOCABULARY BRIDGE DOSE-RESPONSE
+======================================================================
+
+==================================================
+  Dataset: msmarco (N=500)
+==================================================
+
+  Overlap word availability:
+------------------
+
+[0;31m---------------------------------------------------------------------------[0m
+[0;31mTypeError[0m                                 Traceback (most recent call last)
+Cell [0;32mIn[17], line 36[0m
+[1;32m     34[0m [38;5;28;01mfor[39;00m n_bridge [38;5;129;01min[39;00m bridge_ns:
+[1;32m     35[0m     key [38;5;241m=[39m [38;5;124mf[39m[38;5;124m'[39m[38;5;124mvocab_bridge_[39m[38;5;132;01m{[39;00mn_bridge[38;5;132;01m}[39;00m[38;5;124m'[39m
+[0;32m---> 36[0m     actual_ns [38;5;241m=[39m [s[[38;5;124mf[39m[38;5;124m'[39m[38;5;132;01m{[39;00mkey[38;5;132;01m}[39;00m[38;5;124m_actual_n[39m[38;5;124m'[39m] [38;5;28;01mfor[39;00m s [38;5;129;01min[39;00m sample_list]
+[1;32m     37[0m     degen_rate [38;5;241m=[39m [38;5;28msum[39m([38;5;241m1[39m [38;5;28;01mfor[39;00m a [38;5;129;01min[39;00m actual_ns [38;5;28;01mif[39;00m a [38;5;241m<[39m n_bridge) [38;5;241m/[39m [38;5;28mlen[39m(actual_ns)
+[1;32m     38[0m     mean_actual [38;5;241m=[39m np[38;5;241m.[39mmean(actual_ns)
+
+[0;31mTypeError[0m: 'NoneType' object is not iterable
+

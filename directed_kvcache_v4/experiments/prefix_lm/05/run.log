@@ -1,0 +1,251 @@
+[NbConvertApp] Converting notebook experiments/prefix_lm/05/05_hero_run.ipynb to notebook
+Traceback (most recent call last):
+  File "/opt/conda/bin/jupyter-nbconvert", line 8, in <module>
+    sys.exit(main())
+  File "/opt/conda/lib/python3.10/site-packages/jupyter_core/application.py", line 283, in launch_instance
+    super().launch_instance(argv=argv, **kwargs)
+  File "/opt/conda/lib/python3.10/site-packages/traitlets/config/application.py", line 1075, in launch_instance
+    app.start()
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 420, in start
+    self.convert_notebooks()
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 597, in convert_notebooks
+    self.convert_single_notebook(notebook_filename)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 563, in convert_single_notebook
+    output, resources = self.export_single_notebook(
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/nbconvertapp.py", line 487, in export_single_notebook
+    output, resources = self.exporter.from_filename(
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 201, in from_filename
+    return self.from_file(f, resources=resources, **kw)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 220, in from_file
+    return self.from_notebook_node(
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/notebook.py", line 36, in from_notebook_node
+    nb_copy, resources = super().from_notebook_node(nb, resources, **kw)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 154, in from_notebook_node
+    nb_copy, resources = self._preprocess(nb_copy, resources)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/exporters/exporter.py", line 353, in _preprocess
+    nbc, resc = preprocessor(nbc, resc)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/preprocessors/base.py", line 48, in __call__
+    return self.preprocess(nb, resources)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/preprocessors/execute.py", line 103, in preprocess
+    self.preprocess_cell(cell, resources, index)
+  File "/opt/conda/lib/python3.10/site-packages/nbconvert/preprocessors/execute.py", line 124, in preprocess_cell
+    cell = self.execute_cell(cell, index, store_history=True)
+  File "/opt/conda/lib/python3.10/site-packages/jupyter_core/utils/__init__.py", line 165, in wrapped
+    return loop.run_until_complete(inner)
+  File "/opt/conda/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/opt/conda/lib/python3.10/site-packages/nbclient/client.py", line 1062, in async_execute_cell
+    await self._check_raise_for_error(cell, cell_index, exec_reply)
+  File "/opt/conda/lib/python3.10/site-packages/nbclient/client.py", line 918, in _check_raise_for_error
+    raise CellExecutionError.from_cell_and_msg(cell, exec_reply_content)
+nbclient.exceptions.CellExecutionError: An error occurred while executing the following cell:
+------------------
+# Cell 11: Dataset 5 -- triviaqa
+print("=" * 70)
+print("DATASET 5: TRIVIAQA")
+print("=" * 70)
+
+ds_dir = RESULTS_DIR / "triviaqa"
+ds_dir.mkdir(parents=True, exist_ok=True)
+
+# Load and prepare
+triviaqa_samples = DATASET_LOADERS["triviaqa"]()
+triviaqa_samples = prepare_samples(triviaqa_samples, "triviaqa")
+assign_hard_negatives(triviaqa_samples, "triviaqa")
+
+# Generate LLM fields
+generate_llm_fields(triviaqa_samples, "triviaqa", model, tokenizer, DEVICE)
+
+# --- Scoring loop ---
+conditions = get_conditions_for_dataset("triviaqa")
+answer_types = get_answer_types_for_dataset("triviaqa")
+n_conds = len(conditions)
+n_at = len(answer_types)
+print(f"\n--- Scoring triviaqa ({N_SAMPLES} samples, {n_conds} conditions, {n_at} answer types) ---")
+
+CKPT_PATH = ds_dir / "checkpoint.json"
+
+triviaqa_results = []
+start_idx = 0
+if CKPT_PATH.exists():
+    ckpt = json.loads(CKPT_PATH.read_text())
+    if ckpt.get("version") == 2 and len(ckpt.get('results', [])) > 0:
+        saved_queries = [r['query'][:50] for r in ckpt['results']]
+        current_queries = [s['query'][:50] for s in triviaqa_samples[:len(saved_queries)]]
+        if saved_queries == current_queries:
+            triviaqa_results = ckpt['results']
+            start_idx = len(triviaqa_results)
+            print(f"Resuming from checkpoint: {start_idx}/{N_SAMPLES}")
+
+if start_idx == 0:
+    print(f"Starting fresh")
+
+t0 = time.time()
+
+for i in tqdm(range(start_idx, N_SAMPLES), initial=start_idx, total=N_SAMPLES,
+              desc="triviaqa"):
+    s = triviaqa_samples[i]
+    try:
+        result = score_sample(model, tokenizer, s, DEVICE, "triviaqa")
+    except Exception as e:
+        print(f"ERROR at sample {i}: {e}")
+        import traceback; traceback.print_exc()
+        result = None
+
+    if result is None:
+        continue
+
+    result['query'] = s['query'][:50]
+    result['query_doc_overlap'] = s['query_doc_overlap']
+    result['answer_wc'] = s['answer_wc']
+    result['query_wc'] = count_words(s['query'])
+    result['doc_wc'] = s['word_count']
+    triviaqa_results.append(result)
+
+    if (i + 1) % 25 == 0 or i == N_SAMPLES - 1:
+        ckpt = {
+            'version': 2,
+            'dataset': 'triviaqa',
+            'model': MODEL_NAME,
+            'n_total': N_SAMPLES,
+            'conditions': conditions,
+            'answer_types': answer_types,
+            'results': triviaqa_results,
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+        }
+        CKPT_PATH.write_text(json.dumps(ckpt))
+
+    if (i + 1) % 50 == 0:
+        gc.collect(); torch.cuda.empty_cache()
+
+elapsed = time.time() - t0
+print(f"\nDone: {len(triviaqa_results)} samples in {elapsed/60:.1f} min")
+
+print(f"\nQuick summary (correct answer, mean NLL):")
+for cn in conditions:
+    vals = [r[f'nll_{cn}_correct'] for r in triviaqa_results]
+    print(f"  {cn:<25} NLL={np.mean(vals):.4f}")
+
+------------------
+
+----- stdout -----
+======================================================================
+DATASET 5: TRIVIAQA
+======================================================================
+Loading TriviaQA (rc subset)...
+------------------
+
+[0;31m---------------------------------------------------------------------------[0m
+[0;31mOSError[0m                                   Traceback (most recent call last)
+File [0;32m/opt/conda/lib/python3.10/site-packages/datasets/builder.py:1887[0m, in [0;36mArrowBasedBuilder._prepare_split_single[0;34m(self, gen_kwargs, fpath, file_format, max_shard_size, job_id)[0m
+[1;32m   1886[0m [38;5;28;01mtry[39;00m:
+[0;32m-> 1887[0m     [43mwriter[49m[38;5;241;43m.[39;49m[43mwrite_table[49m[43m([49m[43mtable[49m[43m)[49m
+[1;32m   1888[0m [38;5;28;01mexcept[39;00m CastError [38;5;28;01mas[39;00m cast_error:
+
+File [0;32m/opt/conda/lib/python3.10/site-packages/datasets/arrow_writer.py:679[0m, in [0;36mArrowWriter.write_table[0;34m(self, pa_table, writer_batch_size)[0m
+[1;32m    678[0m [38;5;28mself[39m[38;5;241m.[39m_num_examples [38;5;241m+[39m[38;5;241m=[39m pa_table[38;5;241m.[39mnum_rows
+[0;32m--> 679[0m [38;5;28;43mself[39;49m[38;5;241;43m.[39;49m[43mpa_writer[49m[38;5;241;43m.[39;49m[43mwrite_table[49m[43m([49m[43mpa_table[49m[43m,[49m[43m [49m[43mwriter_batch_size[49m[43m)[49m
+
+File [0;32m/opt/conda/lib/python3.10/site-packages/pyarrow/ipc.pxi:616[0m, in [0;36mpyarrow.lib._CRecordBatchWriter.write_table[0;34m()[0m
+
+File [0;32m/opt/conda/lib/python3.10/site-packages/pyarrow/error.pxi:89[0m, in [0;36mpyarrow.lib.check_status[0;34m()[0m
+
+File [0;32m/opt/conda/lib/python3.10/site-packages/fsspec/implementations/local.py:431[0m, in [0;36mLocalFileOpener.write[0;34m(self, *args, **kwargs)[0m
+[1;32m    430[0m [38;5;28;01mdef[39;00m [38;5;21mwrite[39m([38;5;28mself[39m, [38;5;241m*[39margs, [38;5;241m*[39m[38;5;241m*[39mkwargs):
+[0;32m--> 431[0m     [38;5;28;01mreturn[39;00m [38;5;28;43mself[39;49m[38;5;241;43m.[39;49m[43mf[49m[38;5;241;43m.[39;49m[43mwrite[49m[43m([49m[38;5;241;43m*[39;49m[43margs[49m[43m,[49m[43m [49m[38;5;241;43m*[39;49m[38;5;241;43m*[39;49m[43mkwargs[49m[43m)[49m
+
+[0;31mOSError[0m: [Errno 28] No space left on device
+
+During handling of the above exception, another exception occurred:
+
+[0;31mOSError[0m                                   Traceback (most recent call last)
+File [0;32m/opt/conda/lib/python3.10/site-packages/datasets/builder.py:1908[0m, in [0;36mArrowBasedBuilder._prepare_split_single[0;34m(self, gen_kwargs, fpath, file_format, max_shard_size, job_id)[0m
+[1;32m   1907[0m num_original_shards [38;5;241m=[39m original_shard_id [38;5;241m+[39m [38;5;241m1[39m
+[0;32m-> 1908[0m num_examples, num_bytes [38;5;241m=[39m [43mwriter[49m[38;5;241;43m.[39;49m[43mfinalize[49m[43m([49m[43m)[49m
+[1;32m   1909[0m writer[38;5;241m.[39mclose()
+
+File [0;32m/opt/conda/lib/python3.10/site-packages/datasets/arrow_writer.py:692[0m, in [0;36mArrowWriter.finalize[0;34m(self, close_stream)[0m
+[1;32m    691[0m     [38;5;28;01mif[39;00m close_stream:
+[0;32m--> 692[0m         [38;5;28;43mself[39;49m[38;5;241;43m.[39;49m[43mstream[49m[38;5;241;43m.[39;49m[43mclose[49m[43m([49m[43m)[49m
+[1;32m    693[0m [38;5;28;01melse[39;00m:
+
+File [0;32m/opt/conda/lib/python3.10/site-packages/fsspec/implementations/local.py:449[0m, in [0;36mLocalFileOpener.close[0;34m(self)[0m
+[1;32m    448[0m [38;5;28;01mdef[39;00m [38;5;21mclose[39m([38;5;28mself[39m):
+[0;32m--> 449[0m     [38;5;28;01mreturn[39;00m [38;5;28;43mself[39;49m[38;5;241;43m.[39;49m[43mf[49m[38;5;241;43m.[39;49m[43mclose[49m[43m([49m[43m)[49m
+
+[0;31mOSError[0m: [Errno 28] No space left on device
+
+The above exception was the direct cause of the following exception:
+
+[0;31mDatasetGenerationError[0m                    Traceback (most recent call last)
+Cell [0;32mIn[11], line 10[0m
+[1;32m      7[0m ds_dir[38;5;241m.[39mmkdir(parents[38;5;241m=[39m[38;5;28;01mTrue[39;00m, exist_ok[38;5;241m=[39m[38;5;28;01mTrue[39;00m)
+[1;32m      9[0m [38;5;66;03m# Load and prepare[39;00m
+[0;32m---> 10[0m triviaqa_samples [38;5;241m=[39m [43mDATASET_LOADERS[49m[43m[[49m[38;5;124;43m"[39;49m[38;5;124;43mtriviaqa[39;49m[38;5;124;43m"[39;49m[43m][49m[43m([49m[43m)[49m
+[1;32m     11[0m triviaqa_samples [38;5;241m=[39m prepare_samples(triviaqa_samples, [38;5;124m"[39m[38;5;124mtriviaqa[39m[38;5;124m"[39m)
+[1;32m     12[0m assign_hard_negatives(triviaqa_samples, [38;5;124m"[39m[38;5;124mtriviaqa[39m[38;5;124m"[39m)
+
+Cell [0;32mIn[4], line 125[0m, in [0;36mload_triviaqa[0;34m(n, seed)[0m
+[1;32m    123[0m [38;5;28;01mdef[39;00m [38;5;21mload_triviaqa[39m(n[38;5;241m=[39mN_SAMPLES, seed[38;5;241m=[39mSEED):
+[1;32m    124[0m     [38;5;28mprint[39m([38;5;124m"[39m[38;5;124mLoading TriviaQA (rc subset)...[39m[38;5;124m"[39m)
+[0;32m--> 125[0m     ds [38;5;241m=[39m [43mload_dataset[49m[43m([49m[38;5;124;43m"[39;49m[38;5;124;43mtrivia_qa[39;49m[38;5;124;43m"[39;49m[43m,[49m[43m [49m[38;5;124;43m"[39;49m[38;5;124;43mrc[39;49m[38;5;124;43m"[39;49m[43m,[49m[43m [49m[43msplit[49m[38;5;241;43m=[39;49m[38;5;124;43m"[39;49m[38;5;124;43mvalidation[39;49m[38;5;124;43m"[39;49m[43m)[49m
+[1;32m    126[0m     all_candidates [38;5;241m=[39m []
+[1;32m    127[0m     [38;5;28;01mfor[39;00m row [38;5;129;01min[39;00m ds:
+
+File [0;32m/opt/conda/lib/python3.10/site-packages/datasets/load.py:1508[0m, in [0;36mload_dataset[0;34m(path, name, data_dir, data_files, split, cache_dir, features, download_config, download_mode, verification_mode, keep_in_memory, save_infos, revision, token, streaming, num_proc, storage_options, **config_kwargs)[0m
+[1;32m   1505[0m     [38;5;28;01mreturn[39;00m builder_instance[38;5;241m.[39mas_streaming_dataset(split[38;5;241m=[39msplit)
+[1;32m   1507[0m [38;5;66;03m# Download and prepare data[39;00m
+[0;32m-> 1508[0m [43mbuilder_instance[49m[38;5;241;43m.[39;49m[43mdownload_and_prepare[49m[43m([49m
+[1;32m   1509[0m [43m    [49m[43mdownload_config[49m[38;5;241;43m=[39;49m[43mdownload_config[49m[43m,[49m
+[1;32m   1510[0m [43m    [49m[43mdownload_mode[49m[38;5;241;43m=[39;49m[43mdownload_mode[49m[43m,[49m
+[1;32m   1511[0m [43m    [49m[43mverification_mode[49m[38;5;241;43m=[39;49m[43mverification_mode[49m[43m,[49m
+[1;32m   1512[0m [43m    [49m[43mnum_proc[49m[38;5;241;43m=[39;49m[43mnum_proc[49m[43m,[49m
+[1;32m   1513[0m [43m    [49m[43mstorage_options[49m[38;5;241;43m=[39;49m[43mstorage_options[49m[43m,[49m
+[1;32m   1514[0m [43m[49m[43m)[49m
+[1;32m   1516[0m [38;5;66;03m# Build dataset for splits[39;00m
+[1;32m   1517[0m keep_in_memory [38;5;241m=[39m (
+[1;32m   1518[0m     keep_in_memory [38;5;28;01mif[39;00m keep_in_memory [38;5;129;01mis[39;00m [38;5;129;01mnot[39;00m [38;5;28;01mNone[39;00m [38;5;28;01melse[39;00m is_small_dataset(builder_instance[38;5;241m.[39minfo[38;5;241m.[39mdataset_size)
+[1;32m   1519[0m )
+
+File [0;32m/opt/conda/lib/python3.10/site-packages/datasets/builder.py:884[0m, in [0;36mDatasetBuilder.download_and_prepare[0;34m(self, output_dir, download_config, download_mode, verification_mode, dl_manager, base_path, file_format, max_shard_size, num_proc, storage_options, **download_and_prepare_kwargs)[0m
+[1;32m    882[0m [38;5;28;01mif[39;00m num_proc [38;5;129;01mis[39;00m [38;5;129;01mnot[39;00m [38;5;28;01mNone[39;00m:
+[1;32m    883[0m     prepare_split_kwargs[[38;5;124m"[39m[38;5;124mnum_proc[39m[38;5;124m"[39m] [38;5;241m=[39m num_proc
+[0;32m--> 884[0m [38;5;28;43mself[39;49m[38;5;241;43m.[39;49m[43m_download_and_prepare[49m[43m([49m
+[1;32m    885[0m [43m    [49m[43mdl_manager[49m[38;5;241;43m=[39;49m[43mdl_manager[49m[43m,[49m
+[1;32m    886[0m [43m    [49m[43mverification_mode[49m[38;5;241;43m=[39;49m[43mverification_mode[49m[43m,[49m
+[1;32m    887[0m [43m    [49m[38;5;241;43m*[39;49m[38;5;241;43m*[39;49m[43mprepare_split_kwargs[49m[43m,[49m
+[1;32m    888[0m [43m    [49m[38;5;241;43m*[39;49m[38;5;241;43m*[39;49m[43mdownload_and_prepare_kwargs[49m[43m,[49m
+[1;32m    889[0m [43m[49m[43m)[49m
+[1;32m    890[0m [38;5;66;03m# Sync info[39;00m
+[1;32m    891[0m [38;5;28mself[39m[38;5;241m.[39minfo[38;5;241m.[39mdataset_size [38;5;241m=[39m [38;5;28msum[39m(split[38;5;241m.[39mnum_bytes [38;5;28;01mfor[39;00m split [38;5;129;01min[39;00m [38;5;28mself[39m[38;5;241m.[39minfo[38;5;241m.[39msplits[38;5;241m.[39mvalues())
+
+File [0;32m/opt/conda/lib/python3.10/site-packages/datasets/builder.py:947[0m, in [0;36mDatasetBuilder._download_and_prepare[0;34m(self, dl_manager, verification_mode, **prepare_split_kwargs)[0m
+[1;32m    943[0m split_dict[38;5;241m.[39madd(split_generator[38;5;241m.[39msplit_info)
+[1;32m    945[0m [38;5;28;01mtry[39;00m:
+[1;32m    946[0m     [38;5;66;03m# Prepare split will record examples associated to the split[39;00m
+[0;32m--> 947[0m     [38;5;28;43mself[39;49m[38;5;241;43m.[39;49m[43m_prepare_split[49m[43m([49m[43msplit_generator[49m[43m,[49m[43m [49m[38;5;241;43m*[39;49m[38;5;241;43m*[39;49m[43mprepare_split_kwargs[49m[43m)[49m
+[1;32m    948[0m [38;5;28;01mexcept[39;00m [38;5;167;01mOSError[39;00m [38;5;28;01mas[39;00m e:
+[1;32m    949[0m     [38;5;28;01mraise[39;00m [38;5;167;01mOSError[39;00m([38;5;124m"[39m[38;5;124mCannot find data file. [39m[38;5;124m"[39m [38;5;241m+[39m [38;5;124m"[39m[38;5;130;01m\n[39;00m[38;5;124mOriginal error:[39m[38;5;130;01m\n[39;00m[38;5;124m"[39m [38;5;241m+[39m [38;5;28mstr[39m(e)) [38;5;28;01mfrom[39;00m [38;5;28;01mNone[39;00m
+
+File [0;32m/opt/conda/lib/python3.10/site-packages/datasets/builder.py:1736[0m, in [0;36mArrowBasedBuilder._prepare_split[0;34m(self, split_generator, file_format, num_proc, max_shard_size)[0m
+[1;32m   1734[0m job_id [38;5;241m=[39m [38;5;241m0[39m
+[1;32m   1735[0m [38;5;28;01mwith[39;00m pbar:
+[0;32m-> 1736[0m     [38;5;28;01mfor[39;00m job_id, done, content [38;5;129;01min[39;00m [38;5;28mself[39m[38;5;241m.[39m_prepare_split_single(
+[1;32m   1737[0m         gen_kwargs[38;5;241m=[39mgen_kwargs, job_id[38;5;241m=[39mjob_id, [38;5;241m*[39m[38;5;241m*[39m_prepare_split_args
+[1;32m   1738[0m     ):
+[1;32m   1739[0m         [38;5;28;01mif[39;00m done:
+[1;32m   1740[0m             result [38;5;241m=[39m content
+
+File [0;32m/opt/conda/lib/python3.10/site-packages/datasets/builder.py:1919[0m, in [0;36mArrowBasedBuilder._prepare_split_single[0;34m(self, gen_kwargs, fpath, file_format, max_shard_size, job_id)[0m
+[1;32m   1917[0m     [38;5;28;01mif[39;00m [38;5;28misinstance[39m(e, DatasetGenerationError):
+[1;32m   1918[0m         [38;5;28;01mraise[39;00m
+[0;32m-> 1919[0m     [38;5;28;01mraise[39;00m DatasetGenerationError([38;5;124m"[39m[38;5;124mAn error occurred while generating the dataset[39m[38;5;124m"[39m) [38;5;28;01mfrom[39;00m [38;5;21;01me[39;00m
+[1;32m   1921[0m [38;5;28;01myield[39;00m (
+[1;32m   1922[0m     job_id,
+[1;32m   1923[0m     [38;5;28;01mTrue[39;00m,
+[0;32m   (...)[0m
+[1;32m   1932[0m     ),
+[1;32m   1933[0m )
+
+[0;31mDatasetGenerationError[0m: An error occurred while generating the dataset
+
