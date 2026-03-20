@@ -93,8 +93,7 @@ experiments/prefix_lm/
   01/ 02/ 03/
 
 results/
-  exp01/ exp02/ exp03/ exp08/ exp09/
-  prefix_lm_exp01/
+  exp01/ ... exp09/              # Encoder-decoder experiment outputs
 ```
 
 ---
@@ -724,7 +723,7 @@ SEED=42. Completed in 20.4 min.
 through the **causal channel**, not bidirectionality. Simply prepending tokens before
 the document under the model's native causal attention provides structural enrichment.
 
-**Files**: `experiments/prefix_lm/01/`, `results/prefix_lm_exp01/`
+**Files**: `experiments/prefix_lm/01/` (notebooks generated but not yet executed; no results directory)
 
 ---
 

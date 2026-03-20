@@ -2,10 +2,14 @@
 
 ## Overview
 
-Systematic investigation of KV cache priming in causal LMs (Exps 01-09).
+Systematic investigation of KV cache priming in causal LMs (Exps 01-15).
 Isolates structural vs semantic mechanisms using two-phase scoring with
 BOS-retained repositioning. Exps 07-09 discover that per-tensor KV cache
 normalization universally improves NLL beyond single-pass ground truth.
+Exps 10-13 deconfound normalization, run unified hero experiments with 13-15
+conditions across 7 datasets, and test OOD/adversarial robustness. Exp 14
+learns soft prompt embeddings (245K params) that double the best text prefix.
+Exp 15 evaluates routing strategies across cache pools.
 Old Exps 02-07 archived (look-ahead bug / different model).
 
 ## Model
@@ -46,10 +50,16 @@ experiments/decoder_only/
   07/                # Exp 07: Simulated KV cache quantization
   08/                # Exp 08: Quantization diagnosis (H_A-H_E)
   09/                # Exp 09: Scale normalization as production fix
+  10/                # Exp 10: Compression robustness after normalization deconfounding
+  11/                # Exp 11: Hero run — unified narrative (13 conditions × 7 datasets)
+  12/                # Exp 12: Normalized pipeline hero run (norm baked in)
+  13/                # Exp 13: OOD & misleading query conditions (+2 adversarial)
+  14/                # Exp 14: Soft prompt tuning + cross-dataset transfer
+  15/                # Exp 15: KV cache routing (CPU-only, uses Exp 14 NLLs)
   archive/           # Archived old 02-07 (look-ahead bug / different model)
 
 results/decoder_only/
-  exp01/ exp02/ exp03/ exp04/ exp05/ exp06/ exp07/ exp08/ exp09/
+  exp01/ ... exp15/
 ```
 
 ---
@@ -230,6 +240,86 @@ clip_3sigma) + single_pass. ~38K forward passes.
 - **Recommendation**: `norm_roundtrip` (or equivalently int16) should be a standard
   post-Phase A correction. It's nearly free computationally and universally beneficial.
 
+### Exp 10: Compression Robustness After Normalization Deconfounding (Gemma 3 12B-IT, N=160×4, SEED=42)
+Deconfounds normalization from compression by applying norm_roundtrip first, then quantizing.
+Factorial design: 3 conditioning (bare, random_64, comprehend_64) × 6 treatment
+(bf16, norm, int8, int4, norm_int8, norm_int4) + single_pass = 19 scorings per sample.
+4 datasets: MS MARCO, SQuAD v2, DROP, HotpotQA.
+- **True compression cost** = `NLL(norm_intX) - NLL(norm)` per conditioning level
+- **Deconfounded shielding** = `damage(bare) - damage(prefixed)` (positive = prefix protects)
+- **Normalization benefit** = `NLL(bf16) - NLL(norm)` replicates Exp 09
+- Validates Exp 07's compression findings with the normalization confound removed
+- Tests int4 asymmetry: whether prefix conditioning protects against severe quantization
+
+### Exp 11: Hero Run — Unified Narrative (Gemma 3 12B-IT, N=160×7, SEED=42)
+Comprehensive multi-phase experiment unifying all 13 key prefix conditions across 7 datasets
+(MS MARCO, SQuAD v2, TriviaQA, HotpotQA, DROP, BoolQ, GSM8K) with 5 scaling dimensions.
+Tells a cohesive story from structural controls through compression to model scale.
+- **13 conditions**: bare, random, repeat_token, unrelated, adversarial, comprehend, extract,
+  classify, scrambled_comprehend, tfidf, oracle, llm_question, single_pass
+- **5 phases**: (1) structural controls, (2) instruction expansion, (3) task specificity,
+  (4) compression (norm/int8/int4), (5a) prefix length scaling, (5b) document length scaling,
+  (5c) model size sweep (1B/4B/12B/27B)
+- Establishes the baseline dataset for Exps 12-15
+
+### Exp 12: Normalized Pipeline Hero Run (Gemma 3 12B-IT, N=160×7, SEED=42)
+Fork of Exp 11 integrating norm_roundtrip_kv_cache as standard end-to-end pipeline.
+Normalization applied to ALL caches post-Phase A (including bare), not as optional treatment.
+- **Key change**: `norm_roundtrip_kv_cache(cache)` at end of every Phase A call
+- **repeat_token** now uses "the" instead of BOS+1
+- **Compression expanded**: int8/int4 applied to all 13 conditions (Exp 11 only did 3)
+- LLM questions loaded from Exp 11 checkpoints (no regeneration needed)
+- Cross-check: bare_normalized should match Exp 11's nll_bare_norm values
+
+### Exp 13: OOD & Misleading Query Conditions (Gemma 3 12B-IT, N=160×7, SEED=42)
+Fork of Exp 12 adding two novel prefix conditions to test robustness.
+15 conditions = 13 from Exp 12 + ood_query + misleading_query.
+- **ood_query**: Real question from a different dataset (deterministic cross-dataset sampling)
+- **misleading_query**: LLM-generated false-premise question per sample (greedy decoding)
+- Tests whether arbitrary or contradictory prefixes still guide useful attention
+- All 15 conditions scored with normalization baked in (same pipeline as Exp 12)
+- **Key findings**: All 13 text strategies show positive pooled effect (d=+0.10 to +0.43).
+  Comprehend best (d=+0.43, 72% win). Even random tokens help (d=+0.10).
+  OOD query (d=+0.20) and misleading query (d=+0.22) both help — the "don't think of
+  an elephant" effect is real.
+
+### Exp 14: Soft Prompt Tuning for KV Cache Conditioning (Gemma 3 12B-IT, N=160×7, SEED=42)
+Learns continuous soft prompt embeddings (P=64 tokens × 3840 hidden_size = 245,760 parameters)
+replacing fixed text prefixes. Model frozen; only soft prompt trained via AdamW.
+- **Per-dataset training**: 7 datasets × 4 initializations = 28 runs
+  - Warm-start inits: comprehend, extract, classify embeddings
+  - Random init: Xavier uniform
+- **Universal training**: 4 inits on pooled easy samples from all 7 datasets
+- **Data split**: 200 train + 40 val from easy samples; 160 hard for eval (same as Exp 13)
+- **Cross-dataset transfer**: 8×7 matrix (7 per-dataset + universal → 7 target datasets)
+- **Key findings**:
+  - **Soft prompt (d=0.85) doubles the best text prefix** (comprehend d=0.43). 245K
+    parameters are sufficient to learn cache conditioning that far exceeds any static text.
+  - **Random init (d=0.85) dramatically beats warm-start (d=0.61)**. Initializing from
+    text embeddings traps optimization in a local minimum on the text manifold.
+  - **Universal prompt (d=0.84) nearly matches per-dataset specialists** — a single
+    prompt generalizes across 7 diverse QA tasks.
+  - **Transfer matrix reveals specialization**: diagonal d=1.16 vs off-diagonal d=0.47.
+    Same-dataset prompts are 2.5× more effective than cross-dataset transfer.
+  - **BoolQ poisons all targets** (off-diag mean d=-0.49) — only source with negative transfer.
+  - **GSM8K absorbs everything** — benefits from any source prompt (d=+0.90 to +2.39).
+
+### Exp 15: KV Cache Routing (CPU-only, N=1120, SEED=42)
+Given K pre-conditioned KV caches per document, route incoming queries to minimize answer NLL.
+CPU-only analysis using pre-computed NLLs from Exp 14. 5-fold stratified CV.
+- **4 cache pools** (deployment scenarios):
+  - Pool A (K=3): comprehend, extract, classify (task-type caches)
+  - Pool B (K=5): comprehend, extract, tfidf, random, adversarial (diverse methodology)
+  - Pool C (K=4): soft_rand, univ_rand, comprehend, random (best learned + best static)
+  - Pool D (K=7): 7 domain-specialist transfer caches (one per source dataset)
+- **10 routing strategies**: Oracle, Random, Best-single, Best-per-dataset, Question-word,
+  kNN, LR (features), LR (embeddings), GBT (feat+emb), NLL regression
+- **Key findings**:
+  - Routing closes 46-63% of the oracle gap across pools (mean 54%)
+  - Best-per-dataset (dataset identity) is the strongest non-oracle signal
+  - ML routers (GBT, LR) competitive but don't exceed dataset-identity routing
+  - Pool D (domain specialists) has the largest oracle gap (d=1.23 oracle vs d=0.38 random)
+
 ### Old Exps 02-07: ARCHIVED
 Old Exps 02-05 invalidated by 1-token look-ahead bug. Old Exps 06-07 used slice_kv_cache
 without BOS retention on Gemma 3 4B-IT — not directly comparable. All moved to
@@ -334,3 +424,66 @@ to +0.80). The "structural benefit" (RoPE shift, BOS removal) was entirely look-
 7. **QuALITY MC accuracy is near chance.** 11.5%-15.5% on 4-way MC (chance=25%). Articles
    truncated from ~4100w to 765 tokens lose too much context. The NLL metric still shows
    directional effects, but MC accuracy is not usable at this truncation level.
+
+### Exps 07-09: KV cache normalization (Gemma 3 12B-IT, N=160-200×4-10)
+1. **int8 quantization IMPROVES NLL** — not degrades. Universal across 4-10 datasets, 84-100%
+   win rate. The normalization step `x / (absmax/qmax)` is the mechanism, not the rounding.
+2. **norm_roundtrip captures 97% of the int8 benefit.** `(x / (absmax/127)) * (absmax/127)` —
+   NO rounding, NO clamping — the bf16 arithmetic round-trip alone is sufficient.
+3. **Universal across 10 datasets**: d=-0.50 to -2.79, win rates 77-100%.
+4. **72% independent from prefix conditioning.** Normalization after prefix still provides 73%
+   of its standalone benefit. Only 28% overlap — they fix different things.
+5. **Recommendation**: norm_roundtrip should be standard post-Phase A correction.
+
+### Exp 10: Normalization deconfounding (Gemma 3 12B-IT, N=160×4)
+1. **Normalization shields int4 universally** (d≈1.2, p<1e-90). With normalization applied
+   first, int4 quantization causes far less damage across all conditioning levels.
+2. **int8 damage is too small to shield** (d≈0.01, ns). After normalization, int8 produces
+   negligible additional damage, so there is nothing for prefix conditioning to protect against.
+
+### Exps 11-12: Pipeline normalization (Gemma 3 12B-IT, N=160×7)
+1. **Exp 11 establishes the unified 13-condition framework** across 7 datasets with 5 scaling
+   dimensions (conditions, prefix length, doc length, model size, compression). This becomes
+   the foundation for Exps 12-15.
+2. **Exp 12 bakes normalization into the standard pipeline.** When norm_roundtrip is applied
+   to ALL caches (including bare), int8 now shows negative d (-0.10 to -0.46) — the opposite
+   of the phase-wise result. This means the normalization "gift" is already captured in the
+   baseline, so additional int8 noise purely degrades.
+3. **int4 still benefits even with normalization baked in** (d=+0.79 to +1.06). The int4
+   precision loss is large enough that the normalization correction provides real shielding.
+
+### Exp 13: All prefixes help, even noise (Gemma 3 12B-IT, N=160×7)
+1. **All 13 text prefix strategies show positive pooled effect.** Comprehend best (d=+0.43,
+   72% win), but even random tokens help (d=+0.10, 57% win). Every prefix beats bare cache.
+2. **OOD queries help** (d=+0.20, 61% win). A real question from a completely different dataset
+   still guides useful attention — the signal is structural, not semantic.
+3. **Misleading queries help** (d=+0.22, 64% win). False-premise questions that contradict the
+   passage still improve NLL — the "don't think of an elephant" effect is real.
+4. **Instruction-based prefixes are best as a group** (d=+0.25 to +0.43), followed by
+   query-based (+0.15 to +0.22), then keywords (+0.19 to +0.25), then structural (+0.10 to +0.20).
+
+### Exp 14: Soft prompts double the best text (Gemma 3 12B-IT, N=160×7)
+1. **Learned soft prompts (d=0.85) double the best static text prefix** (comprehend d=0.43).
+   245K parameters are sufficient to learn cache conditioning far exceeding any handcrafted text.
+2. **Random init (d=0.85) dramatically beats warm-start (d=0.61).** Initializing from text
+   embeddings traps optimization in a local minimum. The text manifold is a bad starting point.
+3. **Universal prompt (d=0.84) nearly matches per-dataset specialists.** A single prompt
+   generalizes across 7 diverse QA tasks with only a 0.01 d-value gap.
+4. **Transfer matrix reveals specialization.** Diagonal (same-dataset) d=1.16 vs off-diagonal
+   d=0.47 — a specialization gap of 0.70. Same-dataset prompts are 2.5× more effective.
+5. **BoolQ poisons all targets** (off-diag mean d=-0.49). The only source with negative
+   transfer. Its narrow yes/no format distorts caches in ways that damage other tasks.
+6. **GSM8K absorbs everything** — benefits from any source prompt (d=+0.90 to +2.39).
+   Math reasoning is so bottlenecked on general attention improvement that any prompt helps.
+
+### Exp 15: Routing closes 54% of the oracle gap (CPU-only, N=1120)
+1. **Oracle headroom grows with pool diversity.** Pool A (K=3 task-type): oracle d=0.69.
+   Pool D (K=7 transfer): oracle d=1.23. Larger, more diverse pools enable better routing.
+2. **Best-per-dataset is the strongest non-oracle signal.** Dataset identity alone closes
+   46-60% of the oracle gap across all pools, beating all ML routers.
+3. **ML routers are competitive but don't exceed dataset-identity routing.** NLL regression
+   is the most consistent ML strategy (d=0.48-0.90 across pools), but Best-per-dataset
+   matches or exceeds it on every pool.
+4. **Pool C (learned + static mix) achieves the best absolute routing performance.**
+   Best-per-dataset d=0.92, approaching Pool D's oracle (d=1.23). Mixing soft prompts
+   with static conditions gives the best deployment trade-off.

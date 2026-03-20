@@ -7,25 +7,31 @@ improves document representations for downstream QA:
 
 1. **Encoder-decoder** (Exps 01-10): Production-realistic test — does enrichment become
    redundant once the decoder already has the query as input?
-2. **Decoder-only** (Exps 01-09): Systematic investigation of KV cache priming in
-   causal LMs. Isolates structural vs semantic mechanisms. Exps 07-09 discover that
-   KV cache normalization universally improves NLL. Old Exps 02-07 archived.
-3. **Prefix LM** (Exps 01-03): Causal vs bidirectional prefix attention on decoder-only models.
+2. **Decoder-only** (Exps 01-15): Systematic investigation of KV cache priming in
+   causal LMs. Isolates structural vs semantic mechanisms (01-06), discovers universal
+   KV cache normalization (07-09), deconfounds normalization from compression (10),
+   runs unified hero experiments (11-13), learns soft prompt embeddings (14), and
+   evaluates routing strategies across cache pools (15). Old Exps 02-07 archived.
+3. **Prefix LM** (Exps 01-05): Causal vs bidirectional prefix attention on decoder-only
+   models. Notebooks generated but not yet executed.
 
 ## Experiment Notes
 
 - **`ENCODER_DECODER_NOTES.md`** — Encoder-decoder experiment log (Exps 01-10),
   Prefix LM experiments, v3→v4 mechanism analysis, research arc summary.
-- **`DECODER_ONLY_NOTES.md`** — Decoder-only experiment log (Exps 01-09),
+- **`DECODER_ONLY_NOTES.md`** — Decoder-only experiment log (Exps 01-15),
   technical approach (BOS-retained repositioning), key findings across 14 datasets,
-  quantization diagnosis (Exps 07-08), and KV cache normalization (Exp 09).
-- **`EXPERIMENT_PLAN.md`** — Legacy file (same content now in `ENCODER_DECODER_NOTES.md`).
+  quantization diagnosis (Exps 07-08), KV cache normalization (Exp 09),
+  soft prompt tuning and cross-dataset transfer (Exp 14), and routing (Exp 15).
+- **`EXPERIMENT_PLAN.md`** — Encoder-decoder log (overlaps with `ENCODER_DECODER_NOTES.md`)
+  plus unique Prefix LM Exp 04 mechanistic sweep results (vocabulary bridging,
+  semantic forcing). Kept for the prefix-LM content.
 
 ## Models
 
 - **T5Gemma 2 4B-4B**: Encoder-decoder (v4 Exps 01-10). See `directed_kvcache_v3/CLAUDE.md`.
-- **Gemma 3 12B-IT** (`google/gemma-3-12b-it`): Decoder-only Exps 01-09;
-  Prefix LM Exps 01-03. BF16, single GPU. Used for both LLM surrogate generation and scoring.
+- **Gemma 3 12B-IT** (`google/gemma-3-12b-it`): Decoder-only Exps 01-15;
+  Prefix LM Exps 01-05. BF16, single GPU. Used for both LLM surrogate generation and scoring.
 - **Gemma 3 4B-IT** (`google/gemma-3-4b-it`): Archived decoder-only Exps 06-07.
   Prior executed notebooks used Gemma 2 2B (Exp 01) and Gemma 3 4B-PT (Exps 02-05).
 - **Cross-model** (Exp 09): flan-t5-base, flan-t5-large, flan-t5-xl, bart-large.
@@ -34,7 +40,7 @@ improves document representations for downstream QA:
 
 ```
 directed_kvcache_v4/
-  .env                          # symlink -> v3/.env
+  .env                          # HF_TOKEN for model access (see README setup)
   CLAUDE.md                     # This file (project overview)
   ENCODER_DECODER_NOTES.md      # Enc-dec + prefix LM experiment notes
   DECODER_ONLY_NOTES.md         # Decoder-only experiment notes
@@ -51,16 +57,18 @@ directed_kvcache_v4/
                                 #   reposition_kv_cache
     tests/                      # pytest suite (76 tests)
   results/exp01/ ... exp09/     # Encoder-decoder experiment outputs
-  results/prefix_lm_exp01/
-  results/decoder_only/exp01/ ... exp09/  # Decoder-only experiment outputs
+  results/decoder_only/exp01/ ... exp15/  # Decoder-only experiment outputs
   diagrams/                     # Manim presentation diagrams (01-08 PNGs + source)
   experiments/
     encoder_decoder/            # T5Gemma encoder-decoder experiments
       01/ 02/ 03/ 04/ 05/ 06/ 07/ 08/ 09/ 10/
-    prefix_lm/                  # Decoder-only prefix LM experiments
+    prefix_lm/                  # Decoder-only prefix LM experiments (not yet executed)
       01/ 02/ 03/ 04/ 05/
     decoder_only/               # Decoder-only KV cache priming
-      01/ 02/ 03/ 04/ 05/ 06/ 07/ 08/ 09/
+      01/ ... 09/               # Semantic probing, decomposition, scaling, normalization
+      10/ ... 13/               # Deconfounding, hero runs, OOD/misleading conditions
+      14/                       # Soft prompt tuning + cross-dataset transfer
+      15/                       # KV cache routing (CPU-only, uses Exp 14 NLLs)
       archive/                  # Archived old 02-07 (look-ahead bug / different model)
 ```
 

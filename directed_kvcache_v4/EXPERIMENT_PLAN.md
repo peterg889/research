@@ -658,7 +658,7 @@ This is both simpler and more effective.
 - This validates the production approach: prepend a short prefix to the document
   context in a standard autoregressive prompt.
 
-**Files**: `experiments/prefix_lm/01/`, `results/prefix_lm_exp01/`
+**Files**: `experiments/prefix_lm/01/` (notebooks generated but not yet executed; no results directory)
 
 ### Prefix LM Exp 04: Causal Ordering Experiments (04–04h, COMPLETE)
 
