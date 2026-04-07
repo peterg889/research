@@ -91,8 +91,8 @@ Our contributions:
 
 In autoregressive transformer inference, the key-value (KV) cache stores the key and
 value projections from previous tokens, avoiding redundant recomputation during
-generation. For a model with $L$ layers, $H$ attention heads, sequence length $S$,
-and head dimension $d_h$, the KV cache stores $2 \times L \times H \times S \times d_h$
+generation. For a model with *L* layers, *H* attention heads, sequence length *S*,
+and head dimension *d_h*, the KV cache stores `2 * L * H * S * d_h`
 values.
 
 In RAG systems, the document is typically much longer than the query. Precomputing
@@ -132,18 +132,20 @@ zero additional cost at inference time.
 ### 2.4 Rotary Position Embeddings
 
 RoPE [Su et al., 2021] encodes position information by rotating key and query vectors
-by position-dependent angles. For position $p$ and frequency $\theta_i$:
+by position-dependent angles. For position *p* and frequency *theta_i*:
 
-$$k_p = k \cdot \cos(p \cdot \theta_i) + \text{rotate\_half}(k) \cdot \sin(p \cdot \theta_i)$$
+```
+k_p = k * cos(p * theta_i) + rotate_half(k) * sin(p * theta_i)
+```
 
-where $\text{rotate\_half}$ splits the vector in half and swaps with negation:
-$[-x_2, x_1]$. This encoding allows the model to attend based on relative position
+where `rotate_half` splits the vector in half and swaps with negation:
+`[-x2, x1]`. This encoding allows the model to attend based on relative position
 through the inner product of rotated keys and queries.
 
-RoPE is central to our method: when a prefix of length $P$ is prepended, document
-tokens are encoded at positions $P+1, P+2, \ldots$ instead of $1, 2, \ldots$. After
+RoPE is central to our method: when a prefix of length *P* is prepended, document
+tokens are encoded at positions P+1, P+2, ... instead of 1, 2, .... After
 discarding the prefix from the cache, we reposition the document keys back to
-positions $1, 2, \ldots$ using a delta rotation. This repositioning is exact in
+positions 1, 2, ... using a delta rotation. This repositioning is exact in
 float32 but introduces small perturbations in bfloat16 (~0.26% relative noise).
 
 ---
@@ -156,15 +158,15 @@ We use a two-phase approach to evaluate how prefix conditioning affects downstre
 QA performance:
 
 **Phase A (Offline — Cache Construction):**
-1. Concatenate: $[\text{BOS}, \text{prefix}_1, \ldots, \text{prefix}_P, \backslash\text{n}, \text{doc}_1, \ldots, \text{doc}_D]$
+1. Concatenate: `[BOS, prefix_1, ..., prefix_P, \n, doc_1, ..., doc_D]`
 2. Forward pass through the model to build the KV cache
 3. Select only BOS + document entries from the cache (discard prefix + newline)
-4. Reposition document keys via RoPE delta rotation from positions $(P+2, \ldots, P+1+D)$ to $(1, \ldots, D)$
+4. Reposition document keys via RoPE delta rotation from positions (P+2, ..., P+1+D) to (1, ..., D)
 5. Apply per-tensor normalization (optional, model-dependent)
 
 **Phase B (Online — Query Answering):**
-1. Concatenate: $[\backslash\text{n}, \text{query}, \backslash\text{n}, \text{answer}]$
-2. Forward pass using the precomputed cache with position IDs starting at $D+1$
+1. Concatenate: `[\n, query, \n, answer]`
+2. Forward pass using the precomputed cache with position IDs starting at D+1
 3. Compute NLL on answer tokens only
 
 The key insight: during Step 2 of Phase A, the prefix tokens participate in
@@ -185,19 +187,24 @@ We test a range of prefix strategies spanning four mechanistic categories:
 | Query-based | Oracle (actual query as prefix) | Maximum semantic relevance |
 | Control | Position shift only (no tokens) | RoPE position effect in isolation |
 
-All prefixed conditions use the same prefix length ($L=64$ tokens unless otherwise
+All prefixed conditions use the same prefix length (L=64 tokens unless otherwise
 specified), ensuring equal position shifts for fair comparison.
 
 ### 3.3 Four-Level Decomposition
 
 We decompose the total prefix effect into four additive components:
 
-$$\text{Total}(\text{comprehend}) = \underbrace{\Delta_{\text{shift}}}_{\text{Position}} + \underbrace{(\Delta_{\text{random}} - \Delta_{\text{shift}})}_{\text{Token presence}} + \underbrace{(\Delta_{\text{scrambled}} - \Delta_{\text{random}})}_{\text{Vocabulary}} + \underbrace{(\Delta_{\text{coherent}} - \Delta_{\text{scrambled}})}_{\text{Word order}}$$
+```
+Total(comprehend) = Delta_shift              [Position]
+                  + (Delta_random - Delta_shift)       [Token presence]
+                  + (Delta_scrambled - Delta_random)    [Vocabulary]
+                  + (Delta_coherent - Delta_scrambled)  [Word order]
+```
 
-where $\Delta_X = \text{NLL}_{\text{bare}} - \text{NLL}_X$ (positive means $X$ helps).
+where `Delta_X = NLL_bare - NLL_X` (positive means X helps).
 
 This decomposition is clean because:
-- All $L=64$ conditions share the same position shift
+- All L=64 conditions share the same position shift
 - Random and scrambled conditions control for token count and vocabulary respectively
 - The scrambled condition uses the same tokens as the coherent instruction, just permuted
 
@@ -206,7 +213,7 @@ This decomposition is clean because:
 **Models**: We select four models spanning three architecture families and two
 size tiers:
 
-| Model | Params | Architecture | RoPE $\theta$ | Attention |
+| Model | Params | Architecture | RoPE theta | Attention |
 |-------|--------|-------------|---------------|-----------|
 | Gemma 3 12B-IT | 12B | Hybrid sliding+full | 10K / 1M | Mixed |
 | Gemma 3N E4B-IT | ~4B | Hybrid sliding+full | 10K / 1M | Mixed |
@@ -217,7 +224,7 @@ size tiers:
 
 **Evaluation**: Cohen's d effect size on paired NLL differences (condition vs bare),
 computed on the hardest 40% of samples (top by bare NLL). Win rate and paired t-test
-for significance. $N=200$ samples per dataset, 80 hard.
+for significance. N=200 samples per dataset, 80 hard.
 
 ### 3.5 Implementation Details
 
@@ -225,11 +232,11 @@ for significance. $N=200$ samples per dataset, 80 hard.
 as an attention sink anchor. We verify that bare two-phase NLL matches single-pass
 NLL on all models (within bfloat16 tolerance of 0.004–0.11).
 
-**RoPE repositioning**: We verify exact fp32 round-trip recovery (error < $5 \times 10^{-7}$)
+**RoPE repositioning**: We verify exact fp32 round-trip recovery (error < 5e-7)
 on all models using the model-specific inverse frequency tensors.
 
 **Normalization**: Per-tensor scale normalization
-$(x / (\text{absmax}/127)) \times (\text{absmax}/127)$ is applied to all caches
+`(x / (absmax/127)) * (absmax/127)` is applied to all caches
 including bare. This was found to benefit Gemma 3 models [prior work] but has
 negligible effect on Mistral and Qwen.
 
@@ -404,7 +411,7 @@ construction at near-zero cost.
 We verify pipeline correctness with the following tests on all four models:
 
 1. **RoPE round-trip**: Rotating keys by delta then by -delta recovers original keys
-   within fp32 tolerance ($< 5 \times 10^{-7}$). In bfloat16, the round-trip error is
+   within fp32 tolerance (< 5e-7). In bfloat16, the round-trip error is
    ~0.016 (inherent precision limit).
 
 2. **Bare two-phase = single-pass**: Without any prefix or repositioning, two-phase
@@ -424,7 +431,7 @@ We verify pipeline correctness with the following tests on all four models:
 
 ### C. Normalization Analysis
 
-Per-tensor KV cache normalization $(x / (\text{absmax}/127)) \times (\text{absmax}/127)$
+Per-tensor KV cache normalization `(x / (absmax/127)) * (absmax/127)`
 produces a bfloat16 perturbation that benefits Gemma 3 models (which have high
 inter-layer scale variation, CoV=0.82) but is neutral on Mistral (CoV=0.14) and
 Qwen (CoV=1.91). The normalization's relative perturbation is identical (~0.25%)
