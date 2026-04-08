@@ -6,9 +6,14 @@ This module provides the model-family-specific logic to EXTRACT those arguments
 from each model's config.
 
 Supported model families:
-    - Gemma 3 (gemma3): Hybrid sliding/full attention, per-layer-type rope_theta
+    - Gemma 3 (gemma3/gemma3_text): Hybrid sliding/full attention, per-layer-type
+      rope_theta. Models ≥4B use rope_type="linear" with factor=8.0 on full_attention.
+    - Gemma 3N (gemma3n_text): Hybrid sliding/full attention, default rope_type.
     - Llama 3.x (llama): Full attention only, single rope_theta
     - Qwen 2.x (qwen2): Full attention only, single rope_theta
+    - Mistral (mistral): Full attention only, single rope_theta
+    - Ministral (ministral): Hybrid sliding/full attention, single rope_theta for all layers
+    - DeepSeek R1 Distill (qwen2): Qwen2 architecture, standard rope_theta=10000
 
 Usage::
 
@@ -144,6 +149,12 @@ def build_layer_inv_freqs(
                     / head_dim
                 )
             )
+            # Apply linear scaling if present (e.g. Gemma 3 4B/12B/27B full_attention
+            # uses rope_type="linear" with factor=8.0, which divides inv_freq by factor)
+            rope_type = params.get("rope_type", "default")
+            if rope_type == "linear":
+                factor = params.get("factor", 1.0)
+                inv_freq = inv_freq / factor
             inv_freqs[lt] = inv_freq
     else:
         # Flat dict: single rope_theta for all layers
@@ -154,8 +165,13 @@ def build_layer_inv_freqs(
                 / head_dim
             )
         )
+        # Apply linear scaling if present
+        rope_type = rope_params.get("rope_type", "default")
+        if rope_type == "linear":
+            factor = rope_params.get("factor", 1.0)
+            inv_freq = inv_freq / factor
         # Map to whatever layer_type names the config uses
-        layer_type_names = set(getattr(cfg, "layer_types", []))
+        layer_type_names = set(getattr(cfg, "layer_types", None) or [])
         if layer_type_names:
             for lt in layer_type_names:
                 inv_freqs[lt] = inv_freq
@@ -195,7 +211,7 @@ def get_sliding_cache_limit(model) -> int | None:
     cfg = _get_text_config(model)
     if not hasattr(cfg, "layer_types"):
         return None
-    layer_types = getattr(cfg, "layer_types", [])
+    layer_types = getattr(cfg, "layer_types", None) or []
     if "sliding_attention" not in layer_types:
         return None
     sliding_window = getattr(cfg, "sliding_window", 4096)

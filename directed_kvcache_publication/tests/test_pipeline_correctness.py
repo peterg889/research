@@ -24,6 +24,7 @@ import pytest
 import torch
 import numpy as np
 import os
+import shutil
 from dotenv import load_dotenv, find_dotenv
 
 from lib.rope import rotate_half, select_kv_cache, reposition_kv_cache
@@ -32,6 +33,16 @@ from lib.quantization import norm_roundtrip_kv_cache
 
 load_dotenv(find_dotenv())
 HF_TOKEN = os.environ.get("HF_TOKEN")
+HF_CACHE_DIR = os.path.expanduser("~/.cache/huggingface/hub")
+
+
+def _purge_hf_cache(model_name):
+    """Delete cached model weights from disk to free space."""
+    slug = "models--" + model_name.replace("/", "--")
+    cache_path = os.path.join(HF_CACHE_DIR, slug)
+    if os.path.isdir(cache_path):
+        shutil.rmtree(cache_path)
+
 
 # Skip all tests if no GPU
 pytestmark = pytest.mark.skipif(
@@ -52,6 +63,11 @@ def _load_model(model_name, loader_name):
     if loader_name == "Gemma3ForConditionalGeneration":
         from transformers import Gemma3ForConditionalGeneration
         model = Gemma3ForConditionalGeneration.from_pretrained(
+            model_name, dtype=torch.bfloat16, token=HF_TOKEN, device_map="cuda:0"
+        ).eval()
+    elif loader_name == "Gemma3ForCausalLM":
+        from transformers import Gemma3ForCausalLM
+        model = Gemma3ForCausalLM.from_pretrained(
             model_name, dtype=torch.bfloat16, token=HF_TOKEN, device_map="cuda:0"
         ).eval()
     elif loader_name == "Gemma3nForConditionalGeneration":
@@ -416,6 +432,7 @@ class TestUseCacheFalseConsistency:
         finally:
             del model
             torch.cuda.empty_cache()
+            _purge_hf_cache(model_name)
 
 
 @pytest.mark.slow
@@ -494,6 +511,7 @@ class TestBareTwoPhaseMatchesSinglePass:
         finally:
             del model
             torch.cuda.empty_cache()
+            _purge_hf_cache(model_name)
 
 
 @pytest.mark.slow
@@ -555,6 +573,7 @@ class TestRoPERoundTripOnModel:
         finally:
             del model
             torch.cuda.empty_cache()
+            _purge_hf_cache(model_name)
 
 
 @pytest.mark.slow
@@ -660,6 +679,7 @@ class TestFullPrefixPipeline:
         finally:
             del model
             torch.cuda.empty_cache()
+            _purge_hf_cache(model_name)
 
     @pytest.mark.parametrize("model_name,loader", MODEL_CONFIGS)
     def test_normalization_does_not_corrupt(self, model_name, loader):
@@ -726,6 +746,7 @@ class TestFullPrefixPipeline:
         finally:
             del model
             torch.cuda.empty_cache()
+            _purge_hf_cache(model_name)
 
 
 from transformers import DynamicCache
@@ -1417,3 +1438,541 @@ class TestScoringLogic:
         nl_len_multi = 2
         ans_start_multi = nl_len_multi + query_len + nl_len_multi  # = 6
         assert ans_start_multi - 1 == 5
+
+
+# =====================================================================
+# Tests for linear RoPE scaling (Gemma 3 4B/12B/27B bug fix)
+# =====================================================================
+
+class TestLinearRoPEScaling:
+    """Verify build_layer_inv_freqs handles rope_type='linear' with factor."""
+
+    def test_linear_scaling_divides_inv_freq(self):
+        """Linear scaling with factor=8 should produce inv_freq / 8."""
+        from types import SimpleNamespace
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import build_layer_inv_freqs
+
+        # Config mimicking Gemma 3 12B: sliding=default, full=linear factor=8
+        cfg = SimpleNamespace(
+            text_config=SimpleNamespace(
+                model_type="gemma3_text", head_dim=256, num_hidden_layers=4,
+                layer_types=["sliding_attention", "sliding_attention",
+                             "full_attention", "sliding_attention"],
+                rope_parameters={
+                    "sliding_attention": {"rope_theta": 10000.0, "rope_type": "default"},
+                    "full_attention": {"rope_theta": 1000000.0, "rope_type": "linear",
+                                       "factor": 8.0},
+                },
+            )
+        )
+        model = SimpleNamespace(config=cfg, parameters=lambda: iter([torch.zeros(1)]))
+        inv_freqs = build_layer_inv_freqs(model, device="cpu")
+
+        # Sliding should be standard (no factor)
+        expected_sliding = 1.0 / (10000.0 ** (
+            torch.arange(0, 256, 2, dtype=torch.float32) / 256))
+        assert torch.allclose(inv_freqs["sliding_attention"], expected_sliding, atol=1e-7)
+
+        # Full should be divided by factor=8
+        expected_full_no_factor = 1.0 / (1000000.0 ** (
+            torch.arange(0, 256, 2, dtype=torch.float32) / 256))
+        expected_full = expected_full_no_factor / 8.0
+        assert torch.allclose(inv_freqs["full_attention"], expected_full, atol=1e-9), (
+            f"full_attention inv_freq not divided by factor=8. "
+            f"Ratio: {(inv_freqs['full_attention'] / expected_full).mean():.4f}")
+
+    def test_default_rope_type_unchanged(self):
+        """Default rope_type (no factor) should produce standard inv_freq."""
+        from types import SimpleNamespace
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import build_layer_inv_freqs
+
+        # Config mimicking Gemma 3 1B: both layer types use default
+        cfg = SimpleNamespace(
+            text_config=SimpleNamespace(
+                model_type="gemma3_text", head_dim=256, num_hidden_layers=4,
+                layer_types=["sliding_attention", "sliding_attention",
+                             "full_attention", "sliding_attention"],
+                rope_parameters={
+                    "sliding_attention": {"rope_theta": 10000.0, "rope_type": "default"},
+                    "full_attention": {"rope_theta": 1000000.0, "rope_type": "default"},
+                },
+            )
+        )
+        model = SimpleNamespace(config=cfg, parameters=lambda: iter([torch.zeros(1)]))
+        inv_freqs = build_layer_inv_freqs(model, device="cpu")
+
+        expected_full = 1.0 / (1000000.0 ** (
+            torch.arange(0, 256, 2, dtype=torch.float32) / 256))
+        assert torch.allclose(inv_freqs["full_attention"], expected_full, atol=1e-7)
+
+    def test_linear_scaling_flat_dict(self):
+        """Linear scaling in flat rope_parameters dict (non-Gemma style)."""
+        from types import SimpleNamespace
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import build_layer_inv_freqs
+
+        cfg = SimpleNamespace(
+            model_type="hypothetical", head_dim=128,
+            hidden_size=4096, num_attention_heads=32,
+            num_hidden_layers=4,
+            rope_parameters={"rope_theta": 500000.0, "rope_type": "linear",
+                             "factor": 4.0},
+        )
+        model = SimpleNamespace(config=cfg, parameters=lambda: iter([torch.zeros(1)]))
+        inv_freqs = build_layer_inv_freqs(model, device="cpu")
+
+        expected = 1.0 / (500000.0 ** (
+            torch.arange(0, 128, 2, dtype=torch.float32) / 128)) / 4.0
+        assert torch.allclose(inv_freqs["all"], expected, atol=1e-9)
+
+    def test_factor_1_is_identity(self):
+        """Linear scaling with factor=1.0 should be identical to default."""
+        from types import SimpleNamespace
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import build_layer_inv_freqs
+
+        cfg_default = SimpleNamespace(
+            text_config=SimpleNamespace(
+                model_type="gemma3_text", head_dim=256, num_hidden_layers=2,
+                layer_types=["full_attention", "full_attention"],
+                rope_parameters={
+                    "full_attention": {"rope_theta": 1000000.0, "rope_type": "default"},
+                },
+            )
+        )
+        cfg_linear1 = SimpleNamespace(
+            text_config=SimpleNamespace(
+                model_type="gemma3_text", head_dim=256, num_hidden_layers=2,
+                layer_types=["full_attention", "full_attention"],
+                rope_parameters={
+                    "full_attention": {"rope_theta": 1000000.0, "rope_type": "linear",
+                                       "factor": 1.0},
+                },
+            )
+        )
+        m_d = SimpleNamespace(config=cfg_default, parameters=lambda: iter([torch.zeros(1)]))
+        m_l = SimpleNamespace(config=cfg_linear1, parameters=lambda: iter([torch.zeros(1)]))
+
+        assert torch.allclose(
+            build_layer_inv_freqs(m_d, device="cpu")["full_attention"],
+            build_layer_inv_freqs(m_l, device="cpu")["full_attention"],
+            atol=1e-9)
+
+
+# =====================================================================
+# Config validation for all 12 target models
+# =====================================================================
+
+class TestAllModelConfigs:
+    """Verify model_adapters handles configs for all 12 publication models."""
+
+    # All 12 models with their expected properties
+    MODEL_SPECS = [
+        # (key, model_name, expected_model_type, expected_has_sliding, expected_head_dim,
+        #  expected_layer_types, expected_has_linear_rope)
+        ("gemma3_1b", "gemma3_text", True, 256,
+         {"sliding_attention", "full_attention"}, False),
+        ("gemma3_4b", "gemma3_text", True, 256,
+         {"sliding_attention", "full_attention"}, True),
+        ("gemma3_12b", "gemma3_text", True, 256,
+         {"sliding_attention", "full_attention"}, True),
+        ("gemma3_27b", "gemma3_text", True, 128,
+         {"sliding_attention", "full_attention"}, True),
+        ("gemma3n_e4b", "gemma3n_text", True, 256,
+         {"sliding_attention", "full_attention"}, False),
+        ("qwen25_1_5b", "qwen2", False, 128,
+         {"full_attention"}, False),
+        ("qwen25_3b", "qwen2", False, 128,
+         {"full_attention"}, False),
+        ("qwen25_7b", "qwen2", False, 128,
+         {"full_attention"}, False),
+        ("qwen25_14b", "qwen2", False, 128,
+         {"full_attention"}, False),
+        ("mistral_7b", "mistral", False, 128,
+         set(), False),  # Mistral 7B v0.3 has no layer_types
+        ("ministral_8b", "ministral", True, 128,
+         {"sliding_attention", "full_attention"}, False),
+        ("deepseek_r1_qwen_7b", "qwen2", False, 128,
+         {"full_attention"}, False),
+    ]
+
+    # Full config data from AutoConfig analysis
+    CONFIG_DATA = {
+        "gemma3_1b": {
+            "head_dim": 256, "num_hidden_layers": 26,
+            "layer_types_counts": {"sliding_attention": 22, "full_attention": 4},
+            "sliding_window": 512,
+            "rope_params": {
+                "sliding_attention": {"rope_theta": 10000, "rope_type": "default"},
+                "full_attention": {"rope_theta": 1000000, "rope_type": "default"},
+            },
+        },
+        "gemma3_4b": {
+            "head_dim": 256, "num_hidden_layers": 34,
+            "layer_types_counts": {"sliding_attention": 29, "full_attention": 5},
+            "sliding_window": 1024,
+            "rope_params": {
+                "sliding_attention": {"rope_theta": 10000.0, "rope_type": "default"},
+                "full_attention": {"rope_theta": 1000000.0, "rope_type": "linear",
+                                    "factor": 8.0},
+            },
+        },
+        "gemma3_12b": {
+            "head_dim": 256, "num_hidden_layers": 48,
+            "layer_types_counts": {"sliding_attention": 40, "full_attention": 8},
+            "sliding_window": 1024,
+            "rope_params": {
+                "sliding_attention": {"rope_theta": 10000.0, "rope_type": "default"},
+                "full_attention": {"rope_theta": 1000000.0, "rope_type": "linear",
+                                    "factor": 8.0},
+            },
+        },
+        "gemma3_27b": {
+            "head_dim": 128, "num_hidden_layers": 62,
+            "layer_types_counts": {"sliding_attention": 52, "full_attention": 10},
+            "sliding_window": 1024,
+            "rope_params": {
+                "sliding_attention": {"rope_theta": 10000.0, "rope_type": "default"},
+                "full_attention": {"rope_theta": 1000000.0, "rope_type": "linear",
+                                    "factor": 8.0},
+            },
+        },
+        "gemma3n_e4b": {
+            "head_dim": 256, "num_hidden_layers": 35,
+            "layer_types_counts": {"sliding_attention": 28, "full_attention": 7},
+            "sliding_window": 512,
+            "rope_params": {
+                "sliding_attention": {"rope_theta": 10000.0, "rope_type": "default"},
+                "full_attention": {"rope_theta": 1000000.0, "rope_type": "default"},
+            },
+        },
+        "qwen25_1_5b": {
+            "head_dim": 128, "num_hidden_layers": 28,
+            "layer_types_counts": {"full_attention": 28},
+            "sliding_window": None,
+            "rope_params": {"rope_theta": 1000000.0, "rope_type": "default"},
+        },
+        "qwen25_3b": {
+            "head_dim": 128, "num_hidden_layers": 36,
+            "layer_types_counts": {"full_attention": 36},
+            "sliding_window": None,
+            "rope_params": {"rope_theta": 1000000.0, "rope_type": "default"},
+        },
+        "qwen25_7b": {
+            "head_dim": 128, "num_hidden_layers": 28,
+            "layer_types_counts": {"full_attention": 28},
+            "sliding_window": None,
+            "rope_params": {"rope_theta": 1000000.0, "rope_type": "default"},
+        },
+        "qwen25_14b": {
+            "head_dim": 128, "num_hidden_layers": 48,
+            "layer_types_counts": {"full_attention": 48},
+            "sliding_window": None,
+            "rope_params": {"rope_theta": 1000000.0, "rope_type": "default"},
+        },
+        "mistral_7b": {
+            "head_dim": 128, "num_hidden_layers": 32,
+            "layer_types_counts": {},  # no layer_types attribute
+            "sliding_window": None,
+            "rope_params": {"rope_theta": 1000000.0, "rope_type": "default"},
+        },
+        "ministral_8b": {
+            "head_dim": 128, "num_hidden_layers": 36,
+            "layer_types_counts": {"sliding_attention": 27, "full_attention": 9},
+            "sliding_window": 32768,
+            "rope_params": {"rope_theta": 100000000.0, "rope_type": "default"},
+        },
+        "deepseek_r1_qwen_7b": {
+            "head_dim": 128, "num_hidden_layers": 28,
+            "layer_types_counts": {"full_attention": 28},
+            "sliding_window": None,
+            "rope_params": {"rope_theta": 10000, "rope_type": "default"},
+        },
+    }
+
+    def _make_mock_model(self, key):
+        """Build a mock model object from CONFIG_DATA for unit testing."""
+        from types import SimpleNamespace
+        data = self.CONFIG_DATA[key]
+        rope_params = data["rope_params"]
+        is_per_layer_type = any(isinstance(v, dict) for v in rope_params.values())
+
+        # Build layer_types list
+        layer_types_list = []
+        for lt, count in data["layer_types_counts"].items():
+            layer_types_list.extend([lt] * count)
+
+        if is_per_layer_type:
+            # Gemma-style: nested text_config
+            cfg = SimpleNamespace(
+                text_config=SimpleNamespace(
+                    model_type=key.split("_")[0],
+                    head_dim=data["head_dim"],
+                    num_hidden_layers=data["num_hidden_layers"],
+                    layer_types=layer_types_list if layer_types_list else None,
+                    sliding_window=data["sliding_window"],
+                    rope_parameters=rope_params,
+                )
+            )
+        else:
+            # Flat config: Qwen/Mistral/DeepSeek style
+            cfg = SimpleNamespace(
+                model_type=key.split("_")[0],
+                head_dim=data["head_dim"],
+                hidden_size=data["head_dim"] * 8,  # approximate
+                num_attention_heads=8,
+                num_hidden_layers=data["num_hidden_layers"],
+                layer_types=layer_types_list if layer_types_list else None,
+                sliding_window=data["sliding_window"],
+                rope_parameters=rope_params,
+            )
+        return SimpleNamespace(config=cfg, parameters=lambda: iter([torch.zeros(1)]))
+
+    @pytest.mark.parametrize("key,model_type,has_sliding,head_dim,expected_lt_set,has_linear",
+                             MODEL_SPECS,
+                             ids=[s[0] for s in MODEL_SPECS])
+    def test_inv_freq_shape(self, key, model_type, has_sliding, head_dim,
+                            expected_lt_set, has_linear):
+        """inv_freq shape should be (head_dim // 2,) for each layer type."""
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import build_layer_inv_freqs
+        model = self._make_mock_model(key)
+        inv_freqs = build_layer_inv_freqs(model, device="cpu")
+        for lt, freq in inv_freqs.items():
+            assert freq.shape == (head_dim // 2,), (
+                f"{key}: inv_freq['{lt}'] shape {freq.shape} != ({head_dim // 2},)")
+
+    @pytest.mark.parametrize("key,model_type,has_sliding,head_dim,expected_lt_set,has_linear",
+                             MODEL_SPECS,
+                             ids=[s[0] for s in MODEL_SPECS])
+    def test_layer_type_inv_freq_coverage(self, key, model_type, has_sliding,
+                                           head_dim, expected_lt_set, has_linear):
+        """Every layer type in the config must have a matching inv_freq entry."""
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import build_layer_inv_freqs, get_layer_types
+        model = self._make_mock_model(key)
+        inv_freqs = build_layer_inv_freqs(model, device="cpu")
+        layer_types = get_layer_types(model)
+        for lt in layer_types:
+            assert lt in inv_freqs, (
+                f"{key}: layer type '{lt}' has no inv_freq. "
+                f"Available: {list(inv_freqs.keys())}")
+
+    @pytest.mark.parametrize("key,model_type,has_sliding,head_dim,expected_lt_set,has_linear",
+                             MODEL_SPECS,
+                             ids=[s[0] for s in MODEL_SPECS])
+    def test_sliding_window_detection(self, key, model_type, has_sliding,
+                                       head_dim, expected_lt_set, has_linear):
+        """Sliding window should be detected for Gemma/Ministral, None for others."""
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import get_sliding_cache_limit
+        model = self._make_mock_model(key)
+        limit = get_sliding_cache_limit(model)
+        if has_sliding:
+            assert limit is not None, f"{key}: expected sliding window, got None"
+            assert limit > 0, f"{key}: sliding limit {limit} is not positive"
+        else:
+            assert limit is None, f"{key}: expected no sliding window, got {limit}"
+
+    @pytest.mark.parametrize("key,model_type,has_sliding,head_dim,expected_lt_set,has_linear",
+                             MODEL_SPECS,
+                             ids=[s[0] for s in MODEL_SPECS])
+    def test_linear_scaling_applied(self, key, model_type, has_sliding,
+                                     head_dim, expected_lt_set, has_linear):
+        """Models with linear scaling should have smaller inv_freq on affected layers."""
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import build_layer_inv_freqs
+        model = self._make_mock_model(key)
+        inv_freqs = build_layer_inv_freqs(model, device="cpu")
+
+        if has_linear:
+            # For Gemma 3 4B/12B/27B: full_attention uses linear factor=8
+            data = self.CONFIG_DATA[key]
+            full_params = data["rope_params"]["full_attention"]
+            theta = full_params["rope_theta"]
+            factor = full_params["factor"]
+            expected = 1.0 / (theta ** (
+                torch.arange(0, head_dim, 2, dtype=torch.float32) / head_dim)) / factor
+            assert torch.allclose(inv_freqs["full_attention"], expected, atol=1e-9), (
+                f"{key}: full_attention inv_freq not scaled by factor={factor}")
+
+
+# =====================================================================
+# Expanded MODEL_CONFIGS for integration tests on new models
+# =====================================================================
+
+# Full 12-model config for GPU integration tests
+MODEL_CONFIGS_EXPANDED = MODEL_CONFIGS + [
+    pytest.param(
+        "google/gemma-3-1b-it", "Gemma3ForCausalLM",
+        id="gemma3_1b"
+    ),
+    pytest.param(
+        "google/gemma-3-4b-it", "Gemma3ForConditionalGeneration",
+        id="gemma3_4b"
+    ),
+    pytest.param(
+        "google/gemma-3-27b-it", "Gemma3ForConditionalGeneration",
+        id="gemma3_27b"
+    ),
+    pytest.param(
+        "Qwen/Qwen2.5-1.5B-Instruct", "AutoModelForCausalLM",
+        id="qwen25_1_5b"
+    ),
+    pytest.param(
+        "Qwen/Qwen2.5-3B-Instruct", "AutoModelForCausalLM",
+        id="qwen25_3b"
+    ),
+    pytest.param(
+        "Qwen/Qwen2.5-14B-Instruct", "AutoModelForCausalLM",
+        id="qwen25_14b"
+    ),
+    pytest.param(
+        "mistralai/Ministral-8B-Instruct-2410", "AutoModelForCausalLM",
+        id="ministral_8b"
+    ),
+    pytest.param(
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", "AutoModelForCausalLM",
+        id="deepseek_r1_qwen_7b"
+    ),
+]
+
+
+@pytest.mark.slow
+class TestInvFreqMatchesModel:
+    """Verify our computed inv_freq matches the model's actual rotary embedding buffers.
+
+    This is the definitive test for RoPE correctness: extract the actual inv_freq
+    tensors from the loaded model and compare with what build_layer_inv_freqs computes.
+    """
+
+    @pytest.mark.parametrize("model_name,loader", MODEL_CONFIGS_EXPANDED)
+    def test_inv_freq_matches_model_buffers(self, model_name, loader):
+        """Our inv_freq must match the model's rotary embedding inv_freq exactly."""
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import build_layer_inv_freqs, get_layer_types
+
+        model, tokenizer, device = _load_model(model_name, loader)
+        try:
+            our_inv_freqs = build_layer_inv_freqs(model, device=device)
+            layer_types = get_layer_types(model)
+            unique_types = sorted(set(layer_types))
+
+            # Find the rotary embedding module
+            rotary_emb = None
+            for name, module in model.named_modules():
+                if "rotary_emb" in name.lower():
+                    rotary_emb = module
+                    break
+            assert rotary_emb is not None, f"No rotary_emb found in {model_name}"
+
+            # Check each layer type
+            for lt in unique_types:
+                # Try to get the actual inv_freq buffer
+                buffer_name = f"{lt}_inv_freq"
+                if hasattr(rotary_emb, buffer_name):
+                    actual = getattr(rotary_emb, buffer_name)
+                elif hasattr(rotary_emb, "inv_freq"):
+                    actual = rotary_emb.inv_freq
+                else:
+                    pytest.skip(f"Cannot find inv_freq buffer for {lt} in {model_name}")
+
+                actual_cpu = actual.float().cpu()
+                ours_cpu = our_inv_freqs[lt].float().cpu()
+
+                # Shapes must match
+                assert actual_cpu.shape == ours_cpu.shape, (
+                    f"{model_name} {lt}: shape mismatch: "
+                    f"model={actual_cpu.shape}, ours={ours_cpu.shape}")
+
+                # Values must match (within float32 precision)
+                ratio = (ours_cpu / actual_cpu)
+                max_ratio_err = (ratio - 1.0).abs().max().item()
+                assert max_ratio_err < 1e-4, (
+                    f"{model_name} {lt}: inv_freq mismatch! "
+                    f"Max ratio deviation: {max_ratio_err:.6f}. "
+                    f"Model inv_freq[0]={actual_cpu[0]:.6e}, "
+                    f"ours={ours_cpu[0]:.6e}")
+
+                print(f"  {model_name} {lt}: inv_freq matches (max ratio err={max_ratio_err:.2e})")
+        finally:
+            del model
+            torch.cuda.empty_cache()
+            _purge_hf_cache(model_name)
+
+
+@pytest.mark.slow
+class TestPositionShiftRepositionCorrectness:
+    """Test that position-shift-only reposition recovers original keys.
+
+    This isolates RoPE correctness from attention effects. We encode the
+    SAME tokens at shifted positions (no actual prefix), reposition back,
+    and compare with natural-position encoding. Since there are no prefix
+    tokens, the keys differ ONLY by RoPE position — perfect reposition
+    should recover the originals (within bf16 precision).
+
+    Note: the old test compared prefixed encoding with fresh encoding,
+    which always fails because prefix tokens change representations through
+    attention. That is the research finding, not a bug.
+    """
+
+    @pytest.mark.parametrize("model_name,loader", MODEL_CONFIGS_EXPANDED)
+    def test_position_shift_reposition(self, model_name, loader):
+        """Keys encoded at shifted positions, then repositioned back,
+        should match keys from natural-position encoding."""
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import build_layer_inv_freqs, get_layer_types
+
+        model, tokenizer, device = _load_model(model_name, loader)
+        try:
+            inv_freqs = build_layer_inv_freqs(model, device=device)
+            layer_types = get_layer_types(model)
+
+            bos_id = tokenizer.bos_token_id
+            if bos_id is None:
+                bos_id = tokenizer.pad_token_id
+            doc_ids = tokenizer.encode("The quick brown fox.", add_special_tokens=False)[:20]
+            D = len(doc_ids)
+            SHIFT = 32
+
+            with torch.no_grad():
+                ids = [bos_id] + doc_ids
+                ids_t = torch.tensor([ids], device=device)
+
+                # Natural positions [0, 1..D]
+                nat_out = model(input_ids=ids_t, use_cache=True)
+                nat_cache = nat_out.past_key_values
+
+                # Shifted positions [0, SHIFT+1..SHIFT+D]
+                shifted_pos = torch.cat([
+                    torch.tensor([0], device=device),
+                    torch.arange(SHIFT + 1, SHIFT + 1 + D, device=device)
+                ]).unsqueeze(0)
+                shift_out = model(input_ids=ids_t, position_ids=shifted_pos, use_cache=True)
+                shift_cache = shift_out.past_key_values
+
+                # Reposition back
+                old_pos = torch.arange(SHIFT + 1, SHIFT + 1 + D, device=device)
+                new_pos = torch.arange(1, 1 + D, device=device)
+                repositioned = reposition_kv_cache(shift_cache, old_pos, new_pos,
+                                                    inv_freqs, layer_types, bos_start=0)
+
+            # Only assert on layer 0 where keys come from embeddings and truly
+            # differ only by RoPE rotation. Deeper layers have compounding
+            # hidden-state differences from position-dependent attention.
+            layer0_nat = nat_cache.layers[0].keys[:, :, 1:1+D, :].float()
+            layer0_rep = repositioned.layers[0].keys[:, :, 1:1+D, :].float()
+            layer0_err = (layer0_nat - layer0_rep).abs().max().item()
+
+            print(f"\n  {model_name}: layer 0 reposition error = {layer0_err:.4f}")
+            # Models with low rope_theta (e.g. DeepSeek at 10K) have higher bf16
+            # error because high-frequency components lose more precision.
+            assert layer0_err < 1.5, (
+                f"Layer 0 position-shift reposition error too large: {layer0_err:.4f}. "
+                f"RoPE inv_freq may be wrong for {model_name}.")
+        finally:
+            del model
+            torch.cuda.empty_cache()
+            _purge_hf_cache(model_name)
