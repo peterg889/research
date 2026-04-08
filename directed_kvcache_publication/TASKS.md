@@ -6,19 +6,19 @@ Status key: `[ ]` not started, `[~]` in progress, `[x]` done
 
 ### P0 — Blocking for Submission
 
-- [ ] **Downstream generative accuracy** (~6 hours GPU)
-  - Run on Gemma 3 12B + Mistral 7B, 3 conditions (bare, comprehend, random), SQuAD + GSM8K
-  - Use `model.generate()` with cached KV from Phase A, greedy decoding
-  - Score: EM + Token F1 (SQuAD), Accuracy (GSM8K — extract number after `####`)
-  - Report: accuracy table + Spearman correlation between NLL improvement and accuracy improvement
+- [~] **Final publication sweep** (~48-60 hours GPU, RUNNING)
+  - 4 models x 18 conditions x 6 datasets x 400 samples
+  - Includes normalization ablation (bare+comprehend, with/without norm)
+  - 6 datasets: GSM8K, DROP, SQuAD v2, HotpotQA, TriviaQA, MS MARCO
+  - File: `experiments/01_multi_model/build_final_sweep.py`
+  - Results: `results/exp01_final_sweep/`
   - Owner: ___
-  - Files: build from `experiments/01_multi_model/build_deep_sweep.py` template; scoring functions in `00_publication_plan.ipynb` Cell 8
 
-- [ ] **Expand deep sweep to 4 datasets** (~3 hours GPU)
-  - Add DROP and TriviaQA to the 15-condition deep sweep across all 4 models
-  - Strengthens generalization claims beyond SQuAD + GSM8K
+- [ ] **Downstream generative accuracy** (~6 hours GPU)
+  - Run AFTER final sweep completes (uses same samples)
+  - Use `model.generate()` with cached KV from Phase A, greedy decoding
+  - Score: EM + Token F1 (SQuAD), Accuracy (GSM8K)
   - Owner: ___
-  - Files: modify `DS_SPECS` in `build_deep_sweep.py`
 
 ### P1 — Strengthens Paper
 
@@ -66,15 +66,9 @@ Status key: `[ ]` not started, `[~]` in progress, `[x]` done
   - Select, reposition, normalization, BOS handling, scoring logic all tested
   - Run: `cd directed_kvcache_publication && PYTHONPATH="../directed_kvcache_v4:." pytest tests/ -v`
 
-- [ ] **Fix GSM8K answer extraction** in experiment code
-  - Must use `raw_answer.split('####')[-1].strip()` (number only)
-  - Currently correct in `build_deep_sweep.py`, but `build_exp01.py` and `build_condition_sweep.py` still have the bug
-  - Owner: ___
-
-- [ ] **Fix Qwen BOS** in all experiment code
-  - Must use PAD token as artificial BOS for models with `bos_token_id = None`
-  - Currently correct in `build_deep_sweep.py` but not in older experiment files
-  - Owner: ___
+- [x] **Fix GSM8K answer extraction** — fixed in `build_deep_sweep.py` and `build_final_sweep.py`
+- [x] **Fix Qwen BOS** — fixed in `build_deep_sweep.py` and `build_final_sweep.py`
+- Note: older scripts (`build_exp01.py`, `build_condition_sweep.py`) still have old bugs but are superseded by final sweep
 
 ---
 

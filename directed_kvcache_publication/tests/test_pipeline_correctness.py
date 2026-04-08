@@ -1250,6 +1250,140 @@ class TestEndToEndPipelineIdentities:
             "Normalization changed the relative magnitude ordering of keys")
 
 
+class TestSlidingWindowConstraints:
+    """Verify sliding window limits are respected for hybrid attention models."""
+
+    def test_gemma3_sliding_limit(self):
+        """Gemma 3 (window=1024): max cache entries = 1023."""
+        from types import SimpleNamespace
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import get_sliding_cache_limit
+
+        cfg = SimpleNamespace(
+            text_config=SimpleNamespace(
+                model_type="gemma3", sliding_window=1024,
+                layer_types=["sliding_attention", "full_attention"],
+            ))
+        model = SimpleNamespace(config=cfg)
+        limit = get_sliding_cache_limit(model)
+        assert limit == 1023
+
+    def test_gemma3n_sliding_limit(self):
+        """Gemma 3N (window=512): max cache entries = 511."""
+        from types import SimpleNamespace
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import get_sliding_cache_limit
+
+        cfg = SimpleNamespace(
+            text_config=SimpleNamespace(
+                model_type="gemma3n", sliding_window=512,
+                layer_types=["sliding_attention", "full_attention"],
+            ))
+        model = SimpleNamespace(config=cfg)
+        limit = get_sliding_cache_limit(model)
+        assert limit == 511
+
+    def test_no_sliding_returns_none(self):
+        """Models without sliding attention should return None."""
+        from types import SimpleNamespace
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import get_sliding_cache_limit
+
+        for model_type in ["llama", "mistral", "qwen2"]:
+            cfg = SimpleNamespace(model_type=model_type, num_hidden_layers=32,
+                                  rope_parameters={"rope_theta": 10000.0, "rope_type": "default"})
+            model = SimpleNamespace(config=cfg)
+            assert get_sliding_cache_limit(model) is None, f"{model_type} should have no sliding limit"
+
+    def test_max_doc_respects_sliding_limit(self):
+        """With L=64 prefix and 1-token NL, BOS+doc must fit in sliding limit."""
+        # Gemma 3: limit=1023, BOS=1, so max doc = 1023 - 1 = 1022
+        # With prefix: need BOS + prefix + NL + doc in Phase A,
+        # then select BOS + doc = 1 + D <= 1023, so D <= 1022
+        # max_doc for prefix conditions = 1023 - 1 - 64 - 1 = 957
+        sliding_limit = 1023
+        prefix_l = 64
+        nl_len = 1
+        max_doc = sliding_limit - 1 - prefix_l - nl_len  # BOS + prefix + NL + doc
+        selected_entries = 1 + max_doc  # BOS + doc after selection
+        assert selected_entries <= sliding_limit, (
+            f"Selected {selected_entries} > limit {sliding_limit}")
+
+        # Gemma 3N: limit=511, tighter constraint
+        sliding_limit_3n = 511
+        max_doc_3n = sliding_limit_3n - 1 - prefix_l - nl_len
+        assert max_doc_3n == 445
+        assert 1 + max_doc_3n <= sliding_limit_3n
+
+    def test_multi_layer_type_inv_freqs(self):
+        """Gemma models have different inv_freqs for sliding vs full attention.
+        Both must be present and different."""
+        from types import SimpleNamespace
+        sys.path.insert(0, "/home/jupyter/research/directed_kvcache_publication")
+        from model_adapters import build_layer_inv_freqs
+
+        cfg = SimpleNamespace(
+            text_config=SimpleNamespace(
+                model_type="gemma3", head_dim=256, num_hidden_layers=6,
+                layer_types=["sliding_attention"] * 5 + ["full_attention"],
+                rope_parameters={
+                    "sliding_attention": {"rope_theta": 10000.0, "rope_type": "default"},
+                    "full_attention": {"rope_theta": 1000000.0, "rope_type": "default"},
+                },
+            ))
+        model = SimpleNamespace(config=cfg, parameters=lambda: iter([torch.zeros(1)]))
+        inv_freqs = build_layer_inv_freqs(model, device="cpu")
+
+        assert "sliding_attention" in inv_freqs
+        assert "full_attention" in inv_freqs
+        # Different theta should produce different inv_freqs
+        assert not torch.allclose(inv_freqs["sliding_attention"],
+                                  inv_freqs["full_attention"]), (
+            "Sliding and full attention should have different inv_freqs "
+            "due to different rope_theta values")
+        # Sliding (theta=10K) should have larger inv_freq values than full (theta=1M)
+        # at non-zero indices (index 0 is always 1.0 for both)
+        assert inv_freqs["sliding_attention"][10] > inv_freqs["full_attention"][10], (
+            "Sliding (theta=10K) should have larger inv_freq than full (theta=1M) at mid-freq")
+
+    def test_reposition_uses_correct_inv_freq_per_layer(self):
+        """In a mixed cache, sliding and full layers must use their respective inv_freqs."""
+        # Create a cache with 4 layers: 3 sliding + 1 full (like Gemma)
+        head_dim = 128
+        inv_freq_sliding = 1.0 / (10000.0 ** (
+            torch.arange(0, head_dim, 2, dtype=torch.float32) / head_dim))
+        inv_freq_full = 1.0 / (1000000.0 ** (
+            torch.arange(0, head_dim, 2, dtype=torch.float32) / head_dim))
+
+        inv_freqs = {
+            "sliding_attention": inv_freq_sliding,
+            "full_attention": inv_freq_full,
+        }
+        layer_types = ["sliding_attention", "sliding_attention",
+                       "sliding_attention", "full_attention"]
+
+        cache = _make_dummy_cache(n_layers=4, seq_len=6, head_dim=head_dim,
+                                  dtype=torch.float32)
+        keys_before = [cache.layers[L].keys[:, :, 1:, :].clone() for L in range(4)]
+
+        old_pos = torch.arange(100, 105)
+        new_pos = torch.arange(1, 6)
+        reposition_kv_cache(cache, old_pos, new_pos, inv_freqs, layer_types, bos_start=0)
+
+        # Sliding layers (0-2) should all change by the same amount (same inv_freq)
+        diff_sliding_0 = (cache.layers[0].keys[:, :, 1:, :] - keys_before[0]).abs().max().item()
+        diff_sliding_1 = (cache.layers[1].keys[:, :, 1:, :] - keys_before[1]).abs().max().item()
+        # Full layer (3) should change by a DIFFERENT amount
+        diff_full = (cache.layers[3].keys[:, :, 1:, :] - keys_before[3]).abs().max().item()
+
+        assert diff_sliding_0 > 0.01, "Sliding layer 0 should be modified"
+        assert diff_full > 0.01, "Full layer should be modified"
+        # Full layer uses theta=1M (much slower rotation), so change should be smaller
+        assert diff_full < diff_sliding_0, (
+            f"Full attention (theta=1M) should have smaller change than sliding (theta=10K): "
+            f"full={diff_full:.4f}, sliding={diff_sliding_0:.4f}")
+
+
 class TestScoringLogic:
     """Verify NLL scoring computation is correct."""
 

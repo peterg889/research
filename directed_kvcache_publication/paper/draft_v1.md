@@ -220,11 +220,20 @@ size tiers:
 | Mistral 7B-Instruct | 7B | Full attention | 1M | Uniform |
 | Qwen 2.5 7B-Instruct | 7B | Full attention | 1M | Uniform |
 
-**Datasets**: SQuAD v2 (extractive QA) and GSM8K (math reasoning, number-only answer).
+**Datasets**: We use six datasets spanning three reasoning tiers:
+
+| Dataset | Tier | Task Type | Prior d (Gemma 3 12B) |
+|---------|------|-----------|----------------------|
+| GSM8K | High reasoning | Math (number-only answer) | +1.33 |
+| DROP | High reasoning | Discrete reasoning | +0.91 |
+| SQuAD v2 | Mid reasoning | Extractive QA | +0.69 |
+| HotpotQA | Mid reasoning | Multi-hop QA | +0.76 |
+| TriviaQA | Factoid | Factoid retrieval | +0.38 |
+| MS MARCO | Factoid | Information retrieval | +0.10 |
 
 **Evaluation**: Cohen's d effect size on paired NLL differences (condition vs bare),
 computed on the hardest 40% of samples (top by bare NLL). Win rate and paired t-test
-for significance. N=200 samples per dataset, 80 hard.
+for significance. N=400 samples per dataset, 160 hard.
 
 ### 3.5 Implementation Details
 
@@ -235,10 +244,14 @@ NLL on all models (within bfloat16 tolerance of 0.004–0.11).
 **RoPE repositioning**: We verify exact fp32 round-trip recovery (error < 5e-7)
 on all models using the model-specific inverse frequency tensors.
 
-**Normalization**: Per-tensor scale normalization
-`(x / (absmax/127)) * (absmax/127)` is applied to all caches
-including bare. This was found to benefit Gemma 3 models [prior work] but has
-negligible effect on Mistral and Qwen.
+**Normalization**: We discover that a per-tensor scale normalization —
+`(x / (absmax/127)) * (absmax/127)` — applied to all KV cache entries after
+Phase A universally improves NLL on models with heterogeneous attention layers
+(Gemma 3, with hybrid sliding+full attention) but has negligible effect on
+models with uniform attention (Mistral, Qwen). This normalization performs a
+bfloat16 divide-then-multiply round-trip that corrects inter-layer scale drift
+in the KV cache. We include a normalization ablation (with/without) across all
+models to quantify this architecture-dependent effect (Section 4.5).
 
 ---
 
@@ -301,11 +314,31 @@ For comprehend prefixes, the pattern differs: L=16 (+1.03) > L=4 (+0.98) > L=1 (
 > L=64 (+0.84). The semantic content needs ~16 tokens to manifest but degrades at 64,
 possibly due to the model over-attending to a long instruction prefix.
 
-### 4.4 Downstream Accuracy
+### 4.4 Normalization Ablation
+
+[TABLE: 2x2 factorial (norm x prefix) across 4 models — from final sweep]
+
+We discover that per-tensor scale normalization of the KV cache —
+`(x / (absmax/127)) * (absmax/127)` — benefits models with heterogeneous
+attention layers but is neutral on models with uniform attention.
+
+This normalization performs a bfloat16 divide-then-multiply round-trip. In exact
+arithmetic it is the identity function, but in bfloat16 the rounding introduces
+a small perturbation (~0.25% relative). On Gemma 3 12B, which has hybrid
+sliding+full attention with dramatically different activation scales across layer
+types (key absmax coefficient of variation = 0.82), this perturbation corrects
+inter-layer scale inconsistency. On Mistral 7B (CoV = 0.14) and Qwen 2.5 7B
+(CoV = 1.91), the perturbation has no meaningful effect because either the scales
+are already consistent (Mistral) or the inconsistency is too extreme to correct
+with a small perturbation (Qwen).
+
+[TODO: Insert normalization ablation results from final sweep]
+
+### 4.5 Downstream Accuracy
 
 [TODO: EM/F1 on SQuAD, accuracy on GSM8K — experiments needed]
 
-### 4.5 Generative Task Evaluation
+### 4.6 Generative Task Evaluation
 
 [TODO: generation quality metrics — experiments needed]
 
