@@ -133,6 +133,11 @@ N_HARD = 160
 
 # Ordered by estimated VRAM (small → large) for fast failure detection
 MODELS = {
+    # ~0.8 GB — Qwen 2.5 0.5B (head_dim=64, smallest model, no BOS)
+    'qwen25_0_5b': {
+        'name': 'Qwen/Qwen2.5-0.5B-Instruct',
+        'loader': 'AutoModelForCausalLM',
+    },
     # ~1.4 GB — Gemma 3 1B (text-only, Gemma3ForCausalLM, sliding_window=512)
     'gemma3_1b': {
         'name': 'google/gemma-3-1b-it',
@@ -158,9 +163,19 @@ MODELS = {
         'name': 'google/gemma-3-4b-it',
         'loader': 'Gemma3ForConditionalGeneration',
     },
+    # ~6.7 GB — Gemma 3 4B BASE (same arch as IT, different weights — base vs instruct comparison)
+    'gemma3_4b_base': {
+        'name': 'google/gemma-3-4b-pt',
+        'loader': 'Gemma3ForConditionalGeneration',
+    },
     # ~9.7 GB — Qwen 2.5 7B (no BOS, rope_theta=1M)
     'qwen25_7b': {
         'name': 'Qwen/Qwen2.5-7B-Instruct',
+        'loader': 'AutoModelForCausalLM',
+    },
+    # ~11.6 GB — Qwen 2.5 7B BASE (same arch, no instruction tuning)
+    'qwen25_7b_base': {
+        'name': 'Qwen/Qwen2.5-7B',
         'loader': 'AutoModelForCausalLM',
     },
     # ~9.7 GB — DeepSeek R1 Distill Qwen 7B (Qwen2 arch, rope_theta=10K, no BOS)
@@ -192,6 +207,11 @@ MODELS = {
     'gemma3_27b': {
         'name': 'google/gemma-3-27b-it',
         'loader': 'Gemma3ForConditionalGeneration',
+    },
+    # ~51.2 GB — Qwen 2.5 32B (same arch as other Qwen, completes size ladder)
+    'qwen25_32b': {
+        'name': 'Qwen/Qwen2.5-32B-Instruct',
+        'loader': 'AutoModelForCausalLM',
     },
 }
 

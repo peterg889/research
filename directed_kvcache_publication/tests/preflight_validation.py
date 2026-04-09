@@ -62,14 +62,10 @@ PREFIX_L = 16  # short prefix to stay within sliding_window=512
 
 # ── Models to validate (all NEW models, ordered by VRAM) ──────────────
 NEW_MODELS = [
-    ("gemma3_1b",           "google/gemma-3-1b-it",                     "Gemma3ForCausalLM"),
-    ("qwen25_1_5b",         "Qwen/Qwen2.5-1.5B-Instruct",              "AutoModelForCausalLM"),
-    ("qwen25_3b",           "Qwen/Qwen2.5-3B-Instruct",                "AutoModelForCausalLM"),
-    ("gemma3_4b",           "google/gemma-3-4b-it",                     "Gemma3ForConditionalGeneration"),
-    ("deepseek_r1_qwen_7b", "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", "AutoModelForCausalLM"),
-    ("ministral_8b",        "mistralai/Ministral-8B-Instruct-2410",     "AutoModelForCausalLM"),
-    ("qwen25_14b",          "Qwen/Qwen2.5-14B-Instruct",               "AutoModelForCausalLM"),
-    ("gemma3_27b",          "google/gemma-3-27b-it",                    "Gemma3ForConditionalGeneration"),
+    ("qwen25_0_5b",         "Qwen/Qwen2.5-0.5B-Instruct",              "AutoModelForCausalLM"),
+    ("gemma3_4b_base",      "google/gemma-3-4b-pt",                     "Gemma3ForConditionalGeneration"),
+    ("qwen25_7b_base",      "Qwen/Qwen2.5-7B",                         "AutoModelForCausalLM"),
+    ("qwen25_32b",          "Qwen/Qwen2.5-32B-Instruct",               "AutoModelForCausalLM"),
 ]
 
 
@@ -498,7 +494,7 @@ def check_position_shift_reposition(key, model, tokenizer, device):
 
 def main():
     print("=" * 70)
-    print("PRE-FLIGHT VALIDATION — 8 NEW MODELS")
+    print(f"PRE-FLIGHT VALIDATION — {len(NEW_MODELS)} NEW MODELS")
     print("=" * 70)
 
     results = {}

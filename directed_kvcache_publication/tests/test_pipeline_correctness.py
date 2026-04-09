@@ -1562,11 +1562,11 @@ class TestLinearRoPEScaling:
 
 
 # =====================================================================
-# Config validation for all 12 target models
+# Config validation for all 16 target models
 # =====================================================================
 
 class TestAllModelConfigs:
-    """Verify model_adapters handles configs for all 12 publication models."""
+    """Verify model_adapters handles configs for all 16 publication models."""
 
     # All 12 models with their expected properties
     MODEL_SPECS = [
@@ -1596,6 +1596,15 @@ class TestAllModelConfigs:
          {"sliding_attention", "full_attention"}, False),
         ("deepseek_r1_qwen_7b", "qwen2", False, 128,
          {"full_attention"}, False),
+        # New models: Qwen ladder endpoints + base vs instruct
+        ("qwen25_0_5b", "qwen2", False, 64,
+         {"full_attention"}, False),
+        ("qwen25_32b", "qwen2", False, 128,
+         {"full_attention"}, False),
+        ("qwen25_7b_base", "qwen2", False, 128,
+         {"full_attention"}, False),
+        ("gemma3_4b_base", "gemma3_text", True, 256,
+         {"sliding_attention", "full_attention"}, True),
     ]
 
     # Full config data from AutoConfig analysis
@@ -1689,6 +1698,35 @@ class TestAllModelConfigs:
             "layer_types_counts": {"full_attention": 28},
             "sliding_window": None,
             "rope_params": {"rope_theta": 10000, "rope_type": "default"},
+        },
+        # New models: Qwen ladder endpoints + base vs instruct
+        "qwen25_0_5b": {
+            "head_dim": 64, "num_hidden_layers": 24,
+            "layer_types_counts": {"full_attention": 24},
+            "sliding_window": None,
+            "rope_params": {"rope_theta": 1000000.0, "rope_type": "default"},
+        },
+        "qwen25_32b": {
+            "head_dim": 128, "num_hidden_layers": 64,
+            "layer_types_counts": {"full_attention": 64},
+            "sliding_window": None,
+            "rope_params": {"rope_theta": 1000000.0, "rope_type": "default"},
+        },
+        "qwen25_7b_base": {
+            "head_dim": 128, "num_hidden_layers": 28,
+            "layer_types_counts": {"full_attention": 28},
+            "sliding_window": None,
+            "rope_params": {"rope_theta": 1000000.0, "rope_type": "default"},
+        },
+        "gemma3_4b_base": {
+            "head_dim": 256, "num_hidden_layers": 34,
+            "layer_types_counts": {"sliding_attention": 29, "full_attention": 5},
+            "sliding_window": 1024,
+            "rope_params": {
+                "sliding_attention": {"rope_theta": 10000.0, "rope_type": "default"},
+                "full_attention": {"rope_theta": 1000000.0, "rope_type": "linear",
+                                    "factor": 8.0},
+            },
         },
     }
 
@@ -1803,7 +1841,7 @@ class TestAllModelConfigs:
 # Expanded MODEL_CONFIGS for integration tests on new models
 # =====================================================================
 
-# Full 12-model config for GPU integration tests
+# Full 16-model config for GPU integration tests
 MODEL_CONFIGS_EXPANDED = MODEL_CONFIGS + [
     pytest.param(
         "google/gemma-3-1b-it", "Gemma3ForCausalLM",
@@ -1836,6 +1874,23 @@ MODEL_CONFIGS_EXPANDED = MODEL_CONFIGS + [
     pytest.param(
         "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", "AutoModelForCausalLM",
         id="deepseek_r1_qwen_7b"
+    ),
+    # New models: Qwen ladder endpoints + base vs instruct
+    pytest.param(
+        "Qwen/Qwen2.5-0.5B-Instruct", "AutoModelForCausalLM",
+        id="qwen25_0_5b"
+    ),
+    pytest.param(
+        "Qwen/Qwen2.5-32B-Instruct", "AutoModelForCausalLM",
+        id="qwen25_32b"
+    ),
+    pytest.param(
+        "Qwen/Qwen2.5-7B", "AutoModelForCausalLM",
+        id="qwen25_7b_base"
+    ),
+    pytest.param(
+        "google/gemma-3-4b-pt", "Gemma3ForConditionalGeneration",
+        id="gemma3_4b_base"
     ),
 ]
 
