@@ -30,7 +30,7 @@ Conditions (18 NLL values per sample):
   nll_random_16                 random L=16
   nll_random_4                  random L=4
   nll_random_1                  random L=1
-  nll_position_shift            no tokens, just RoPE shift by 64
+  nll_position_shift            no tokens, bf16 reposition roundtrip control
 
 Datasets:
   GSM8K       high-reasoning   (number-only answer after ####)
@@ -454,18 +454,22 @@ def _encode_phase_a(doc_ids, prefix_ids=None, apply_norm=True):
     return cache, D
 
 def _encode_phase_a_position_shift(doc_ids, shift=64, apply_norm=True):
+    # Encode at NATURAL positions (identical to bare), then apply roundtrip
+    # reposition: shift keys forward by `shift`, then back. This isolates the
+    # bf16 cos/sin reposition error from any attention-pattern changes.
+    # The old version encoded at shifted positions, which changed BOS-to-doc
+    # relative distances during encoding — a confound, not a control.
     input_ids = [_bos_id] + list(doc_ids)
     input_tensor = torch.tensor([input_ids], dtype=torch.long, device=_device)
     D = len(doc_ids)
-    pos = torch.cat([
-        torch.tensor([0], device=_device),
-        torch.arange(shift + 1, shift + 1 + D, device=_device)
-    ]).unsqueeze(0)
-    outputs = _model(input_ids=input_tensor, position_ids=pos, use_cache=True)
+    outputs = _model(input_ids=input_tensor, use_cache=True)
     cache = outputs.past_key_values
-    old_pos = torch.arange(shift + 1, shift + 1 + D, device=_device)
-    new_pos = torch.arange(1, 1 + D, device=_device)
-    cache = reposition_kv_cache(cache, old_pos, new_pos,
+    natural_pos = torch.arange(1, 1 + D, device=_device)
+    shifted_pos = torch.arange(shift + 1, shift + 1 + D, device=_device)
+    # Roundtrip: natural → shifted → natural
+    cache = reposition_kv_cache(cache, natural_pos, shifted_pos,
+                                 _layer_inv_freqs, _layer_types, bos_start=0)
+    cache = reposition_kv_cache(cache, shifted_pos, natural_pos,
                                  _layer_inv_freqs, _layer_types, bos_start=0)
     if apply_norm:
         cache = norm_roundtrip_kv_cache(cache)
