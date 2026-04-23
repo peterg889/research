@@ -1,29 +1,23 @@
-"""RoPE repositioning and KV cache selection utilities for Gemma 3.
+"""RoPE repositioning and KV cache selection utilities.
 
-These functions implement the BOS-retained repositioning strategy for
-two-phase KV cache scoring on Gemma 3 models with hybrid attention
-(sliding_attention + full_attention layers).
-
-Key concepts:
-    - **Phase A**: Encode ``[BOS] + prefix + \\n + doc`` and cache KV states.
+Model-agnostic functions for two-phase KV cache scoring:
     - **select_kv_cache**: Keep only BOS + doc entries (discard prefix + newline).
-    - **reposition_kv_cache**: Rotate doc keys so they appear at positions 1..D
-      instead of their original (1+P+NL)...(1+P+NL+D) positions.
-    - **Phase B**: Score ``[\\n + query + \\n] + answer`` starting at position D+1.
+    - **reposition_kv_cache**: Rotate doc keys via RoPE delta to target positions.
+    - **rotate_half**: The ``[-x2, x1]`` half-rotation used in RoPE.
+
+These functions accept ``inv_freq`` dicts and ``layer_type`` lists as arguments
+and work across all model families. For extracting those arguments from each
+model's config, use ``directed_kvcache_publication.model_adapters``.
+
+Note:
+    ``build_layer_inv_freqs`` and ``get_layer_types`` in this module are
+    **deprecated** — they only handle Gemma 3 and miss linear RoPE scaling.
+    Use ``model_adapters.build_layer_inv_freqs`` and
+    ``model_adapters.get_layer_types`` for multi-model support.
 
 Warning:
     ``reposition_kv_cache`` only rotates **keys** (not values), because
-    Gemma 3 applies RoPE to keys only in the attention computation.
-
-Typical usage::
-
-    inv_freqs = build_layer_inv_freqs(model)
-    cache, D, doc_ids = encode_phase_a(...)
-    keep = [0] + list(range(1+P+NL, 1+P+NL+D))
-    cache = select_kv_cache(cache, keep, device)
-    old_pos = torch.arange(1+P+NL, 1+P+NL+D, device=device)
-    new_pos = torch.arange(1, D+1, device=device)
-    cache = reposition_kv_cache(cache, old_pos, new_pos, inv_freqs, layer_types)
+    all supported model families apply RoPE to keys and queries only.
 """
 
 from __future__ import annotations
@@ -40,9 +34,13 @@ def build_layer_inv_freqs(
 ) -> Dict[str, torch.Tensor]:
     """Build per-layer-type inverse frequency tensors for RoPE rotation.
 
-    Reads ``rope_parameters`` and ``head_dim`` from the model's text config
-    and returns one inverse-frequency vector per layer type (e.g.
-    ``"sliding_attention"``, ``"full_attention"``).
+    .. deprecated::
+        This version only handles Gemma 3 models with per-layer-type
+        ``rope_parameters`` and does NOT support ``rope_type="linear"``
+        scaling (needed for Gemma 3 4B/12B/27B full_attention layers).
+        For multi-model support, use
+        ``directed_kvcache_publication.model_adapters.build_layer_inv_freqs``
+        instead, which handles all model families and linear scaling.
 
     Args:
         model: A Gemma 3 model (``Gemma3ForConditionalGeneration`` or similar)
@@ -76,6 +74,13 @@ def build_layer_inv_freqs(
 
 def get_layer_types(model) -> List[str]:
     """Return the per-layer attention type list from a Gemma 3 model.
+
+    .. deprecated::
+        This version only handles models with an explicit ``layer_types``
+        config attribute. For multi-model support, use
+        ``directed_kvcache_publication.model_adapters.get_layer_types``
+        instead, which returns ``["all"] * num_layers`` for models
+        without per-layer types (Qwen, Mistral, DeepSeek).
 
     Args:
         model: A Gemma 3 model with ``config.text_config.layer_types``.
