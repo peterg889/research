@@ -96,7 +96,7 @@ We evaluate 32 prefix conditions across two sweeps, spanning five categories.
 
 **Document-derived.** TF-IDF top-10 keywords (computed per-document within each dataset), AI-generated one-sentence summary (Gemini 2.5 Flash), AI-generated custom reading instruction (Gemini 2.5 Flash).
 
-**Controls.** Position-shift only (no prefix tokens; document encoded at positions 65+ then repositioned back), bare with and without normalization.
+**Controls.** Position-shift roundtrip (no prefix tokens; document encoded at natural positions, keys shifted forward by 64 then back to measure bf16 reposition error), bare with and without normalization.
 
 [TABLE 1: Complete list of 32 prefix conditions with category, token budget, and description]
 
@@ -447,6 +447,8 @@ Before deploying directed construction on a new model:
 
 **Heterogeneous negative results.** The three harmed models (Gemma 4B base, Ministral 8B, Qwen 14B) share no obvious common trait -- different families, different sizes, different attention types. We cannot predict which new model will be harmed by directed construction without empirical evaluation.
 
+**Comparison with inference-time prefix.** An alternative to offline cache priming is to prepend keywords at query time (during Phase B). This avoids the RoPE reposition step but adds tokens to every inference call. We compare these approaches in Section 4.9 and find that offline priming achieves comparable NLL improvement at zero inference cost, making it preferable for high-throughput deployments where the same document is queried repeatedly.
+
 **Evaluation on English QA only.** All datasets are English question-answering tasks. Effectiveness on other languages, document types (code, tables, dialogue), and tasks (summarization, translation) is unknown.
 
 ---
@@ -511,7 +513,7 @@ We verify pipeline correctness with the following tests on all 16 models:
 
 3. **BOS handling.** Models without native BOS (Qwen 2.5, DeepSeek) use the PAD token as an artificial attention sink. Ablation confirms this is essential on Qwen: without BOS, comprehend d=-0.65; with BOS, d=+0.13.
 
-4. **Position-shift roundtrip control.** The position-shift condition (encode at positions 65+ then reposition back) produces |d| < 0.08 for all 16 models, with mean |d|=0.03 and win rates of 0.32--0.46. This confirms that the RoPE repositioning step does not contribute to the priming effect.
+4. **Position-shift roundtrip control.** The position-shift condition (encode at natural positions, shift keys forward by 64 then back -- a pure bf16 reposition roundtrip) produces |d| < 0.08 for all 16 models, with mean |d|=0.03 and win rates of 0.32--0.46. This confirms that the RoPE repositioning step introduces negligible error and does not contribute to the priming effect.
 
 ### B. Sliding Window Cache Constraints
 
