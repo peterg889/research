@@ -303,6 +303,62 @@ For comprehend, the relationship between length and effectiveness is non-monoton
 
 For random tokens, the pattern differs by model. Gemma 3 1B shows d=+0.81 at L=1, decreasing to d=+0.65 at L=64. Qwen 2.5 0.5B is erratic, with d=+0.27 at L=1, +0.06 at L=4, +0.52 at L=16, and -0.06 at L=64. There is no universal monotonic relationship between prefix length and benefit for either instruction or random tokens.
 
+### 4.9 Generation-Based Evaluation: NLL Improvements Do Not Guarantee Better Answers
+
+[TABLE 12: Exact Match and F1 scores for generation-based evaluation]
+
+To validate whether NLL improvements translate to better generated answers, we run greedy decoding on 4 models (Qwen 1.5B, Qwen 7B, Gemma 12B, Qwen 14B) across 3 datasets (SQuAD v2, TriviaQA, GSM8K) under 3 priming conditions (bare, keywords, extract) and an inference-time baseline.
+
+| Model | Dataset | Bare EM | Keywords EM | Extract EM | Bare F1 | Keywords F1 | Extract F1 |
+|-------|---------|---------|-------------|------------|---------|-------------|------------|
+| Qwen 1.5B | SQuAD v2 | 23.0% | 19.0% | 17.8% | 0.35 | 0.33 | 0.31 |
+| Qwen 1.5B | TriviaQA | 37.2% | 34.8% | 35.5% | 0.46 | 0.43 | 0.44 |
+| Gemma 12B | SQuAD v2 | 24.8% | 24.2% | **40.0%** | 0.45 | 0.47 | **0.58** |
+| Gemma 12B | TriviaQA | **45.5%** | 34.0% | 35.8% | **0.60** | 0.51 | 0.48 |
+| Gemma 12B | GSM8K | 0.8% | **1.8%** | **2.5%** | -- | -- | -- |
+| Qwen 7B | SQuAD v2 | 2.0% | **6.5%** | 3.2% | 0.16 | **0.21** | 0.17 |
+
+The results reveal a critical nuance: **NLL improvement does not reliably predict generation quality improvement.** Cache-time keyword priming consistently improves NLL across these models (d > 0 for 11 of 12 model-dataset combinations), but the effect on Exact Match is mixed:
+
+- **Positive transfer.** Gemma 12B on SQuAD shows the clearest positive transfer: extract priming raises EM from 24.8% to 40.0% (+15.2pp) and F1 from 0.45 to 0.58. On GSM8K, keywords improve Gemma 12B from 0.8% to 1.8% EM. Qwen 7B shows a 3x improvement on SQuAD (2.0% to 6.5%) with keywords.
+
+- **Negative transfer.** Gemma 12B on TriviaQA drops from 45.5% to 34.0% EM with keywords, despite positive NLL improvement (d=+0.06). Qwen 1.5B shows consistent but small EM drops (-2 to -4pp) across SQuAD and TriviaQA with keywords.
+
+- **Condition specificity.** Extract priming produces the largest EM gain (Gemma 12B SQuAD: +15.2pp) but the choice of prefix matters: the same model with keywords shows only -0.6pp on SQuAD. The optimal prefix for NLL and the optimal prefix for generation quality may differ.
+
+Note: Qwen 7B and 14B show very low baseline EM (< 5%) on SQuAD and TriviaQA. These models were evaluated without chat templates and produce verbose, off-format continuations. Their NLL scores (which evaluate reference token likelihood directly) are unaffected by generation format, but EM scores are. This limitation affects the generation evaluation but not the NLL-based results presented elsewhere in this paper.
+
+The takeaway for practitioners: **NLL-based validation is necessary but not sufficient.** A positive NLL effect (d > 0) indicates that the model assigns higher probability to the correct answer, but this does not guarantee that greedy (or sampled) decoding will produce the correct answer. We recommend validating with generation-based metrics on the target task before deployment.
+
+### 4.10 Comparison with Inference-Time Keyword Prepending
+
+[TABLE 13: Cache-time priming vs inference-time keyword prepending (NLL)]
+
+An obvious alternative to offline cache priming is to simply prepend keywords at query time: store a standard bare cache and include keywords in the Phase B input as `[\n, keywords, \n, query, \n, answer]`. This adds tokens at every inference call but avoids the RoPE reposition machinery entirely.
+
+| Model | Dataset | Bare NLL | Cache-time d | Inference-time d | Winner |
+|-------|---------|----------|-------------|-----------------|--------|
+| Qwen 1.5B | SQuAD v2 | 1.43 | +0.34 | +0.14 | Cache |
+| Qwen 1.5B | TriviaQA | 2.51 | +0.35 | -0.16 | Cache |
+| Qwen 1.5B | GSM8K | 3.03 | +0.43 | +0.01 | Cache |
+| Qwen 7B | SQuAD v2 | 2.05 | +0.47 | -0.59 | Cache |
+| Qwen 7B | TriviaQA | 3.54 | +0.55 | -0.56 | Cache |
+| Qwen 7B | GSM8K | 9.08 | +0.89 | -0.25 | Cache |
+| Gemma 12B | SQuAD v2 | 2.36 | +0.30 | **+0.67** | Inference |
+| Gemma 12B | TriviaQA | 2.67 | +0.06 | **+0.42** | Inference |
+| Gemma 12B | GSM8K | 5.43 | +0.36 | +0.32 | Cache |
+| Qwen 14B | SQuAD v2 | 2.98 | +0.28 | -0.15 | Cache |
+| Qwen 14B | TriviaQA | 3.68 | -0.24 | +0.09 | Inference |
+| Qwen 14B | GSM8K | 10.05 | **+0.89** | -0.59 | Cache |
+
+Two clear patterns emerge:
+
+**Cache-time priming dominates for Qwen models.** Across all 9 Qwen model-dataset combinations, cache-time priming produces higher d than inference-time in 8 of 9 cases. Inference-time keyword prepending *actively hurts* Qwen 7B on all datasets (d = -0.25 to -0.59), while cache-time priming helps strongly (d = +0.47 to +0.89). The mechanism appears to be that Qwen's instruction-tuned models treat query-time keywords as confusing instructions that interfere with question answering, whereas during cache construction the keywords reshape document representations without this interference.
+
+**Inference-time prepending is preferable for Gemma 12B.** On SQuAD and TriviaQA, inference-time achieves d=+0.67 and d=+0.42, exceeding cache-time's d=+0.30 and d=+0.06. Gemma's hybrid attention architecture may benefit from seeing keywords alongside the query, allowing direct keyword-query interaction during attention.
+
+**Practical implication.** For high-throughput RAG deployments where the same document is queried repeatedly, cache-time priming is preferred when using Qwen models: it achieves equal or better NLL improvement at zero per-query cost. For Gemma-family models, inference-time keyword prepending may be more effective, though it adds ~10 tokens per query.
+
 ---
 
 ## 5. Analysis
@@ -435,7 +491,7 @@ Before deploying directed construction on a new model:
 
 ## 7. Limitations
 
-**NLL as proxy metric.** Our primary metric is NLL on answer tokens. While NLL is a principled measure of model confidence and correlates with generation quality, we have not validated with generation-based metrics (Exact Match, F1, ROUGE). The relationship between NLL improvement and downstream answer quality depends on task type and answer format.
+**NLL as proxy metric.** Our primary metric is NLL on answer tokens. As shown in Section 4.9, NLL improvement does not reliably translate to generation quality improvement: keyword priming improves NLL for 11/12 model-dataset combinations but improves Exact Match in only a subset of cases. The relationship between NLL improvement and downstream answer quality depends on task type, model, and generation format. We recommend generation-based validation on the target task before deployment.
 
 **TF-IDF requires a corpus.** Computing TF-IDF requires inverse document frequency statistics from a corpus. For a single document without corpus context, alternative keyword extraction methods (frequency-based, entity extraction) would be needed. We have not tested these alternatives.
 
@@ -447,7 +503,7 @@ Before deploying directed construction on a new model:
 
 **Heterogeneous negative results.** The three harmed models (Gemma 4B base, Ministral 8B, Qwen 14B) share no obvious common trait -- different families, different sizes, different attention types. We cannot predict which new model will be harmed by directed construction without empirical evaluation.
 
-**Comparison with inference-time prefix.** An alternative to offline cache priming is to prepend keywords at query time (during Phase B). This avoids the RoPE reposition step but adds tokens to every inference call. We compare these approaches in Section 4.9 and find that offline priming achieves comparable NLL improvement at zero inference cost, making it preferable for high-throughput deployments where the same document is queried repeatedly.
+**Comparison with inference-time prefix.** As shown in Section 4.10, cache-time priming is not universally superior to inference-time keyword prepending. For Gemma 12B, inference-time prepending achieves higher NLL improvement. The advantage of cache-time priming is greatest for Qwen models and in deployments where the same document is queried repeatedly (amortizing the offline construction cost).
 
 **Evaluation on English QA only.** All datasets are English question-answering tasks. Effectiveness on other languages, document types (code, tables, dialogue), and tasks (summarization, translation) is unknown.
 
@@ -467,9 +523,13 @@ Mechanistic decomposition reveals that token presence -- having any tokens parti
 
 Instruction tuning amplifies document-specific priming. Qwen 7B shows a +0.52 increase in keyword effect from base to instruct, while simultaneously becoming less responsive to generic instructions. Gemma 4B base is universally harmed, while the instruct version responds positively to 20 of 25 conditions.
 
-For practitioners, we recommend TF-IDF keyword priming as the default strategy for RAG systems using precomputed KV caches. It requires only corpus-level word statistics (no model access), adds negligible cost to offline construction, adds nothing to inference time, and provides the most consistent improvement across models. When keywords do not work for a particular model, extract instruction or question instruction are reasonable alternatives.
+However, generation-based evaluation reveals an important caveat: NLL improvement does not reliably predict generation quality improvement. Keyword priming improves NLL for 11 of 12 tested model-dataset combinations but improves Exact Match in a smaller subset. The largest generation quality gain is Gemma 12B on SQuAD v2, where extract priming raises EM from 24.8% to 40.0%. But on TriviaQA, the same model's EM drops from 45.5% to 34.0% with keywords despite a positive NLL effect. This disconnect between information-theoretic and task metrics requires careful per-task validation.
 
-More broadly, these findings reframe cache construction as an optimization target. The context in which encoding occurs -- the co-attended tokens that shape attention during the forward pass -- is an optimization dimension that has been entirely overlooked in the KV cache literature. Our results suggest that the transformer's self-attention mechanism, when used to reshape cached representations, responds more to *what is relevant* (document keywords) than to *what to do* (task instructions), opening directions for further investigation of attention-mediated representation steering.
+Comparison with inference-time keyword prepending shows that cache-time priming is not universally superior. For Qwen models, cache-time priming achieves equal or better NLL improvement at zero per-query cost, making it the preferred approach for high-throughput RAG. For Gemma 12B, inference-time keyword prepending produces larger NLL gains, suggesting that the optimal deployment strategy is model-dependent.
+
+For practitioners, we recommend the following protocol: (1) start with TF-IDF keyword priming as the default, (2) validate with generation-based metrics on the target task, (3) compare with inference-time keyword prepending, and (4) deploy whichever approach produces the best generation quality on the target model and task. The keyword extraction requires only corpus-level word statistics (no model access), adds negligible cost to offline construction, and adds nothing to inference time.
+
+More broadly, these findings reframe cache construction as an optimization target. The context in which encoding occurs -- the co-attended tokens that shape attention during the forward pass -- is an optimization dimension that has been entirely overlooked in the KV cache literature. Our results suggest that the transformer's self-attention mechanism, when used to reshape cached representations, responds more to *what is relevant* (document keywords) than to *what to do* (task instructions). The disconnect between NLL and generation quality presents an open challenge: understanding when and why improved token-level probability translates to better task performance is essential for making directed construction practically reliable.
 
 ---
 
