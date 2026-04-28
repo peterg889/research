@@ -189,13 +189,14 @@ def reposition_kv_cache(
         lt = layer_types[L]
         inv_freq = layer_inv_freqs[lt]
         k = cache.layers[L].keys
-        doc_keys = k[:, :, bos_start + 1 :, :]
+        orig_dtype = k.dtype
+        doc_keys = k[:, :, bos_start + 1 :, :].float()  # upcast to f32
         freqs = torch.einsum("i,j->ij", delta.float(), inv_freq)
         emb = torch.cat([freqs, freqs], dim=-1)
-        cos_delta = emb.cos().to(k.dtype).unsqueeze(0).unsqueeze(0)
-        sin_delta = emb.sin().to(k.dtype).unsqueeze(0).unsqueeze(0)
+        cos_delta = emb.cos().unsqueeze(0).unsqueeze(0)  # stay in f32
+        sin_delta = emb.sin().unsqueeze(0).unsqueeze(0)  # stay in f32
         doc_keys_new = doc_keys * cos_delta + rotate_half(doc_keys) * sin_delta
         cache.layers[L].keys = torch.cat(
-            [k[:, :, : bos_start + 1, :], doc_keys_new], dim=2
+            [k[:, :, : bos_start + 1, :], doc_keys_new.to(orig_dtype)], dim=2
         )
     return cache
