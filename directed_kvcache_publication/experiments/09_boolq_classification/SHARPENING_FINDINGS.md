@@ -75,3 +75,50 @@ small; it pays off specifically on the close calls.
 - Suggested next: many-candidate passage reranking (predicted to be where the effect
   is largest, per the grows-with-K trend) + selective-RAG accuracy@coverage on the
   uncertain stratum.
+
+## Deep dive 1 — difficulty (sharpened, exp05 re-analysis)
+
+Rescue/break decomposition (extract vs bare, 8-way MC top1):
+```
+model         bareAcc  rescued  broke  net   rescue-rate-on-errors
+Gemma 12B      0.778     72      38    +34        27.1%
+Qwen 1.5B      0.781     40      17    +23        15.2%
+Qwen 7B        0.772     26      20     +6         9.5%
+Mistral 7B     0.767     47      53     -6   (non-responsive)
+Ministral 8B   0.810      9      13     -4   (non-responsive)
+```
+Continuous curve (Gemma 12B, Δtop1 by bare-margin decile): peaks at +15.8pp in
+decile 1 (bareAcc 0.28, the "winnable" fence-sitters), +11.7pp in decile 0, and
+~0 / slightly negative once bareAcc>0.85. Priming tips uncertain cases over the
+line; does nothing once confident.
+
+Selective-deployment simulation (prime only bottom-K% by bare confidence):
+```
+model        bareAcc  prime-all   best selective
+Gemma 12B     0.778    +0.028     +0.036 @ 45% coverage  (beats prime-all, half the cost)
+Qwen 1.5B     0.781    +0.019     +0.019 @ 55%
+Qwen 7B       0.772    +0.005     +0.007 @ 45%
+```
+Recipe: prime the model's low-confidence queries, leave confident ones bare —
+better accuracy than priming everything, because it avoids the break cost.
+(Uses oracle confidence ordering; serve-time proxy to be validated.)
+
+## Deep dive 2 — mechanism confirmed within-task (content amplification)
+
+Δmargin (extract−bare) stratified by whether the gold answer appears in the passage:
+```
+GSM8K (answer often computed, not in passage):
+  Gemma 12B:  answer-in-doc(13%) +0.969   |  not-in-doc(87%) -0.003
+  Qwen 7B:    answer-in-doc      +0.124   |  not-in-doc       -0.155
+SQuAD (100% in-doc): uniformly large positive (Gemma +1.22).
+```
+Same task, same model: priming helps iff the answer is document content. Decisive
+support for the content-amplification mechanism. (Substring overlap is too coarse
+for long TriviaQA passages.)
+
+## Next experiment (motivated): task-aligned priming
+If priming amplifies content, prime toward the content most RELEVANT to the task's
+answer type (entities/dates/numbers for factoid QA). Test whether task-aligned
+prefixes beat generic "extract", and whether label-relevant priming can create
+REAL sharpening (gold-class split both positive) on otherwise-prior-shift abstract
+tasks. Plus validate the selective recipe with a serve-time confidence proxy.
