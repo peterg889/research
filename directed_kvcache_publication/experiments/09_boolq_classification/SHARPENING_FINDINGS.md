@@ -122,3 +122,35 @@ answer type (entities/dates/numbers for factoid QA). Test whether task-aligned
 prefixes beat generic "extract", and whether label-relevant priming can create
 REAL sharpening (gold-class split both positive) on otherwise-prior-shift abstract
 tasks. Plus validate the selective recipe with a serve-time confidence proxy.
+
+## Deep dive 3 — exploitation attempts FAIL (exp11, honest negatives)
+
+Task-aligned priming (margin gain d vs bare, pooled 4 datasets):
+```
+model        generic  entity   qa_directed
+Qwen 1.5B     +0.392  +0.396    +0.443
+Qwen 7B       +0.189  -0.066    -0.045
+Gemma 12B     +0.228  -0.268    -0.248
+```
+DECISIVELY FALSIFIED: on capable models the specific content-targeting prefixes are
+HARMFUL; generic "extract the key facts" wins. Implication: the mechanism is NOT
+instruction-following (entity-priming doesn't help entity-answers) but a low-level
+BROAD salience cue. Specificity backfires.
+
+Serve-time selective recipe (Gemma 12B, generic): the oracle-margin concentration
+(+9pp on uncertain) does NOT survive a deployable signal. With serve-time next-token
+entropy, Δtop1 is flat across strata (confident +0.033 / uncertain +0.037), so
+selective-by-entropy ~= prime-all (no benefit). The boundary signal that makes
+selective work only exists when you score candidates (MC/rerank/classification),
+not in open generation.
+
+## Overall honest conclusion
+Cache priming = real, mechanism-clear broad document-content amplification (d~0.2),
+best induced by a SIMPLE generic extract cue. But: small accuracy gains (~3pp),
+content-grounded only (prior-shift on abstract classification), boundary-concentrated
+but not exploitable via a simple serve-time signal. The exploitation hooks tried
+(task-aligned prompts, activation steering, selective deployment) each fail to turn
+the modest effect into a large win. The durable contribution is the rigorous
+CHARACTERIZATION + the methodology (contrastive margin + gold-class prior-shift
+control) showing what cache priming actually does and why prior NLL/accuracy-based
+claims mislead.
