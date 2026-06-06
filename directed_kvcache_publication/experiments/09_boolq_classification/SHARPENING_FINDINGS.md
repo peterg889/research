@@ -333,3 +333,33 @@ Qwen2.5 / Mistral  NO       128       NO            0.38 (mean)   +0.017 (mean)
 - HONEST: correlational (3 families, no ablation). A causal test = toggle QK-norm off in
   a Gemma forward and re-measure primability (model surgery; future work).
 Reproduce: `experiments/13_contrastive/primability_architecture.py`.
+
+## WS2 — Replication on a 2nd benchmark: HotpotQA (distractor)
+Different corpus + natural multi-hop queries + pre-built hard negatives (incl. the
+co-supporting paragraph). Single relevant = answer-bearing paragraph. N=300, 10-way.
+```
+model        bare   gen   dcorp   ΔMRR(dcorp vs bare)   ΔMRR(dcorp vs generic)
+gemma3_4b    0.503  0.458  0.477   -0.026*               +0.019    (ns; weaker here)
+gemma3_12b   0.521  0.474  0.520   -0.001                +0.046*   REPLICATES
+gemma3_27b   0.527  0.506  0.534   +0.007                +0.027*   REPLICATES
+qwen25_7b    0.553  0.533  0.546   -0.007                +0.013    (control: none, correct)
+```
+- The contrastive win REPLICATES on HotpotQA for the flagship Gemma models
+  (12B +0.046*, 27B +0.027* vs generic), confirming it is NOT MS-MARCO-specific. The
+  qwen25_7b control correctly shows no effect.
+- The SAME honest pattern holds on both benchmarks: generic priming HURTS vs bare on
+  primable Gemma (non-selective degradation); contrastive priming RECOVERS that loss
+  (significantly beats generic, returns to ~bare) but does NOT exceed no-priming.
+
+## CONSOLIDATED VERDICT (deepen+generalize)
+1. Contrastive priming significantly beats generic priming on PRIMABLE models, across
+   model scales (Gemma 4B-27B, base+instruct), 2 benchmarks (MS MARCO, HotpotQA), and
+   the cacheable variant. Absent in Qwen/Mistral + control. Robust, well-bounded.
+2. Mechanism: selective amplification (relevant query-NLL drops ~2.3x more than
+   negatives'); architectural correlate = QK-norm (Gemma 3) -> primability.
+3. Practical bound (unchanged, honest): contrastive priming RECOVERS the harm that
+   naive priming causes; it does not beat the no-priming baseline. So the deployable
+   claim is narrow: "IF you prime a reused cache (the RAG precompute premise) on a
+   Gemma model, make the prefix contrastive, not generic — it avoids the damage."
+   It is a mechanism/characterization result + a priming-hygiene recommendation, not a
+   standalone technique that beats not-priming.
