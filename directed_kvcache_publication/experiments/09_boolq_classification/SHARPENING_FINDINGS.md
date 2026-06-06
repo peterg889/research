@@ -154,3 +154,37 @@ the modest effect into a large win. The durable contribution is the rigorous
 CHARACTERIZATION + the methodology (contrastive margin + gold-class prior-shift
 control) showing what cache priming actually does and why prior NLL/accuracy-based
 claims mislead.
+
+## Deep dive 4 — reranking (the bounded application test) + UNIFYING CONCLUSION
+
+MS MARCO v2.1, 10-way reranking by query-likelihood (1 relevant + 9 BM25 hard negs):
+```
+model         bare MRR/R@1     ΔMRR     ΔR@1     ΔR@3        uncertain-query ΔR@1
+Qwen 1.5B     0.499 / 0.287    +0.020   +0.030   +0.017      +0.103   (selective +0.043 @40%)
+Qwen 7B       0.523 / 0.323    -0.028   -0.020   -0.070*     -0.058   (priming HURTS)
+Gemma 12B     0.447 / 0.233    -0.025   -0.033   -0.010      -0.039   (priming hurts)
+```
+Reranking is NOT a general win: priming helps only the smallest model (and only on
+its uncertain queries, where the selective recipe gives +4.3pp R@1 with a deployable
+signal). On capable models priming HURTS (Qwen 7B significant on R@3).
+
+WHY: MS MARCO hard negatives are BM25-retrieved -> they share the query's vocabulary.
+Content amplification is NON-SELECTIVE: it boosts content salience in the relevant
+passage AND in the lexically-similar hard negatives, so against hard alternatives it
+fails to improve (or hurts) discrimination. Contrast: priming widened the margin
+against EASY random distractors (QA-rerank ceiling) but fails against HARD ones.
+
+UNIFYING CONCLUSION across all experiments:
+Cache priming is NON-SELECTIVE content amplification. It uniformly raises the
+salience of the primed document's content, but it cannot sharpen the DISTINCTION
+between a correct answer and a PLAUSIBLE alternative. Every practically valuable
+task (real reranking, classification, hard QA) requires discriminating among close
+alternatives -- exactly what priming does NOT do. This is the deep reason no
+practical application materialized: the mechanism amplifies content but does not
+discriminate, while the tasks that matter require discrimination.
+
+The durable contribution is the rigorous CHARACTERIZATION (what cache priming does
+and, mechanistically, why it can't deliver) + the evaluation METHODOLOGY
+(contrastive margin + gold-class prior-shift control + hard-vs-easy distractor
+contrast) that exposes it. Prior NLL/perplexity-based cache-construction claims
+overstate value because they never test against hard, plausible alternatives.
