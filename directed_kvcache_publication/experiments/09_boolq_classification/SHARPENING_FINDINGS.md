@@ -363,3 +363,28 @@ qwen25_7b    0.553  0.533  0.546   -0.007                +0.013    (control: non
    Gemma model, make the prefix contrastive, not generic — it avoids the damage."
    It is a mechanism/characterization result + a priming-hygiene recommendation, not a
    standalone technique that beats not-priming.
+
+## WS3 CAUSAL TEST (exp17) — QK-norm hypothesis REFUTED
+Ran the causal test the correlation invited: monkeypatch gemma3_4b to replace all 68
+q_norm/k_norm RMSNorms with identities; re-measure primability (MS MARCO, 600
+query-passage pairs, N_Q=60).
+```
+                    intact   ablated(QK-norm off)   change
+primability(|Δnll|)  0.615    0.662                 +8%   (UP, not down)
+repr_primability     0.362    0.749                 +107% (DOUBLED)
+bare_nll (health)    4.974    7.760                 +2.79 nats (model degraded)
+```
+Disabling QK-norm does NOT reduce primability — it INCREASES it (and doubles the
+representation-level perturbation of doc tokens by the prefix), while degrading the
+model. So QK-norm is NOT the cause of Gemma's high primability; mechanistically it
+REGULARIZES attention (removing it lets attention saturate -> doc tokens absorb the
+prefix more strongly). The convenient correlational story (Gemma has QK-norm, Qwen/
+Mistral don't, Gemma is primable) does NOT survive the causal test.
+
+CORRECTED WS3 conclusion: primability is a robust, replicated GEMMA-FAMILY property
+(all 5 Gemma models, base+instruct), but its architectural cause is NOT QK-norm and
+remains OPEN (candidates not yet tested: embedding x sqrt(d) scaling, (1+w) RMSNorm,
+hybrid local/global attention, or a training/distillation effect). This does not
+affect the core result (contrastive priming helps primable Gemma models, replicated
+across scales + 2 benchmarks); only the bonus mechanistic attribution is retracted.
+Reproduce: `experiments/13_contrastive/ablate_qknorm.py`.
