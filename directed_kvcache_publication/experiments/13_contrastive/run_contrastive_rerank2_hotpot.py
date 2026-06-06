@@ -1,24 +1,13 @@
 #!/usr/bin/env python3
-"""Idea test #1: CONTRASTIVE / DISTINCTIVE priming on MS MARCO reranking.
+"""Workstream 2: confirm the contrastive-priming win is NOT MS-MARCO-specific, on a
+SECOND reranking benchmark: HotpotQA (distractor). Natural multi-hop questions, each
+with 10 Wikipedia paragraphs (the answer-bearing gold + pre-built hard distractors,
+incl. the co-supporting paragraph) -- a different corpus and query distribution from
+MS MARCO. Same 4 conditions, same query-likelihood reranking, same harness.
 
-Generic priming HURTS reranking because it is non-selective: it amplifies content
-in the relevant passage AND in the lexically-similar hard negatives. The fix is to
-prime each passage with what DISTINGUISHES it from its competitors, so the relevant
-passage's discriminating content is amplified, not the shared content.
-
-We test 4 conditions per passage (length-matched to L=16):
-  bare                  no prefix
-  generic               "Extract the key facts from this text." (non-selective; baseline)
-  distinctive_corpus    top terms of this passage MINUS its nearest CORPUS neighbors
-                        (query-agnostic -> CACHEABLE, realistic)
-  distinctive_cand      top terms of this passage MINUS the OTHER candidates for its
-                        query (uses the candidate set -> ORACLE upper bound, not
-                        cacheable; tells us if the idea works in principle)
-
-Rerank by query-likelihood P(query|passage). If distinctive_* improves MRR/R@1 where
-generic hurt, contrastive priming breaks the non-selectivity failure mode.
-
-Models: Qwen 1.5B, Qwen 7B, Gemma 12B. MS MARCO v2.1, 10-way, N=300.
+Single relevant = the paragraph containing the answer span (restricted to span answers
+found in exactly one paragraph). Prediction: distinctive_corpus beats generic on the
+PRIMABLE Gemma models here too; qwen25_7b (control) shows no benefit.
 """
 import os
 os.umask(0o000)
@@ -50,47 +39,41 @@ N_EVAL = 10 if SMOKE else 300
 L_MATCH = 16
 TOPK = 10
 EXTRACT = "Extract the key facts from this text."
-RESULTS = Path(__file__).resolve().parent.parent.parent / "results" / "exp14_contrastive"
+RESULTS = Path(__file__).resolve().parent.parent.parent / "results" / "exp16_hotpot"
 RESULTS.mkdir(parents=True, exist_ok=True, mode=0o777)
 MODELS = {
-    "qwen25_1_5b": {"name": "Qwen/Qwen2.5-1.5B-Instruct", "loader": "AutoModelForCausalLM"},
-    "qwen25_7b":   {"name": "Qwen/Qwen2.5-7B-Instruct",   "loader": "AutoModelForCausalLM"},
-    "gemma3_12b":  {"name": "google/gemma-3-12b-it", "loader": "Gemma3ForConditionalGeneration"},
-    # generalization set: replicate the Gemma-12B contrastive win within-family at scale
-    # (27B), cross-family (Mistral 7B), and test whether larger Qwen becomes primable (14B).
-    "gemma3_27b":  {"name": "google/gemma-3-27b-it", "loader": "Gemma3ForConditionalGeneration"},
-    "mistral_7b":  {"name": "mistralai/Mistral-7B-Instruct-v0.3", "loader": "AutoModelForCausalLM"},
-    "qwen25_14b":  {"name": "Qwen/Qwen2.5-14B-Instruct", "loader": "AutoModelForCausalLM"},
-    # full Gemma ladder: map primability x selectivity across scale; 4b base-vs-it
-    # isolates whether primability is from instruction-tuning or the base architecture.
-    "gemma3_1b":      {"name": "google/gemma-3-1b-it", "loader": "Gemma3ForCausalLM"},
-    "gemma3_4b":      {"name": "google/gemma-3-4b-it", "loader": "Gemma3ForConditionalGeneration"},
-    "gemma3_4b_base": {"name": "google/gemma-3-4b-pt", "loader": "Gemma3ForConditionalGeneration"},
+    "gemma3_12b": {"name": "google/gemma-3-12b-it", "loader": "Gemma3ForConditionalGeneration"},
+    "gemma3_27b": {"name": "google/gemma-3-27b-it", "loader": "Gemma3ForConditionalGeneration"},
+    "gemma3_4b":  {"name": "google/gemma-3-4b-it",  "loader": "Gemma3ForConditionalGeneration"},
+    "qwen25_7b":  {"name": "Qwen/Qwen2.5-7B-Instruct", "loader": "AutoModelForCausalLM"},  # control
 }
 ONLY = os.environ.get("ONLY_MODELS")
 if ONLY:
     MODELS = {k: MODELS[k] for k in ONLY.split(",") if k in MODELS}
 elif SMOKE:
-    MODELS = {"qwen25_1_5b": MODELS["qwen25_1_5b"]}
+    MODELS = {"gemma3_4b": MODELS["gemma3_4b"]}
 
 
-def load_msmarco():
-    ds = load_dataset("microsoft/ms_marco", "v2.1", split="validation")
+def load_hotpot():
+    ds = load_dataset("hotpotqa/hotpot_qa", "distractor", split="validation")
     out = []
     for x in ds:
-        pt = x["passages"]["passage_text"]; sel = x["passages"]["is_selected"]
-        if sum(sel) != 1: continue
-        rel = sel.index(1)
-        if not (5 <= count_words(pt[rel]) <= 300): continue
-        out.append({"query": x["query"], "passages": pt, "relevant_idx": rel})
+        ans = x["answer"].strip()
+        if ans.lower() in ("yes", "no"): continue
+        paras = [" ".join(s) for s in x["context"]["sentences"]]
+        if len(paras) != 10: continue
+        hits = [i for i, p in enumerate(paras) if ans.lower() in p.lower()]
+        if len(hits) != 1: continue                       # single relevant
+        rel = hits[0]
+        if not (5 <= count_words(paras[rel]) <= 300): continue
+        out.append({"query": x["question"], "passages": paras, "relevant_idx": rel})
         if len(out) >= N_EVAL: break
     return out
 
 
 def distinctive_terms(texts, idx, vectorizer, matrix, neighbor_idx=None, topk=TOPK):
-    """Top terms of texts[idx] minus the mean of a comparison set (neighbors or others)."""
     vec = matrix[idx].toarray().ravel()
-    if neighbor_idx is None:  # corpus neighbors: nearest by cosine within matrix
+    if neighbor_idx is None:
         sims = (matrix @ matrix[idx].T).toarray().ravel(); sims[idx] = -1
         neighbor_idx = np.argsort(-sims)[:10]
     comp = matrix[neighbor_idx].toarray().mean(axis=0) if len(neighbor_idx) else np.zeros_like(vec)
@@ -141,15 +124,13 @@ def query_nll(cache, D, q_ids):
 
 
 def main():
-    print(f"CONTRASTIVE RERANK  SMOKE={SMOKE} N={N_EVAL}")
-    samples = load_msmarco(); print(f"  {len(samples)} queries")
-    # corpus TF-IDF over ALL candidate passages (query-agnostic distinctive_corpus)
+    print(f"HOTPOT CONTRASTIVE RERANK  SMOKE={SMOKE} N={N_EVAL}")
+    samples = load_hotpot(); print(f"  {len(samples)} queries (single-span-relevant, 10-way)")
     all_passages = []; offsets = []
     for s in samples:
         offsets.append(len(all_passages)); all_passages.extend(s["passages"])
     corpus_vec = TfidfVectorizer(stop_words="english", max_features=50000)
     corpus_mat = corpus_vec.fit_transform(all_passages)
-    # precompute distinctive primes (text) per (query, candidate)
     dist_corpus = {}; dist_cand = {}
     for qi, s in enumerate(samples):
         base = offsets[qi]; cand_texts = s["passages"]
@@ -158,8 +139,6 @@ def main():
             dist_corpus[(qi, ci)] = distinctive_terms(all_passages, base + ci, corpus_vec, corpus_mat)
             others = [j for j in range(len(cand_texts)) if j != ci]
             dist_cand[(qi, ci)] = distinctive_terms(cand_texts, ci, cv, cm, neighbor_idx=others)
-    print(f"  example distinctive_corpus: {dist_corpus[(0,samples[0]['relevant_idx'])][:80]!r}")
-    print(f"  example distinctive_cand:   {dist_cand[(0,samples[0]['relevant_idx'])][:80]!r}")
 
     for mk, spec in MODELS.items():
         print(f"\n{'#'*60}\n# {mk}\n{'#'*60}")
@@ -171,7 +150,7 @@ def main():
         ext = make_prefix(tok.encode(EXTRACT, add_special_tokens=False), L_MATCH)
         print(f"  loaded in {time.time()-t0:.0f}s")
         ck = RESULTS / mk / "results.json"; (RESULTS / mk).mkdir(exist_ok=True, mode=0o777)
-        skey = f"contrast_{mk}" + ("_smoke" if SMOKE else ""); scored = []
+        skey = f"hotpot_{mk}" + ("_smoke" if SMOKE else ""); scored = []
         if ck.exists():
             prev = json.loads(ck.read_text())
             if prev.get("scoring_key") == skey: scored = prev["samples"]; print(f"  resumed {len(scored)}")

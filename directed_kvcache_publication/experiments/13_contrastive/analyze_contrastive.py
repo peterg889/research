@@ -7,7 +7,8 @@ from pathlib import Path
 import numpy as np
 
 RES = Path(__file__).resolve().parent.parent.parent / "results" / "exp14_contrastive"
-MODELS = ["qwen25_1_5b", "qwen25_7b", "gemma3_12b", "gemma3_27b", "mistral_7b", "qwen25_14b"]
+MODELS = ["gemma3_1b", "gemma3_4b", "gemma3_4b_base", "gemma3_12b", "gemma3_27b",
+          "mistral_7b", "qwen25_1_5b", "qwen25_7b", "qwen25_14b"]
 CONDS = ["bare", "generic", "distinctive_corpus", "distinctive_cand"]
 RNG = np.random.RandomState(0)
 
