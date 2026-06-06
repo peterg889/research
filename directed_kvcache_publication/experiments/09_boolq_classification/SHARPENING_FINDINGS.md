@@ -188,3 +188,99 @@ and, mechanistically, why it can't deliver) + the evaluation METHODOLOGY
 (contrastive margin + gold-class prior-shift control + hard-vs-easy distractor
 contrast) that exposes it. Prior NLL/perplexity-based cache-construction claims
 overstate value because they never test against hard, plausible alternatives.
+
+---
+
+# UPDATE (2026-06-06): the non-selectivity conclusion was too strong — selectivity is a PREFIX property, achievable on PRIMABLE models
+
+The conclusion above ("cache priming is non-selective content amplification, full
+stop") conflated two separable things: the non-selectivity of the *generic* prefix
+with an inherent limit of the *method*. Two new experiments (exp14 contrastive
+reranking, exp15 needle) separate them. Headline: **a CONTRASTIVE prefix makes the
+amplification selective enough to genuinely improve discrimination — but only on a
+model that is "primable" in the first place, which in our 6-model sweep is the
+Gemma family.**
+
+## exp14 — Contrastive / distinctive priming (MS MARCO reranking, N=300, 10-way)
+
+Instead of priming each passage with generic "Extract the key facts" (non-selective),
+prime it with what DISTINGUISHES it from competitors: top TF-IDF terms of the
+passage minus its neighbors. Two variants, both length-matched to L=16:
+ - `distinctive_corpus`  vs nearest CORPUS neighbors -> query-agnostic, CACHEABLE
+ - `distinctive_cand`    vs the actual 9 candidates  -> ORACLE upper bound
+
+Result (ΔMRR vs generic = does selectivity add value over naive priming?):
+```
+model         primability  dist_corp_selectivity  dist_corp ΔMRR-vs-generic  ΔMRR-vs-bare
+gemma3_12b       0.844          +0.114*                 +0.053*                +0.028
+gemma3_27b       0.842          +0.086*                 +0.060*                +0.030
+mistral_7b       0.552          +0.039                  -0.016                 -0.030*
+qwen25_14b       0.391          +0.007                  -0.026                 -0.025
+qwen25_7b        0.370          -0.007                  -0.007                 -0.036
+qwen25_1_5b      0.195          +0.028                  ~0                     +0.020
+```
+- **Primability** = mean |Δquery-NLL| caused by generic priming (how much priming
+  moves the representation at all). It is a model-architecture trait: Gemma ~0.84,
+  Mistral ~0.55, Qwen ~0.2-0.4. NOT monotonic in scale.
+- **Selectivity** (decomposition): on Gemma, distinctive priming lowers the RELEVANT
+  passage's query-NLL ~2.3x more than the negatives' (Δrel=-0.201 vs Δneg=-0.088 on
+  12B) -> the relevant passage rises in rank. Generic priming instead pushes ALL
+  query-NLLs up (degrades) and scrambles ranking.
+- **The two highest-primability models (both Gemma) are exactly the two that show
+  significant contrastive selectivity**, and the effect grew with Gemma scale.
+  Mistral 7B (predicted non-responsive) and the Qwen ladder show none — distinctive
+  priming does not help (or hurts).
+
+This OVERTURNS the categorical claim: priming CAN sharpen distinction among close
+alternatives, via a contrastive prefix, on a primable model. Selective amplification
+is real discrimination (entropy would move relevant and negatives equally; here they
+diverge, CIs exclude 0).
+
+### Honest limits (why this is a mechanism result, not a deployable technique)
+1. Even on Gemma, distinctive_corpus beats generic significantly but is only +0.028
+   (ns) vs the NO-PRIMING baseline. "Make priming selective" beats "naive priming";
+   it does not reliably beat "don't prime."
+2. Scope is the Gemma family (high primability). Cross-family (Mistral) and the Qwen
+   ladder do not show it.
+3. Cache-priming reranking (MRR ~0.45-0.52) is dominated by purpose-built rerankers.
+
+The durable contribution: a CONTROLLED MANIPULATION isolating selectivity as the
+causal lever (same length/position/machinery, only prefix content changes -> sign
+flips on primable models), plus the primability x selectivity framework explaining
+WHEN priming can discriminate.
+
+## exp15 — Long-context positional rescue (needle-in-a-haystack)
+
+Different regime: the "competitor" to the gold content is the model's own POSITIONAL
+attention decay (lost-in-the-middle), not a semantic hard negative. Hypothesis: since
+nothing competing benefits from the same boost, non-selective amplification might help
+here. A needle fact is buried at fractional position p in a filler haystack; we score
+the needle's answer NLL (lower=better) bare vs extract-primed, vs p.
+Qwen 1.5B/7B at 2000 tokens; Gemma 12B at 700 (sliding window caps context).
+
+```
+model         bare mid-penalty   Δmid(ext-bare)  Δends    verdict
+qwen25_1_5b     -0.028 (none)       -0.292        -0.236   uniform NLL drop; no penalty to rescue
+qwen25_7b       +0.257 (real LITM)  +0.204 worse  +0.106   priming AGGRAVATES the middle
+gemma3_12b      -0.054 (none)       -0.492        -0.658   huge drop (primability) but helps ENDS more
+```
+
+Verdict: **no positional rescue on any model.**
+- On the only model with a genuine lost-in-the-middle penalty (Qwen 7B, 2000 tok),
+  priming makes the middle WORSE, not better.
+- On primable Gemma, priming lowers absolute NLL a lot (the entropy/primability
+  artifact) but concentrates the help at the ENDS (esp. position 0), i.e. where
+  content is already well-attended — the opposite of rescue.
+- The absolute-NLL drops do NOT track where position hurts -> they are the entropy
+  artifact, not retrieval improvement. (Gemma caveat: 700 tokens is too short to
+  induce a strong lost-in-the-middle, a limit imposed by the sliding window.)
+
+## Net of both idea-tests
+The non-selectivity story stands as the DEFAULT, with one important refinement:
+selectivity is a prefix property a CONTRASTIVE prefix can supply, and it yields real
+discrimination on PRIMABLE (Gemma-family) models. That is a clean mechanism result.
+But no deployable production win emerged: contrastive priming beats naive priming yet
+not the no-priming baseline, is Gemma-scoped, and is dominated by purpose-built
+methods; positional rescue fails outright. The durable contributions remain the
+rigorous characterization (primability x selectivity) and the evaluation methodology
+(contrastive margin + gold-class prior-shift control + selectivity decomposition).
