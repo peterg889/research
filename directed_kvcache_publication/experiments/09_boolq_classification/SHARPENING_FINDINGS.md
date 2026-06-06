@@ -388,3 +388,40 @@ hybrid local/global attention, or a training/distillation effect). This does not
 affect the core result (contrastive priming helps primable Gemma models, replicated
 across scales + 2 benchmarks); only the bonus mechanistic attribution is retracted.
 Reproduce: `experiments/13_contrastive/ablate_qknorm.py`.
+
+## WS3 DEEPER (exp18 att-temp, exp19 prefix-mass) — primability has NO single attention-side cause
+After QK-norm was refuted, two more interventional/descriptive probes to pin down the cause:
+
+(A) Attention-TEMPERATURE sweep (gentle, non-breaking: scale attn logits by 1/tau),
+    gemma3_4b vs qwen25_7b, MS MARCO 300 pairs:
+```
+tau (sharp<-->soft)   0.5    0.7    1.0    1.5    2.0
+gemma3_4b primability  0.68   0.55   0.57   0.49   0.40   (sharper => MORE primable)
+qwen25_7b primability  0.35   0.32   0.37   0.42   0.58   (softer  => MORE primable)
+```
+The families respond in OPPOSITE directions -> there is NO universal "sharpness" knob.
+The cross-over is real and survives normalizing by baseline NLL (Gemma/Qwen normalized
+primability ratio = 1.51x @tau0.5, 1.29x @tau1.0, 0.58x @tau2.0). So the gap is not
+merely Gemma's higher absolute NLL.
+
+(B) Prefix-attention-mass (eager attn, N=20): does Gemma attend to the prefix more?
+```
+            prefix_mass  (x uniform)  BOS_sink  doc_attn_entropy
+gemma3_4b     0.042       0.23x        0.479      1.73
+qwen25_7b     0.056       0.32x        0.470      1.75
+```
+NO — Gemma attends to the prefix LESS than Qwen, both well BELOW uniform, with
+near-identical attention entropy and the same ~47% BOS-sink. So primability is not
+driven by direct doc->prefix attention or by Gemma having sharper/peakier attention;
+the prefix's effect is INDIRECT.
+
+CONCLUSION (honest): primability is a robust, replicated empirical GEMMA-FAMILY property
+(~1.3x Qwen at natural settings, normalized), but it does NOT reduce to any single
+obvious attention-side mechanism. Three plausible hypotheses were FALSIFIED:
+  1. QK-norm        -> removing it INCREASES primability (regularizer, not cause)
+  2. attn sharpness -> Gemma & Qwen respond OPPOSITELY (no universal knob)
+  3. prefix salience-> Gemma attends to the prefix LESS, entropy ~identical
+The families differ qualitatively in how context conditioning propagates (opposite
+temperature response); a full reduction would need circuit-level analysis (future work).
+This does NOT affect the core contrastive result. Scripts: ablate_attention_temp.py,
+prefix_attention_mass.py.
