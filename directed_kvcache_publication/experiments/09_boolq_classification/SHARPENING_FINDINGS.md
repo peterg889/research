@@ -501,3 +501,41 @@ the representation-level confirmation of the patching result (Gemma directional 
 (Honest caveat: content-alignment uses the doc's mean value as the content proxy; the
 robust claim is the 6x Gemma-vs-Qwen gap in geometric structure, not a semantic reading
 of the negative sign.) Script: coherence_probe.py.
+
+## WS3 STEERING SUFFICIENCY (exp22) — priming is predominantly CONTENT-DEPENDENT, not a fixed offset
+Causal sufficiency test: extract the per-layer mean value-perturbation direction from 30
+TRAIN docs (generic prefix), add it to BARE caches of 30 HELD-OUT test docs, measure if it
+reproduces the priming NLL effect. (Value channel, frame-free; train/test split, non-circular.)
+```
+                       gemma3_4b   qwen25_7b
+primed Δnll (real)      +0.431      +0.011 (cancels)
+steered Δnll (fixed dir)+0.095      +0.077
+fraction reproduced     ~22%        n/a (primed~0)
+```
+A content-AGNOSTIC fixed direction reproduces only ~22% of Gemma's priming effect. So the
+directional shift is NOT a fixed steering offset — priming is PREDOMINANTLY CONTENT-
+DEPENDENT (the shared coherent direction, R=0.88, is real but functionally minor ~22%; the
+bulk ~78% is per-document content-specific). (Value-channel-only is a lower bound; keys add
+more, but the qualitative conclusion holds.)
+
+This REFINES and explains the centerpiece: priming is a CONTENT-ROUTED transformation, which
+is exactly why a CONTRASTIVE (content-specific) prefix unlocks selectivity while a generic
+fixed prefix cannot steer it. On Qwen the real effect is ~0 (directionless) and the mean
+direction adds a spurious small shift — nothing coherent to reproduce. Script: steering_sufficiency.py.
+
+## MECHANISM — FINAL (WS3 complete, 8 probes)
+Q: why does contrastive priming yield selective discrimination on Gemma but not Qwen?
+ 1. behavioral: contrastive>generic on all Gemma>=4B, 2 benchmarks; none on Qwen/Mistral.
+ 2. circuit (patching): shared early-mid-layer circuit; Gemma's KV perturbation has a
+    DIRECTIONAL signed NLL effect (+0.226), Qwen's CANCELS (+0.029) at similar |Δ|.
+ 3. representation (coherence): Gemma's perturbation is CONTENT-STRUCTURED (pairwise cos
+    0.78, content-align -0.40); Qwen's content-ORTHOGONAL (0.50, -0.07).
+ 4. sufficiency (steering): a fixed shared direction reproduces only ~22% -> priming is
+    predominantly CONTENT-DEPENDENT / content-routed (not a fixed offset).
+ 5. root: distributed -> NOT QK-norm (ablation increases primability), NOT attention
+    sharpness (families respond oppositely), NOT prefix salience (Gemma attends LESS).
+SYNTHESIS: Gemma-family context conditioning is a directionally-coherent, CONTENT-ROUTED
+cache transformation that a contrastive prefix can steer toward query-relevant content
+(=> selective discrimination). Qwen's is directionless/content-orthogonal -> unsteerable.
+The architectural root is distributed (no single feature). This mechanistically grounds the
+contrastive centerpiece end-to-end.
