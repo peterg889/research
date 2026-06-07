@@ -471,3 +471,33 @@ primability = how steerable a model's cache is by a prefix. Decomposed it fully:
    family responses), prefix attention salience (Gemma attends LESS). Root is distributed.
 This is why a CONTRASTIVE prefix yields selective discrimination on Gemma (steerable
 coherent shift) but not Qwen (directionless) — the centerpiece result, now mechanistically grounded.
+
+## WS3 COHERENCE PROBE (exp21) — Gemma's perturbation is CONTENT-STRUCTURED, Qwen's is content-orthogonal
+Directly measured directional coherence in representation space (value vectors, no RoPE).
+Per doc d, delta_d^L = mean over doc tokens of (V_primed - V_bare) at layer L; across 40
+docs: coherence R=||mean delta||/mean||delta|| (1=aligned, ~0.16=random@N=40), pairwise
+cosine, and content-alignment = mean cos(delta_d, bare_value_d).
+```
+                    gemma3_4b   qwen25_7b   random
+R (coherence)        0.881       0.704       0.158
+pairwise cosine      0.776       0.504       ~0
+content-alignment   -0.398      -0.069       ~0
+```
+Findings:
+- BOTH families' perturbations are coherent (R >> random) -> the prefix induces a largely
+  SHARED direction across docs in both. So raw coherence is not the discriminator.
+- Two metrics DO separate them: Gemma's perturbations are far more mutually ALIGNED
+  (pairwise cos 0.78 vs 0.50) and, decisively, GEOMETRICALLY STRUCTURED w.r.t. the document
+  representation (content-alignment -0.40 vs -0.07, ~6x).
+
+INTERPRETATION: the property that makes Gemma steerable is not coherence per se but
+CONTENT-STRUCTURED coherence — its prefix-induced shift is consistent across docs AND has
+a consistent geometric relationship to each doc's own content. A content-structured shift
+can be REDIRECTED by a contrastive prefix toward query-relevant content (=> selective
+amplification, the centerpiece). Qwen's shift is content-ORTHOGONAL (-0.07), so it moves
+representations but cannot be steered to discriminate content -> no selectivity. This is
+the representation-level confirmation of the patching result (Gemma directional NLL effect
++0.226 vs Qwen cancels +0.029) and mechanistically completes the centerpiece.
+(Honest caveat: content-alignment uses the doc's mean value as the content proxy; the
+robust claim is the 6x Gemma-vs-Qwen gap in geometric structure, not a semantic reading
+of the negative sign.) Script: coherence_probe.py.
