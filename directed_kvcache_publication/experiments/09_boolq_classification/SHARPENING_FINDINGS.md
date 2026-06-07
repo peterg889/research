@@ -425,3 +425,49 @@ The families differ qualitatively in how context conditioning propagates (opposi
 temperature response); a full reduction would need circuit-level analysis (future work).
 This does NOT affect the core contrastive result. Scripts: ablate_attention_temp.py,
 prefix_attention_mass.py.
+
+## WS3 CIRCUIT-LEVEL (exp20) — primability = DIRECTIONAL COHERENCE in a shared early-mid circuit
+Layer-wise KV activation patching (score query with bare cache + ONE layer's primed K/V)
++ per-layer key/value perturbation profile. gemma3_4b vs qwen25_7b, 40 matched MS MARCO
+relevant pairs.
+```
+                       gemma3_4b           qwen25_7b
+full |Δnll| (per doc)   0.389               0.352      <- SIMILAR magnitude
+signed Δnll             +0.226              +0.029      <- ~8x: Gemma DIRECTIONAL, Qwen cancels
+|patch| thirds E/M/L    0.30/0.42/0.28      0.26/0.40/0.33   <- SAME (mid-heavy)
+top causal layers       8,10,13,15,17       8,9,12,13,18     <- SAME region
+peak key-perturbation   L17 (0.29)          L20 (0.22)
+```
+Findings:
+1. The primability circuit is LOCATIONALLY IDENTICAL across families: distributed over
+   early-to-mid layers (mid-heavy), same top layers, peak key-perturbation mid-stack.
+   So priming is NOT a localized or Gemma-specific circuit.
+2. The per-doc perturbation MAGNITUDE is similar (|Δnll| 0.39 vs 0.35); Gemma's key
+   perturbation is only moderately larger (0.29 vs 0.22 peak).
+3. The decisive family difference is DIRECTION, not location/magnitude: Gemma's
+   context-induced KV perturbation shifts query-likelihood in a CONSISTENT direction
+   (signed +0.226), while Qwen's CANCELS across docs (signed +0.029, ~8x smaller) despite
+   similar |Δ|.
+
+INTERPRETATION (the mechanistic punchline): Gemma is "primable" in the USEFUL sense not
+because priming moves its representations more or in a special place, but because the
+movement is DIRECTIONALLY COHERENT — a consistent, content-aligned shift that a
+contrastive prefix can STEER selectively toward the relevant passage. Qwen's perturbation
+is just as large but directionless, so it cannot be steered -> no selectivity. This
+explains why contrastive priming helps Gemma and not Qwen, and it is consistent with the
+reranking signs (generic priming directionally degrades Gemma; neutral on Qwen).
+
+The architectural ROOT of this directional coherence is distributed (not QK-norm, not
+attention sharpness, not prefix salience — all falsified; circuit is shared/early-mid),
+so it is best stated as a characterized EMPIRICAL property: Gemma-family context
+conditioning is directionally coherent. Script: circuit_primability.py.
+
+## FINAL MECHANISM SUMMARY (WS3 complete)
+primability = how steerable a model's cache is by a prefix. Decomposed it fully:
+ - WHERE: distributed early-mid-layer circuit, SHARED across families (patching).
+ - HOW MUCH: similar |Δ| magnitude across families.
+ - WHAT DIFFERS: directional COHERENCE of the perturbation (Gemma consistent, Qwen cancels).
+ - NOT explained by: QK-norm (ablation increases it), attention sharpness (opposite
+   family responses), prefix attention salience (Gemma attends LESS). Root is distributed.
+This is why a CONTRASTIVE prefix yields selective discrimination on Gemma (steerable
+coherent shift) but not Qwen (directionless) — the centerpiece result, now mechanistically grounded.
