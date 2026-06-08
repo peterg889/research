@@ -207,6 +207,12 @@ Re-scored with the contrastive margin, the headline collapses:
 | oracle (query) | + | net **negative** margin |
 | **generic instruction (extract)** | + | **+0.27** |
 
+![Figure 1](figures/fig1_measurement_correction.png)
+*Figure 1: The entropy confound. Every prefix condition lowers absolute NLL (gray), but
+on the entropy-invariant contrastive margin (blue) the keyword "win" vanishes (d≈0),
+random vocabulary and the query-oracle are negative, and only extract-style instructions
+improve discrimination (d=+0.27).*
+
 The keyword advantage in NLL was almost entirely entropy reduction: keywords make the
 model more confident without making it better at choosing the right answer (d(margin)≈0).
 Salience ≈ repetition (keywords ≈ random document words on margin), and random *vocabulary*
@@ -290,6 +296,12 @@ lowers the *relevant* passage's query-NLL by Δrel=−0.201 vs the negatives' Δ
 the relevant passage is amplified ~2.3× more, so it rises in rank. Generic priming instead
 pushes all query-NLLs up and scrambles the ranking.
 
+![Figure 6](figures/fig6_selectivity_decomposition.png)
+*Figure 6: Selectivity decomposition (Gemma 3 12B). Generic priming pushes both the
+relevant passage and the hard negatives' query-NLL up (degrades, ranking scrambled).
+Distinctive priming pulls the relevant passage down ~2.3× more than the negatives —
+selective amplification.*
+
 ### 6.2 Replication on a second benchmark
 
 On HotpotQA-distractor (different corpus, natural multi-hop queries, pre-built hard
@@ -301,6 +313,11 @@ nothing:
 | gemma3_12b | **+0.046\*** |
 | gemma3_27b | **+0.027\*** |
 | qwen25_7b (control) | +0.013 (n.s.) |
+
+![Figure 2](figures/fig2_contrastive_mrr.png)
+*Figure 2: Contrastive priming (distinctive_corpus) vs. generic priming, ΔMRR with
+bootstrap 95% CIs. Significant and positive on every Gemma ≥4B (teal) on both MS MARCO
+and HotpotQA; near-zero or negative on Qwen (red) and Mistral (purple).*
 
 ### 6.3 The honest bound
 
@@ -317,6 +334,11 @@ rerankers. This is a mechanism result with a narrow deployable corollary, stated
 
 Why does this work on Gemma and not Qwen? We ran eight probes; the convenient explanations
 failed and a consistent picture emerged.
+
+![Figure 3](figures/fig3_primability_selectivity.png)
+*Figure 3: Primability × contrastive selectivity across nine models. The Gemma family
+(teal) occupies the high-selectivity region; Qwen (red) and Mistral (purple) do not.
+Selectivity tracks family, not scale — and primability is the gating variable.*
 
 ### 7.1 Primability is the gating variable — but not a function of scale
 Define **primability** as the mean |Δ query-NLL| a (generic) prefix induces. It is a
@@ -336,6 +358,11 @@ directions** across families: Gemma sharper→more primable, Qwen softer→more 
 cross-over survives NLL-normalization (Gemma/Qwen ratio 1.51× at τ=0.5, 1.29× at τ=1.0,
 0.58× at τ=2.0). There is no shared sharpness axis.
 
+![Figure 4](figures/fig4_temperature_crossover.png)
+*Figure 4: Primability vs. attention temperature τ. Sharpening (lower τ) raises Gemma's
+primability but lowers Qwen's — the curves cross. No universal sharpness knob explains
+the family difference.*
+
 ### 7.4 The prefix is not especially attended (salience falsified)
 Measuring prefix-attention-mass (eager attention) shows Gemma's document attends to the
 prefix *less* than Qwen's (0.042 vs 0.056, both below uniform), with near-identical
@@ -350,6 +377,11 @@ peak key-perturbation at the same depth; per-document |Δnll| similar, 0.39 vs 0
 functional difference is **direction**: Gemma's perturbation has a *consistent signed* effect
 on query-likelihood (+0.226) while Qwen's *cancels* across documents (+0.029) at equal
 magnitude.
+
+![Figure 5](figures/fig5_circuit_profile.png)
+*Figure 5: The primability circuit by relative layer depth. Left: causal effect of
+patching one layer's primed K/V (both families peak in early-mid layers — same location).
+Right: key-perturbation magnitude (Gemma moderately higher, same depth profile).*
 
 ### 7.6 The perturbation is content-structured in Gemma, content-orthogonal in Qwen (coherence)
 Measuring the value-perturbation directly (no RoPE, frame-free) over 40 documents: both
