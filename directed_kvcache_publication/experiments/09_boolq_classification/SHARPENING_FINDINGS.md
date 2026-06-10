@@ -648,3 +648,42 @@ dict) — now fixed and re-running with mistral (falsification) + qwen14b (2nd c
 METHOD CAUTION: the n=400 interim vs n=900 full differing (+0.022 vs +0.036) shows
 query-subset variance is large; only trust full-N estimates. (I violated this; correcting.)
 Pending 27b/mistral/qwen14b before the final vs-bare framing.
+
+## THE BANKABILITY RESULT (exp24, synthetic decisive-context) — answers "there has to be something"
+User's insight: context MUST matter (RAG/ICL), so small priming effects need explaining.
+Clean test: a fact C decisive for the answer (unknowable without it), filler doc D, question Q.
+gemma3_4b (n=20+, rock-stable; full N=150 running):
+```
+  no_ctx (bare, [BOS,D])              answer-NLL = 4.2
+  retain ([BOS,C,nl,D] kept)          answer-NLL = 1.7   (-2.5 nats: HUGE; pipeline SANE)
+  retain_after ([BOS,D,nl,C] kept)    answer-NLL = 1.7
+  strip ([BOS,C,nl,D]->prime D, drop C) answer-NLL = 4.7   (WORSE than no_ctx!)
+  bankable_fraction = (no_ctx-strip)/(no_ctx-retain) ~ -0.2
+```
+INTERPRETATION (resolves the whole investigation): context's value is LARGE (-2.5 nats when
+retained) and lives in the ATTENDABLE CONTEXT TOKENS. Cache priming keeps the imprint on D's
+KV but discards the tokens -> bankable fraction ~0 (even slightly NEGATIVE: the priming
+perturbation adds noise). This is WHY every priming effect we measured is small: not because
+context is weak, but because zero-retention construction throws away the tokens that carry it.
+=> PAPER THESIS UPGRADE: the fundamental limit of ZERO-RETENTION cache construction. The small
+keyword-priming selectivity (Gemma) is the tiny residual that survives; everything else is the
+bankability ceiling. Pending: full N + qwen (confirm universal, not Gemma-specific).
+
+## BANKABILITY — FINAL (exp24, N=150, both families): universal ceiling, re-weight-not-inject
+```
+                    gemma3_4b              qwen25_7b
+context value       +2.81 [+2.70,+2.91]    +2.73 [+2.55,+2.91]   <- IDENTICAL, huge
+bankable (strip)    -0.66 [-0.77,-0.55]    +0.10 [-0.06,+0.26]   <- ~0 or NEGATIVE
+bankable fraction   -0.27                  -0.11
+```
+1. Context value ~2.8 nats, IDENTICAL across families -> universal, pipelines sane.
+2. Bankable fraction ~0 for BOTH -> the zero-retention ceiling is UNIVERSAL, not Gemma-specific.
+   "Gemma banks more" REFUTED.
+3. Twist: on Gemma strip is SIGNIFICANTLY worse than no_ctx (-0.66*); on Qwen ~no-op (+0.10).
+   => primability is a LIABILITY: more primable = more perturbable = more noise added when
+   there's nothing useful to bank.
+UNIFIED THESIS: priming can RE-WEIGHT a doc's existing content (small keyword-selectivity
+residual on Gemma) but cannot INJECT info not in the doc (bankability ceiling ~0/negative).
+RAG's value is mostly INJECTION -> zero-retention priming captures ~none (-2.8 nats lost).
+This subsumes the whole investigation and is the v5 paper backbone:
+"The fundamental limit of zero-retention KV-cache construction."

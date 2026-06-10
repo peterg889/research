@@ -82,3 +82,12 @@ small significant gain over no-priming on the largest tested model (12B) but not
 smaller one — and the elegant representation-level mechanism we proposed does not survive
 its controls." A rigorous-characterization + methodology paper; whether it is also a
 (marginal) technique hinges on the 27B tiebreaker.
+
+
+## CHANGE 6 — NEW BACKBONE: the zero-retention bankability ceiling (exp24)
+Decisive-context test: retain a fact -> -2.8 nats (both Gemma & Qwen); prime+strip it ->
+bankable fraction ~0 (Gemma -0.27, i.e. WORSE than no context; Qwen -0.11). Context value
+is huge and universal; it is NOT bankable into stripped KV. Unifies the paper: priming can
+RE-WEIGHT existing doc content (small Gemma keyword residual) but cannot INJECT new info
+(ceiling ~0). v5 should be built around this; the keyword/selectivity/mechanism results
+become the characterization of the small surviving residual + why primability is a liability.
