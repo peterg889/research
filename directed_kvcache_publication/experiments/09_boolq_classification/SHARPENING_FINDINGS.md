@@ -539,3 +539,47 @@ cache transformation that a contrastive prefix can steer toward query-relevant c
 (=> selective discrimination). Qwen's is directionless/content-orthogonal -> unsteerable.
 The architectural root is distributed (no single feature). This mechanistically grounds the
 contrastive centerpiece end-to-end.
+
+---
+
+# AUDIT + DOUBLE-DOWN (2026-06-10): the "contrastive" framing does not survive
+
+End-to-end audit of the exp14 contrastive result surfaced three threats; exp14b tests them
+(MS MARCO, all prefixes length-matched L=16, paired bootstrap CIs).
+
+## Leakage quantification (exp14 `distinctive_corpus` was NOT query-agnostic)
+The corpus-neighbor search did not exclude same-query BM25 candidates:
+  - 59% of each passage's top-10 "corpus neighbors" are same-query candidates (73% of
+    passages >=50% leaked); term-set Jaccard vs the oracle `distinctive_cand` = 0.85.
+So exp14's "cacheable" `distinctive_corpus` was ~85% the oracle. Cacheability claim, as
+originally stated, is unsupported.
+
+## exp14b ablations (gemma3_4b N=300; gemma3_12b N=240 interim — stable across run)
+```
+                 bare  generic tfidf_plain dist_corpus dist_clean hybrid
+gemma3_4b  MRR   0.467  0.432   0.466       0.482       0.463      0.454
+gemma3_12b MRR   0.443  0.420   0.472       0.477       0.474      0.464
+```
+Key paired contrasts (ΔMRR):
+- T1 CONTRAST INGREDIENT (dist_clean - tfidf_plain): -0.003 (4b), +0.003 (12b) — BOTH n.s.
+  => the neighbor-subtraction that DEFINES "contrastive" adds NOTHING over plain passage
+  TF-IDF keywords. The active ingredient is KEYWORD priming, not contrast.
+- T2 leak size (dist_corpus - dist_clean): +0.019 (4b), +0.003 (12b) — leakage inflated
+  MRR only slightly (de-leaked terms are still good keywords).
+- T2 cacheable win (dist_clean - generic): +0.031 n.s. (4b), +0.054* (12b) — the de-leaked
+  cacheable variant still beats GENERIC on 12b, but is no better than plain tfidf.
+- T3 hybrid - generic: +0.044* (12b); hybrid - dist_clean: ~0 (no gain from the scaffold).
+- KEY vs BARE: dist_clean -0.004 (4b)/+0.031 n.s. (12b); tfidf_plain -0.001/+0.028 n.s.;
+  hybrid -0.012/+0.021 n.s. => NOTHING beats bare. generic HURTS (0.42 < 0.44 bare).
+
+## Implications for the paper (§6, §7)
+1. RENAME the effect: "keyword priming," not "contrastive priming." The contrast/
+   distinctiveness mechanism is inert (T1 null). This rehabilitates part of the retired
+   v3 keyword finding — but in an entropy-invariant RANKING metric (MRR), not NLL.
+2. The win is "keyword priming beats GENERIC priming" (~+0.05 on 12b); generic non-selective
+   priming DEGRADES reranking and keyword priming avoids that. Neither beats no-priming.
+3. Selectivity mechanism still holds: per-passage keyword priming is inherently selective
+   (each passage amplified along its own content), which on content-routed Gemma helps the
+   relevant passage's query-likelihood. Contrast was an unnecessary elaboration.
+4. Pending: qwen control + gemma3_4b_base + exp21b (position-matched coherence + Mistral
+   falsification); high-N (N=1200) keyword-vs-bare on 12b to settle the borderline +0.03.

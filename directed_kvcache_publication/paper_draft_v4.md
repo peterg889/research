@@ -201,17 +201,17 @@ Re-scored with the contrastive margin, the headline collapses:
 
 | condition | d(NLL) | d(margin) |
 |---|---|---|
-| tfidf keywords | +0.18 | **+0.001 (n.s.)** |
-| random document words | +0.15 | ≈ +0.03 |
-| random vocabulary | +0.10 | **−0.11** |
-| oracle (query) | + | net **negative** margin |
-| **generic instruction (extract)** | + | **+0.27** |
+| tfidf keywords | +0.179 | **+0.001 (n.s.)** |
+| random document words | +0.165 | −0.017 (n.s.) |
+| random vocabulary | +0.031 | **−0.113** |
+| oracle (query) | +0.054 | **−0.057** |
+| **generic instruction (extract)** | +0.172 | **+0.270** |
 
 ![Figure 1](figures/fig1_measurement_correction.png)
-*Figure 1: The entropy confound. Every prefix condition lowers absolute NLL (gray), but
-on the entropy-invariant contrastive margin (blue) the keyword "win" vanishes (d≈0),
-random vocabulary and the query-oracle are negative, and only extract-style instructions
-improve discrimination (d=+0.27).*
+*Figure 1: The entropy confound. Prefix conditions raise confidence (absolute-NLL d, gray)
+far more reliably than they raise discrimination (contrastive-margin d, blue): the keyword
+"win" vanishes (d≈0), random vocabulary and the query-oracle are negative, and only
+extract-style instructions improve discrimination (d=+0.27).*
 
 The keyword advantage in NLL was almost entirely entropy reduction: keywords make the
 model more confident without making it better at choosing the right answer (d(margin)≈0).

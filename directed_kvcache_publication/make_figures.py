@@ -59,8 +59,9 @@ def selectivity(S, cond="distinctive_corpus"):
 # ---------- Fig 1: measurement correction (NLL vs margin) ----------
 def fig1():
     conds = ["tfidf\nkeywords", "random\ndoc-words", "random\nvocab", "oracle\n(query)", "extract\ninstruction"]
-    d_nll = [0.18, 0.15, 0.10, 0.22, 0.20]          # reported pooled Cohen's d (NLL)
-    d_margin = [0.001, 0.03, -0.11, -0.08, 0.27]    # reported pooled Cohen's d (contrastive margin)
+    # exact pooled Cohen's d from exp05 FINDINGS.md (5 models x 4 datasets x 300 samples)
+    d_nll = [0.179, 0.165, 0.031, 0.054, 0.172]
+    d_margin = [0.001, -0.017, -0.113, -0.057, 0.270]
     x = np.arange(len(conds)); w = 0.38
     fig, ax = plt.subplots(figsize=(7.2, 4.0))
     ax.bar(x-w/2, d_nll, w, label="d (absolute NLL) — confidence", color="#9aa0a6")
