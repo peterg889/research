@@ -54,7 +54,7 @@ TOPK = 10
 EXTRACT = "Extract the key facts from this text."
 ALL_CONDS = ["bare", "generic", "tfidf_plain", "dist_corpus", "dist_clean", "hybrid"]
 CONDS = [c for c in os.environ.get("CONDS", ",".join(ALL_CONDS)).split(",") if c in ALL_CONDS]
-RESULTS = Path(__file__).resolve().parent.parent.parent / "results" / "exp14b_ablations"
+RESULTS = Path(__file__).resolve().parent.parent.parent / "results" / os.environ.get("RESULTS_NAME", "exp14b_ablations")
 RESULTS.mkdir(parents=True, exist_ok=True, mode=0o777)
 MODELS = {
     "gemma3_4b":      {"name": "google/gemma-3-4b-it", "loader": "Gemma3ForConditionalGeneration"},

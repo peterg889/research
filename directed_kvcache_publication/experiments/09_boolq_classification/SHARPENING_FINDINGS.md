@@ -583,3 +583,51 @@ Key paired contrasts (ΔMRR):
    relevant passage's query-likelihood. Contrast was an unnecessary elaboration.
 4. Pending: qwen control + gemma3_4b_base + exp21b (position-matched coherence + Mistral
    falsification); high-N (N=1200) keyword-vs-bare on 12b to settle the borderline +0.03.
+
+## Selectivity holds for PLAIN keyword priming (mechanism confirmed, reframed)
+Selectivity = Δneg-Δrel vs bare (>0 = relevant passage amplified more than negatives):
+```
+              generic        tfidf_plain     dist_clean
+gemma3_4b     -0.013 n.s.    +0.103*         +0.085*
+gemma3_12b    +0.161*        +0.144*         +0.110*
+```
+Plain per-passage keyword priming is significantly SELECTIVE on Gemma (relevant amplified
+more than negatives), and on 4b generic is NOT selective while keyword priming is — the
+cleanest contrast. So the selectivity mechanism is REAL and holds for plain keywords; the
+contrast elaboration was unnecessary. (On 12b generic is also "selective" by mean gap yet
+hurts MRR because it degrades both passages so much that noise scrambles ranking — keyword
+priming's shifts are smaller/cleaner.) REFRAMED key hypothesis: "per-passage keyword priming
+selectively amplifies query-relevant content on directionally-coherent (Gemma) models."
+
+## AUDIT: §7.6 coherence mechanism REFUTED (exp21b, position-matched + Mistral)
+The original exp21 coherence probe had a positional confound (bare doc at pos 1..D vs primed
+doc at 18..). exp21b adds a position-matched control ([BOS, 17 neutral tokens, doc]) and the
+Mistral falsification case:
+```
+content-alignment, CONTENT-only (position-matched):
+  gemma3_4b  -0.123   (confounded exp21 said -0.40 -> ~70% was positional)
+  qwen25_7b  -0.046
+  mistral_7b -0.152   <- MOST content-structured, yet NO priming benefit
+```
+Two refutations: (1) ~70% of Gemma's "content-structure" was the BOS-distance artifact;
+(2) Mistral is MORE content-structured than Gemma but shows no selectivity benefit, so
+content-alignment does NOT track behavior. => the representation-level "content-routed
+directional coherence" mechanism (paper v4 §7.6/§7.8) does NOT survive; WALK IT BACK.
+SURVIVES: behavioral selectivity (keyword priming Δneg-Δrel +0.10/+0.14* on Gemma) directly
+explains the MRR win; primability gates it; §7.5 patching is position-matched by construction
+(reposition -> 1..D) so likely OK (re-verify). The deep "why Gemma" is now OPEN again.
+Gap: Mistral tested only with contrast version; plain-keyword reranking on Mistral pending
+to make the falsification airtight.
+
+## gemma3_4b_base ablation (n=300)
+bare 0.492, generic 0.460, tfidf_plain 0.514, dist_corpus 0.519, dist_clean 0.506, hybrid 0.498.
+T1 contrast -0.008 n.s. (inert); dist_clean-generic +0.046*; dist_clean-BARE +0.014 n.s.;
+tfidf_plain-BARE +0.022 n.s. => base model: keyword beats generic, not bare. Consistent.
+
+## HIGH-N vs-BARE verdict (exp14c, N=900): NO practical win — the n=300 blip was noise
+gemma3_12b interim n=400 (independent sample): tfidf_plain vs BARE +0.022 [-0.005,+0.049] n.s.
+(was +0.035* at n=300 -> did NOT replicate). tfidf_plain vs generic +0.054*; generic vs BARE
+-0.032* (generic HURTS). => keyword priming is ~break-even vs no-priming; it RECOVERS the harm
+generic priming causes but does not exceed bare. Confirms the conservative bound at high power.
+FINAL practical story: generic priming hurts reranking; keyword priming avoids that harm and
+beats generic, recovering to ~bare; nothing beats no-priming. (Full ladder 4b/27b/qwen pending.)
