@@ -687,3 +687,43 @@ residual on Gemma) but cannot INJECT info not in the doc (bankability ceiling ~0
 RAG's value is mostly INJECTION -> zero-retention priming captures ~none (-2.8 nats lost).
 This subsumes the whole investigation and is the v5 paper backbone:
 "The fundamental limit of zero-retention KV-cache construction."
+
+## REFINEMENT (exp25, machinery control): bankability = ZERO content signal + lossy machinery
+Added a NEUTRAL-prime control (newlines, length-matched) to separate the strip MACHINERY
+(reposition+normalize) from the prime CONTENT. gemma3_4b (n=6 smoke; full N=150 running):
+```
+  MACHINERY cost (neutral_strip - bare):  inject +0.63   reweight +0.55   (~0.5-0.6 nats, lossy)
+  CONTENT-only  (fact_strip - neutral):   INJECT -0.06   REWEIGHT +0.04   (~0: content irrelevant)
+```
+=> The exp24 "strip worse than bare (-0.66)" was ~ENTIRELY the reposition+normalize MACHINERY,
+NOT priming noise. Priming with the decisive fact == priming with newlines (content effect ~0)
+for both inject (fact external) and reweight (fact in doc). CORRECTED bankability statement:
+the prime's CONTENT contributes ~0 usable signal (true content-bankable fraction ~0, not
+negative); the strip-construction itself is mildly lossy on precise-token recall (~0.5 nats,
+a METHOD artifact, possibly fixable). The thesis stands (context not bankable) but the precise
+mechanism is "zero content transfer + lossy reposition," not "priming adds harmful noise."
+(Caveat: machinery cost is visible on precise-recall NLL; on ranking metrics like reranking
+MRR a constant shift is largely invariant. Full N=150 + qwen pending.)
+
+## CORRECTION (exp25 full N=150): bankability is SMALL but NON-ZERO and MODEL-DEPENDENT
+The "universal zero ceiling" was WRONG on two counts. Full N=150 + machinery control:
+```
+                     MACHINERY(neutral-bare)  CONTENT(fact-neutral)   net strip-bare
+gemma3_4b inject      +0.58*                   +0.15* (worse)          +0.73 (worse)
+gemma3_4b reweight    +0.38*                   +0.06  (n.s.)           +0.44 (worse)
+qwen25_7b inject      +0.25*                   -0.37* (BANKS ~14%)     -0.12 (BETTER than bare)
+qwen25_7b reweight    +0.08                    -0.25* (BANKS)          -0.17 (BETTER than bare)
+```
+1. NOT universally zero: on QWEN, priming the doc with the fact + stripping SIGNIFICANTLY
+   improves recovery (content -0.37*/-0.25*), and NET (strip-bare) is NEGATIVE -> beats bare
+   even after machinery cost. ~14% of the fact's value is banked. On Gemma content ~0 and
+   machinery loss dominates (net worse).
+2. SURPRISE: the LESS primable model (Qwen) banks MORE. Primability = perturbability -> on
+   Gemma priming is noisier, machinery damage (+0.58) swamps any signal; Qwen's stabler KV
+   retains the primed fact more cleanly.
+CORRECTED backbone: context value (~2.8 nats) is MOSTLY un-bankable (>=85% lost), loss split
+between ~0 content transfer (Gemma) / small transfer (Qwen ~14%) and a lossy reposition+
+normalize construction step (~0.3-0.6 nats, model-dep). The small residual is model-dependent
+and INVERSELY related to primability. (Partially re-vindicates the user's "there has to be
+something" intuition.) Lesson: matched-footing + machinery controls overturned the clean
+"universal ceiling" claim -- it was neither universal nor content-driven.
