@@ -631,3 +631,20 @@ gemma3_12b interim n=400 (independent sample): tfidf_plain vs BARE +0.022 [-0.00
 generic priming causes but does not exceed bare. Confirms the conservative bound at high power.
 FINAL practical story: generic priming hurts reranking; keyword priming avoids that harm and
 beats generic, recovering to ~bare; nothing beats no-priming. (Full ladder 4b/27b/qwen pending.)
+
+## CORRECTION to the vs-BARE verdict (full N=900 contradicts the n=400 interim)
+My earlier "no win, n=300 was noise" call was PREMATURE — based on the n=400 interim
+(+0.022 n.s.), which turned out to be the low query-subset. Full N=900:
+```
+gemma3_12b  tfidf vs BARE  +0.036 [+0.017,+0.055]*   <- SIGNIFICANT (consistent w/ n=300 +0.035)
+gemma3_4b   tfidf vs BARE  +0.009 [-0.009,+0.027]    <- null
+qwen25_7b   tfidf vs BARE  -0.007 [-0.026,+0.013]    <- control null
+```
+So at high power keyword priming DOES beat no-priming on gemma3_12b (small, +0.036*) but NOT
+on gemma3_4b -> model-dependent WITHIN Gemma, small effect. (vs generic: +0.047*/+0.064*;
+generic vs bare -0.038*/-0.028* — generic hurts on both.) gemma3_27b is the tiebreaker and
+was SILENTLY DROPPED by a bug (added to launcher ONLY_MODELS but not to the script MODELS
+dict) — now fixed and re-running with mistral (falsification) + qwen14b (2nd control).
+METHOD CAUTION: the n=400 interim vs n=900 full differing (+0.022 vs +0.036) shows
+query-subset variance is large; only trust full-N estimates. (I violated this; correcting.)
+Pending 27b/mistral/qwen14b before the final vs-bare framing.

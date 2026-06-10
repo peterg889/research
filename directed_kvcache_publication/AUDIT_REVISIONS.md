@@ -3,7 +3,8 @@
 End-to-end audit + double-down (exp14b ablations, exp21b position-matched coherence,
 exp14c high-N vs-bare). Every change below is data-backed; citations to results/ dirs.
 **Net: the behavioral core holds but is RENAMED and NARROWED; one mechanism claim is
-retracted; several numbers corrected. No result is strengthened into a practical win.**
+retracted; several numbers corrected. The vs-bare bound is UNSETTLED — a small significant
+win on gemma3_12b (+0.036*, N=900) but null on 4B; 27B tiebreaker re-running.**
 
 ## CONFIRMED / UNCHANGED
 - Generic instruction priming HURTS reranking on capable models (high-N: generic vs bare
@@ -30,12 +31,16 @@ exp14's `distinctive_corpus` neighbor search did NOT exclude same-query BM25 can
   exclude same-query candidates) OR simply `tfidf_plain` (trivially cacheable, equal MRR).
   De-leaking cost almost nothing (dist_corpus − dist_clean ≈ 0 on 12b/4b_base).
 
-## CHANGE 3 — vs-BARE BOUND: keyword priming does NOT beat no-priming (§6.3, §8, abstract)
-High-N (N=900) on gemma3_12b: tfidf_plain vs bare +0.022 [−0.005, +0.049] n.s. (the
-borderline +0.035* at n=300 did NOT replicate). 4b/4b_base also n.s. vs bare. [exp14c, exp14b]
-→ State plainly: keyword priming RECOVERS the harm generic priming causes (beats generic
-  +0.05*) but is ≈ break-even vs no-priming. The n=300 hit is reported as a small-sample
-  artifact the high-N run corrected. Practical claim = priming hygiene, not an accelerator.
+## CHANGE 3 — vs-BARE BOUND: small, model-dependent win on 12B (UNDER RE-TEST) (§6.3, §8, abstract)
+CORRECTED: full N=900 gemma3_12b tfidf vs bare = +0.036 [+0.017,+0.055]* (SIGNIFICANT;
+the n=400 interim +0.022 n.s. was the low subset). gemma3_4b +0.009 n.s.; qwen -0.007 n.s.
+So: small SIGNIFICANT win on 12B, null on 4B -> model-dependent within Gemma. 27b tiebreaker
++ mistral + qwen14b re-running. Bound is NOT settled; do not finalize until 27b is in.
+→ State carefully: keyword priming RECOVERS the harm generic priming causes (beats generic
+  +0.05*). vs no-priming it is a SMALL effect that is significant on 12B (+0.036*) but null
+  on 4B — model-dependent, ≤+0.04 MRR. Whether to call this a practical win depends on 27B
+  and on whether +0.04 MRR matters; frame as "marginal, model-dependent," not "beats bare"
+  or "no win." Do NOT finalize until 27B + Mistral + qwen14b land.
 
 ## CHANGE 4 — RETRACT §7.6/§7.8 "content-structured coherence" mechanism
 exp21b position-matched coherence + Mistral falsification:
@@ -72,6 +77,8 @@ random_docwords margin "+0.03".) Fixed in paper table + make_figures.py.
 
 ## ONE-LINE NET
 "Generic cache priming hurts retrieval; per-passage keyword priming is a selective,
-primability-gated correction that recovers the loss on Gemma-family models but does not
-beat not-priming — and the elegant representation-level mechanism we proposed does not
-survive its controls." A rigorous-characterization + methodology paper, not a technique.
+primability-gated correction that recovers the loss on Gemma-family models and yields a
+small significant gain over no-priming on the largest tested model (12B) but not the
+smaller one — and the elegant representation-level mechanism we proposed does not survive
+its controls." A rigorous-characterization + methodology paper; whether it is also a
+(marginal) technique hinges on the 27B tiebreaker.

@@ -59,7 +59,10 @@ RESULTS.mkdir(parents=True, exist_ok=True, mode=0o777)
 MODELS = {
     "gemma3_4b":      {"name": "google/gemma-3-4b-it", "loader": "Gemma3ForConditionalGeneration"},
     "gemma3_12b":     {"name": "google/gemma-3-12b-it", "loader": "Gemma3ForConditionalGeneration"},
+    "gemma3_27b":     {"name": "google/gemma-3-27b-it", "loader": "Gemma3ForConditionalGeneration"},
     "qwen25_7b":      {"name": "Qwen/Qwen2.5-7B-Instruct", "loader": "AutoModelForCausalLM"},
+    "qwen25_14b":     {"name": "Qwen/Qwen2.5-14B-Instruct", "loader": "AutoModelForCausalLM"},
+    "mistral_7b":     {"name": "mistralai/Mistral-7B-Instruct-v0.3", "loader": "AutoModelForCausalLM"},
     "gemma3_4b_base": {"name": "google/gemma-3-4b-pt", "loader": "Gemma3ForConditionalGeneration"},
 }
 ONLY = os.environ.get("ONLY_MODELS")
