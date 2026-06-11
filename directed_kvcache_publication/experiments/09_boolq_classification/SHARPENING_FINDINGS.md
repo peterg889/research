@@ -791,3 +791,25 @@ bare on 12b/27b) and answers "there has to be something": yes -- SEMANTIC, big, 
 Literal/code banking is the noisy sideshow, not the signal. (Not Gemma-EXCLUSIVE: Mistral
 banks semantic too, so it's not a tidy double dissociation -- it's a semantic-imprintability
 scaling effect.) LESSON (again): the 2-model clean pattern needed the full sweep to correct.
+
+## ★ UNIFICATION: primability = semantic imprintability (r=0.94 with semantic banking) ★
+Correlated semantic banking (exp26) with primability (|Δquery-NLL from generic priming|, exp14)
+across all 8 models:
+```
+            prim   sem_bank          prim   sem_bank
+qwen1.5b    0.20   0.22       gemma1b  0.43   0.57
+qwen7b      0.37  -0.14       gemma4b  0.60   2.46
+qwen14b     0.39   0.01       gemma12b 0.84   3.62
+mistral7b   0.55   1.36       gemma27b 0.84   3.77
+Pearson r(primability, semantic_banking) = 0.94
+```
+"Primability" (defined long ago as how much a generic prefix moves the representation) IS a
+model's SEMANTIC IMPRINTABILITY. It predicts semantic banking almost perfectly (r=0.94). NOT
+a family effect: mistral7b (non-Gemma, prim 0.55) banks semantics (-1.36); the trait, not the
+brand. THIS UNIFIES THE WHOLE INVESTIGATION into one axis:
+  ONE trait (semantic imprintability ~ primability) -> governs semantic banking (up to 35% of
+  context value, scaling with size) -> governs reranking benefit (Gemma 12b/27b beat bare) ->
+  governs what survives priming (meaning, not literals). Gemma family + Mistral high; Qwen low.
+The architectural ROOT of imprintability is still open (QK-norm/sharpness/etc. falsified
+earlier), but the PREDICTOR is clean (r=0.94). Rename "primability" -> "semantic imprintability"
+in the paper. This is the v5 backbone.
