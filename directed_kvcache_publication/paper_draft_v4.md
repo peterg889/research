@@ -1,5 +1,12 @@
 # What Cache Priming Actually Does: Contrastive Prefixes and Content-Routed Selectivity in Precomputed KV Caches
 
+> **⚠️ SUPERSEDED by `paper_draft_v5.md` (2026-06).** An end-to-end audit + double-down found:
+> (1) "contrastive" priming is inert — it's plain keyword priming; (2) the §7 "content-routed
+> coherence" mechanism was a positional artifact (falsified by a position-matched control + Mistral);
+> (3) the real finding is **imprinting mode** — zero-retention priming banks context *semantically*
+> (Gemma/Mistral) or as *surface form* (Qwen), predicted by one trait (imprintability, r=0.94), with
+> downstream value set by mode–task match. v5 rebuilds the paper around this. Kept for history.
+
 ## Abstract
 
 Precomputed KV caches accelerate retrieval-augmented generation by encoding documents
