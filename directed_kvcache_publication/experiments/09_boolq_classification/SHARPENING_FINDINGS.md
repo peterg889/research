@@ -727,3 +727,42 @@ normalize construction step (~0.3-0.6 nats, model-dep). The small residual is mo
 and INVERSELY related to primability. (Partially re-vindicates the user's "there has to be
 something" intuition.) Lesson: matched-footing + machinery controls overturned the clean
 "universal ceiling" claim -- it was neither universal nor content-driven.
+
+## DRILL (exp25 across models): banking is FAMILY/CAPABILITY-dependent, OPPOSITE of reranking
+H1 (inverse-primability) REFUTED: qwen1.5b (lowest prim 0.20) does NOT bank. Emerging pattern
+from inject-content (fact_strip - neutral_strip; neg=banks, machinery-controlled):
+```
+  BANK:     qwen7b -0.374*   mistral7b -0.555*        (non-Gemma, >=7B)
+  NO BANK:  qwen1.5b +0.167* gemma3_4b +0.153* gemma3_1b ~0   (small, or Gemma)
+  pending:  qwen14b, gemma3_12b, gemma3_27b
+```
+HYPOTHESIS H3: non-Gemma models >=7B BANK precise external facts (~14-20% of value); Gemma
+models do NOT (and small models can't). This is the OPPOSITE model-ordering from reranking
+(where GEMMA benefits from keyword priming and non-Gemma doesn't). Possible unified cause:
+Gemma's high "primability" = diffuse perturbability -> helps soft content re-weighting
+(reranking) but WASHES OUT precise external info; Qwen/Mistral's stabler KV can STORE a
+primed fact. If gemma12b/27b confirm no-bank and qwen14b confirms bank, this is a real,
+characterizable finding (banking and reranking benefits are governed by the same trait but
+point opposite). Pending big-model run + H2 (semantic vs precise code). Note: mistral inject
+banks (-0.56) but reweight does NOT (+0.22) -- asymmetry between injecting external vs
+boosting in-doc facts, TBD.
+
+## ★ THE DOUBLE DISSOCIATION (exp26, H2) — Gemma banks MEANING, Qwen banks LITERALS ★
+Tested banking of PRECISE (4-digit code) vs SEMANTIC (arbitrary topic word) facts.
+content = strip(F) - strip(neutral), machinery-controlled, neg = banks. N=150, both CIs tight:
+```
+              banks PRECISE code        banks SEMANTIC topic
+gemma3_4b     +0.151* (NO)              -2.456* [-2.92,-2.04] (MASSIVE: banks meaning)
+qwen25_7b     -0.373* (yes)             +0.142  (NO)
+```
+CLEAN DOUBLE DISSOCIATION (both directions significant): Gemma banks MEANING not literals;
+Qwen banks LITERALS not meaning. The Gemma-semantic effect is huge (-2.46 nats, ~20%+ of the
+semantic context value).
+UNIFIES THE WHOLE INVESTIGATION: cache priming CAN bank context (vindicates "there has to be
+something"), but WHAT it banks depends on representational style. Gemma = SEMANTIC banker ->
+priming imprints MEANING into doc KV -> this is WHY keyword priming helps Gemma reranking
+(re-weighting semantic relevance; beats bare on 12b/27b) but can't store a code. Qwen = LITERAL
+banker -> stores precise tokens, no semantic-reranking benefit. The reranking(Gemma>Qwen) vs
+code-banking(Qwen>Gemma) "flip" is the SAME dissociation from two angles. "Primability" =
+SEMANTIC IMPRINTABILITY, a Gemma-family trait. Pending: confirm semantic banking scales on
+gemma12b/27b + qwen14b (H2 big-model run).
