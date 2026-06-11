@@ -113,7 +113,7 @@ def main():
         max_doc = (_M["slim"]-1-96-len(_M["nl"])) if _M["slim"] is not None else 700
         print(f"  loaded {time.time()-t0:.0f}s")
         ck = RESULTS / mk / "results.json"; (RESULTS / mk).mkdir(exist_ok=True, mode=0o777)
-        skey = f"dqa_{mk}" + ("_smoke" if SMOKE else ""); scored = []
+        skey = f"dqa2_{mk}" + ("_smoke" if SMOKE else ""); scored = []
         if ck.exists():
             prev = json.loads(ck.read_text())
             if prev.get("scoring_key") == skey: scored = prev["samples"]
@@ -122,17 +122,18 @@ def main():
             Q = tok.encode(d["q"], add_special_tokens=False)
             A = tok.encode(" " + d["a"], add_special_tokens=False)
             P = tok.encode(d["ctx"], add_special_tokens=False)[:max_doc]
+            neutral = (_M["nl"] * len(Q))[:len(Q)]  # length-matched content-free prime
             rec = {}
-            c, cl = build("bare", P, None);   rec["bare"]     = answer_nll(c, cl, Q, A); del c
-            c, cl = build("primed", P, Q);    rec["q_primed"] = answer_nll(c, cl, Q, A); del c
-            c, cl = build("retain", P, Q);    rec["q_retain"] = answer_nll(c, cl, Q, A, ask=False); del c
+            c, cl = build("bare", P, None);      rec["bare"]      = answer_nll(c, cl, Q, A); del c
+            c, cl = build("primed", P, neutral); rec["q_neutral"] = answer_nll(c, cl, Q, A); del c  # machinery only
+            c, cl = build("primed", P, Q);       rec["q_primed"]  = answer_nll(c, cl, Q, A); del c
             torch.cuda.empty_cache()
             scored.append(rec)
             if (i+1) % 20 == 0 or SMOKE:
                 ck.write_text(json.dumps({"scoring_key": skey, "samples": scored}))
                 Aa = {k: np.mean([s[k] for s in scored]) for k in rec}
-                print(f"    [{i+1}/{len(data)}] bare={Aa['bare']:.3f} q_primed={Aa['q_primed']:.3f} "
-                      f"q_retain={Aa['q_retain']:.3f} | primed-bare={Aa['q_primed']-Aa['bare']:+.3f}")
+                print(f"    [{i+1}/{len(data)}] bare={Aa['bare']:.3f} q_neutral={Aa['q_neutral']:.3f} q_primed={Aa['q_primed']:.3f} "
+                      f"| MACH={Aa['q_neutral']-Aa['bare']:+.3f} CONTENT={Aa['q_primed']-Aa['q_neutral']:+.3f}")
         ck.write_text(json.dumps({"scoring_key": skey, "samples": scored})); print(f"  done {len(scored)}")
         del m, tok; gc.collect(); torch.cuda.empty_cache(); purge(spec["name"]); _M.clear()
     print(f"\n{'='*56}\nDONE\n{'='*56}")

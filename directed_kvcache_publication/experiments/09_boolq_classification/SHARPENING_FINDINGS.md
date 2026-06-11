@@ -843,3 +843,30 @@ hurts Gemma. BUT no machinery-neutral control here -> Gemma's +0.52 may be ~mach
 interpret. (q_retain confounded by answer-format, ignore.) Downstream VALUE of imprintability
 is task-dependent, not straightforwardly positive -- semantic banking helps re-weighting own
 content (reranking) but priming with a DIFFERENT-content question doesn't help Gemma answer.
+
+## ★ DOWNSTREAM DISSOCIATION (exp29 machinery-controlled): mode determines task value ★
+Prime passage with the QUESTION, strip, answer. Content effect (machinery-removed):
+```
+  gemma3_12b  +0.358* (HURTS QA)     qwen25_7b  -0.800* (HELPS QA, machinery ~0)
+  gemma3_4b   +0.116  (ns; machinery +0.92 dominates)
+```
+The double dissociation extends to DOWNSTREAM VALUE:
+                  Gemma(semantic)   Qwen(surface)
+  banks           meaning           surface form
+  reranking       HELPS +0.036*     no
+  QA extraction   HURTS +0.36*      HELPS -0.80*
+Semantic imprinting (Gemma) helps relevance (reranking) but HURTS precise extraction (banking
+the question's meaning blurs the answer); surface imprinting (Qwen) helps extraction (matchable
+tokens) but not relevance. NEITHER mode is universally useful -- value = match between imprinting
+MODE and TASK type.
+
+## ============ COMPLETE FINDING (semantic imprintability investigation) ============
+Zero-retention cache priming imprints context into a doc's KV in a model-specific MODE --
+SEMANTIC (Gemma family + Mistral) or SURFACE-FORM (Qwen) -- predicted by one trait
+(imprintability = "primability", r=0.94 with semantic banking; scales with Gemma size to 35%).
+The mode determines downstream value by TASK MATCH: semantic imprinting helps relevance
+(reranking, Gemma 12b/27b beat bare +0.036*) but hurts precise extraction (QA, +0.36*); surface
+imprinting helps extraction (Qwen QA -0.80*) but not relevance. Mechanism: distributed,
+late-layer (Gemma). Bounds: most context value (~65%+) is un-bankable; the reposition+normalize
+construction step is mildly lossy. This is the v5 backbone -- a novel, complete, mechanism-
+grounded characterization of what zero-retention cache construction does and when it helps.
