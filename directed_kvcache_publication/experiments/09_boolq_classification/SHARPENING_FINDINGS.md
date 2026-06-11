@@ -813,3 +813,33 @@ brand. THIS UNIFIES THE WHOLE INVESTIGATION into one axis:
 The architectural ROOT of imprintability is still open (QK-norm/sharpness/etc. falsified
 earlier), but the PREDICTOR is clean (r=0.94). Rename "primability" -> "semantic imprintability"
 in the paper. This is the v5 backbone.
+
+## ★ CONTENT-TYPE DOUBLE DISSOCIATION (exp27, full spectrum) — Gemma banks MEANING, Qwen banks SURFACE ★
+Tested banking across a content spectrum (meaningless->meaningful). N=150, machinery-controlled:
+```
+              gemma3_12b          qwen25_7b
+code          -0.07  (no)         -0.33* (banks)
+pseudoword    -0.39* (weak)       -0.27* (banks)
+rare_word     -3.67* (STRONG)     +0.18* (worse)
+common_word   -0.93* (banks)      +0.29  (worse)
+phrase        -2.02* (STRONG)     -0.10  (no)
+```
+CLEAN double dissociation BY CONTENT TYPE: Gemma banks MEANINGFUL content (words/phrases
+-0.9..-3.7), not meaningless (code/pseudo ~0); Qwen banks SURFACE form (code/pseudoword -0.3),
+not meaning (rare/common WORSE). The earlier walk-back was because only CODE (a surface item)
+had been tested -- the spectrum reveals the real axis. Gemma = SEMANTIC imprinter; Qwen =
+SURFACE imprinter. This is the clean mechanistic characterization.
+
+## exp28 bank-circuit (WHERE): Gemma semantic banking is distributed, late-layer
+gemma3_12b: full-cache recovery +4.12 nats, peak single-layer patch @ L44/48, but single-layer
+sum only +0.93 (<< 4.12) -> banking is DISTRIBUTED (non-localized), concentrated in LATE layers.
+qwen25_7b: no semantic recovery (full -0.73). Semantic banking lives in late-layer distributed KV.
+
+## exp29 downstream-QA (VALUE) -- CONFOUNDED, needs machinery control
+Prime passage with the QUESTION, strip, answer. q_primed-bare: gemma12b +0.52* (worse),
+gemma4b +1.04* (worse), qwen7b -0.80* (BETTER). Surprising: question-priming helps QWEN QA,
+hurts Gemma. BUT no machinery-neutral control here -> Gemma's +0.52 may be ~machinery; Qwen's
+-0.80 = surface-question banking helps locate answers. Re-running with neutral control to
+interpret. (q_retain confounded by answer-format, ignore.) Downstream VALUE of imprintability
+is task-dependent, not straightforwardly positive -- semantic banking helps re-weighting own
+content (reranking) but priming with a DIFFERENT-content question doesn't help Gemma answer.

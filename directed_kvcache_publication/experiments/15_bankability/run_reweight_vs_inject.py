@@ -47,8 +47,14 @@ N = 6 if SMOKE else 150
 RESULTS = Path(__file__).resolve().parent.parent.parent / "results" / "exp25_reweight"
 RESULTS.mkdir(parents=True, exist_ok=True, mode=0o777)
 MODELS = {
-    "gemma3_4b": {"name": "google/gemma-3-4b-it", "loader": "Gemma3ForConditionalGeneration"},
-    "qwen25_7b": {"name": "Qwen/Qwen2.5-7B-Instruct", "loader": "AutoModelForCausalLM"},
+    "qwen25_1_5b": {"name": "Qwen/Qwen2.5-1.5B-Instruct", "loader": "AutoModelForCausalLM"},
+    "qwen25_7b":   {"name": "Qwen/Qwen2.5-7B-Instruct",   "loader": "AutoModelForCausalLM"},
+    "qwen25_14b":  {"name": "Qwen/Qwen2.5-14B-Instruct",  "loader": "AutoModelForCausalLM"},
+    "mistral_7b":  {"name": "mistralai/Mistral-7B-Instruct-v0.3", "loader": "AutoModelForCausalLM"},
+    "gemma3_1b":   {"name": "google/gemma-3-1b-it", "loader": "Gemma3ForCausalLM"},
+    "gemma3_4b":   {"name": "google/gemma-3-4b-it", "loader": "Gemma3ForConditionalGeneration"},
+    "gemma3_12b":  {"name": "google/gemma-3-12b-it", "loader": "Gemma3ForConditionalGeneration"},
+    "gemma3_27b":  {"name": "google/gemma-3-27b-it", "loader": "Gemma3ForConditionalGeneration"},
 }
 ONLY = os.environ.get("ONLY_MODELS")
 if ONLY: MODELS = {k: MODELS[k] for k in ONLY.split(",") if k in MODELS}
@@ -77,6 +83,9 @@ def load_model(name, loader):
     if loader == "Gemma3ForConditionalGeneration":
         from transformers import Gemma3ForConditionalGeneration
         m = Gemma3ForConditionalGeneration.from_pretrained(name, dtype=torch.bfloat16, token=HF_TOKEN, device_map="cuda:0").eval()
+    elif loader == "Gemma3ForCausalLM":
+        from transformers import Gemma3ForCausalLM
+        m = Gemma3ForCausalLM.from_pretrained(name, dtype=torch.bfloat16, token=HF_TOKEN, device_map="cuda:0").eval()
     else:
         m = AutoModelForCausalLM.from_pretrained(name, dtype=torch.bfloat16, token=HF_TOKEN, device_map="cuda:0").eval()
     return m, tok
