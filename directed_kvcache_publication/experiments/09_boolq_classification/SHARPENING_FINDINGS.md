@@ -766,3 +766,28 @@ banker -> stores precise tokens, no semantic-reranking benefit. The reranking(Ge
 code-banking(Qwen>Gemma) "flip" is the SAME dissociation from two angles. "Primability" =
 SEMANTIC IMPRINTABILITY, a Gemma-family trait. Pending: confirm semantic banking scales on
 gemma12b/27b + qwen14b (H2 big-model run).
+
+## FULL DISSOCIATION MAP (exp26 all models) — "double dissociation" too strong; SEMANTIC banking is the real, clean finding
+```
+model       fam       CODE bank        SEMANTIC bank   (neg=banks, machinery-controlled, N=150)
+qwen1.5b   qwen      +0.18*           -0.22*
+qwen7b     qwen      -0.37*           +0.14
+qwen14b    qwen      +0.78*           -0.01
+mistral7b  mistral   -0.56*           -1.36*
+gemma1b    gemma     -0.01            -0.57*
+gemma4b    gemma     +0.15*           -2.46*
+gemma12b   gemma     -0.07            -3.62*
+gemma27b   gemma     -0.33*           -3.77*
+```
+HONEST CORRECTION: the clean gemma4b/qwen7b "double dissociation" did NOT generalize. CODE
+banking is idiosyncratic/non-monotonic (no law; the qwen7b code-bank that started the drill
+is part of this noisy axis). But SEMANTIC banking is ROBUST and CLEAN:
+- Every Gemma banks semantic, SCALING monotonically with size: -0.57/-2.46/-3.62/-3.77
+  (1b/4b/12b/27b). Mistral banks too (-1.36). Qwen weak/none.
+THE REAL FINDING: cache priming banks SEMANTIC content into doc KV -- large (up to -3.8 nats
+on gemma27b), scaling with Gemma size, present in Mistral, weak/absent in Qwen. This EXPLAINS
+the reranking result (Gemma's semantic banking -> keyword priming helps Gemma reranking, beats
+bare on 12b/27b) and answers "there has to be something": yes -- SEMANTIC, big, Gemma-family.
+Literal/code banking is the noisy sideshow, not the signal. (Not Gemma-EXCLUSIVE: Mistral
+banks semantic too, so it's not a tidy double dissociation -- it's a semantic-imprintability
+scaling effect.) LESSON (again): the 2-model clean pattern needed the full sweep to correct.

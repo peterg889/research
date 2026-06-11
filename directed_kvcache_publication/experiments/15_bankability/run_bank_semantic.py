@@ -42,8 +42,14 @@ N = 6 if SMOKE else 150
 RESULTS = Path(__file__).resolve().parent.parent.parent / "results" / "exp26_bank_semantic"
 RESULTS.mkdir(parents=True, exist_ok=True, mode=0o777)
 MODELS = {
-    "gemma3_4b": {"name": "google/gemma-3-4b-it", "loader": "Gemma3ForConditionalGeneration"},
-    "qwen25_7b": {"name": "Qwen/Qwen2.5-7B-Instruct", "loader": "AutoModelForCausalLM"},
+    "gemma3_4b":  {"name": "google/gemma-3-4b-it", "loader": "Gemma3ForConditionalGeneration"},
+    "qwen25_7b":  {"name": "Qwen/Qwen2.5-7B-Instruct", "loader": "AutoModelForCausalLM"},
+    "gemma3_12b": {"name": "google/gemma-3-12b-it", "loader": "Gemma3ForConditionalGeneration"},
+    "gemma3_27b": {"name": "google/gemma-3-27b-it", "loader": "Gemma3ForConditionalGeneration"},
+    "qwen25_14b": {"name": "Qwen/Qwen2.5-14B-Instruct", "loader": "AutoModelForCausalLM"},
+    "mistral_7b": {"name": "mistralai/Mistral-7B-Instruct-v0.3", "loader": "AutoModelForCausalLM"},
+    "qwen25_1_5b":{"name": "Qwen/Qwen2.5-1.5B-Instruct", "loader": "AutoModelForCausalLM"},
+    "gemma3_1b":  {"name": "google/gemma-3-1b-it", "loader": "Gemma3ForCausalLM"},
 }
 ONLY = os.environ.get("ONLY_MODELS")
 if ONLY: MODELS = {k: MODELS[k] for k in ONLY.split(",") if k in MODELS}
