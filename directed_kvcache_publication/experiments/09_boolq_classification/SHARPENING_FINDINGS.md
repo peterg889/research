@@ -870,3 +870,21 @@ imprinting helps extraction (Qwen QA -0.80*) but not relevance. Mechanism: distr
 late-layer (Gemma). Bounds: most context value (~65%+) is un-bankable; the reposition+normalize
 construction step is mildly lossy. This is the v5 backbone -- a novel, complete, mechanism-
 grounded characterization of what zero-retention cache construction does and when it helps.
+
+## ARCHITECTURE PHASE 1 (exp30): norm-control FALSIFIED by Mistral; points to training
+Measured intrinsic computational metrics (plain doc encoding) across 8 models, correlated with
+imprintability:
+```
+model       imprint  repr_drift(norm growth)  ctx_update  attn_entropy  attn_frac
+gemma1-27b  0.43-0.84  2-4 (controlled)        0.33-0.74   0.83-1.58     0.04-0.89
+qwen1.5-14b 0.20-0.39  147-329 (exploding)     0.71-1.14   1.11-1.37     0.17-0.23
+mistral7b   0.55       2844 (!! highest)       0.895       0.928         0.196
+```
+Pearson r with imprintability: ctx_update -0.86, attn_entropy -0.70, attn_frac +0.67,
+1/repr_drift +0.83 (BUT Mistral falsifies: highest norm growth 2844x yet high imprint).
+=> NORM-CONTROL hypothesis FALSIFIED by Mistral (the decisive test). Best correlate is
+ctx_update (per-layer residual rewrite rate, -0.86: less rewrite -> more imprintable, fits
+Mistral) but it's a confounded derived metric, not a clean architectural feature. FIVE
+architectural accounts now falsified (QK-norm, sharpness, prefix-salience, fixed-direction,
+norm-control). Signal points to TRAINING: gemma3_4b BASE imprint 0.21 vs INSTRUCT 0.60 (3x).
+Next: Phase 3 -- does training (base->instruct) determine imprintability AND mode?
