@@ -62,14 +62,16 @@ this paper.** We make four contributions:
    our own.
 2. **Imprinting mode (§6).** Priming banks context in a model-specific mode — *semantic* (Gemma,
    Mistral) or *surface-form* (Qwen) — a clean double dissociation by content type, governed by a
-   single trait (**imprintability**, r=0.94 with semantic banking) that scales with model size.
+   single trait (**imprintability**, r=0.94 with semantic banking) that scales with model size, and
+   *set by instruction-tuning, not architecture* (§6.4).
 3. **Mode–task match (§7).** Downstream value depends on matching imprinting mode to task:
    semantic imprinting helps relevance (reranking), hurts extraction (QA); surface imprinting the
    reverse. Neither is universally useful.
 4. **The ceiling and the negatives (§5, §8).** Context value is large (−2.8 nats when retained)
    but mostly un-bankable; we report every controlled claim that failed (contrastive priming is
-   inert, a representation-level "coherence" mechanism is a positional artifact, the architectural
-   root of imprintability resists four ablations) as carefully as the ones that held.
+   inert, a representation-level "coherence" mechanism is a positional artifact, and five
+   architectural accounts of imprintability fail — which is itself the clue that pointed to
+   training) as carefully as the ones that held.
 
 The throughline is methodological honesty: for a "free-lunch" technique, the controls *are* the
 result. Most clean stories here were dismantled by the next control; we report the survivors and
@@ -119,9 +121,11 @@ document keys to positions `1..D` (float32 RoPE delta); per-tensor normalize. **
   query-agnostic and that representation comparisons are not positional artifacts.
 
 ### 3.3 Models and data
-Eight models spanning imprintability: Qwen 2.5 (1.5/7/14B), Mistral 7B, Gemma 3 (1/4/12/27B).
-Datasets: SQuAD, HotpotQA, GSM8K, DROP, MS MARCO (BM25 hard negatives); plus controlled
-synthetic probes (a decisive fact in filler) for banking. Bootstrap 95% CIs; `*` excludes 0.
+Eight instruction-tuned models spanning imprintability: Qwen 2.5 (1.5/7/14B), Mistral 7B, Gemma 3
+(1/4/12/27B); plus three pretrained **base** models (Gemma-4B-pt, Qwen-7B, Mistral-7B-v0.3) for
+the training analysis (§6.4). Datasets: SQuAD, HotpotQA, GSM8K, DROP, MS MARCO (BM25 hard
+negatives); plus controlled synthetic probes (a decisive fact in filler) for banking. Bootstrap
+95% CIs; `*` excludes 0.
 
 ---
 
@@ -254,6 +258,11 @@ Mistral's tuning preserve and amplify the semantic mode. So imprinting mode is a
 property set in alignment training, not a fixed architectural fact — which is exactly why every
 architectural ablation failed. A practical corollary: a model could be tuned toward either mode.
 
+![Figure 5](figures/fig11_base_vs_instruct.png)
+*Figure 5: Imprinting mode is set by instruction-tuning. Every pretrained base model (gray) banks
+meaning; instruction-tuning amplifies it for Gemma and Mistral but, for Qwen 2.5, destroys
+semantic imprinting (left) and creates surface/code imprinting (right) — a mode flip.*
+
 ---
 
 ## 7. Mode–Task Match: When Imprinting Helps
@@ -284,8 +293,8 @@ shifts the passage toward the question's topic, and *blurs* the precise answer.
 | reranking (relevance) | **helps** (+0.036\*) | no |
 | QA (precise extraction) | **hurts** (+0.36\*) | **helps** (−0.80\*) |
 
-![Figure 5](figures/fig10_mode_task.png)
-*Figure 5: Mode–task match. Left: semantic imprinting (Gemma) helps relevance reranking; Qwen
+![Figure 6](figures/fig10_mode_task.png)
+*Figure 6: Mode–task match. Left: semantic imprinting (Gemma) helps relevance reranking; Qwen
 does not. Right: surface imprinting (Qwen) helps precise QA extraction; semantic imprinting
 (Gemma) hurts it. Value depends on matching mode to task.*
 
@@ -327,7 +336,10 @@ Value comes from **matching imprinting mode to task type**, not from the techniq
 
 ## 10. Limitations
 
-- The architectural cause of imprintability is uncharacterized (four ablations falsified).
+- We localize the cause of imprinting mode to instruction-tuning (§6.4) but do not identify *which*
+  alignment objective flips it; a causal training study (controlled fine-tunes) is future work.
+- The base-vs-instruct analysis covers three model pairs; broader coverage would strengthen the
+  universality claim.
 - Downstream value is shown on reranking and extractive QA; broader task coverage is future work.
 - Banking probes use controlled synthetic facts (decisive content in filler) at N=150; behavioral
   results use N=300–900. The synthetic design maximizes cleanliness at some cost to ecological
@@ -344,10 +356,13 @@ bank context — but in a model-specific **mode**: Gemma-family models imprint *
 imprints *surface form*, with a single trait (imprintability, r=0.94) predicting which and how
 much, and downstream value set by whether that mode matches the task. The honest verdict is that
 directed cache construction is not a free-lunch accelerator but a *typed*, bounded mechanism whose
-value is conditional and predictable. Its durable contributions are the imprinting-mode
-characterization, the evaluation methodology that exposes the entropy and machinery confounds, and
-a clear map — survivors and casualties alike — of what zero-retention cache construction can and
-cannot do.
+value is conditional and predictable. And the mode is not an architectural accident: five
+architectural accounts fail, while a base-vs-instruct comparison localizes it to instruction-tuning
+— semantic imprinting is universal in pretrained models, and alignment can preserve, amplify, or
+(for Qwen 2.5) flip it. Imprinting mode is thus a *trainable* property. Its durable contributions
+are the imprinting-mode characterization, the evaluation methodology that exposes the entropy and
+machinery confounds, and a clear map — survivors and casualties alike — of what zero-retention
+cache construction can and cannot do.
 
 ---
 
@@ -357,11 +372,13 @@ cannot do.
 window handling, no Phase-B `cache_position`). Experiments under `experiments/13_contrastive/`
 (keyword/contrastive reranking, ablations, machinery/coherence/circuit/steering controls) and
 `experiments/15_bankability/` (bankability, reweight-vs-inject, content-type spectrum, circuit
-localization, downstream QA). Running log: `experiments/09_boolq_classification/SHARPENING_FINDINGS.md`.
-Bootstrap CIs (4000 resamples); fixed seeds; 20-sample checkpoints.
+localization, downstream QA, base-vs-instruct), and `experiments/16_architecture/` (intrinsic-metric
+probe). Running log: `experiments/09_boolq_classification/SHARPENING_FINDINGS.md`. Bootstrap CIs
+(4000 resamples); fixed seeds; 20-sample checkpoints.
 
 **B. Key statistics.** Entropy confound (§4) exp05; keyword-vs-bare reranking (§7) exp14b/exp14c
 (N=900): gemma12b/27b +0.036\*, others n.s.; imprintability×banking r=0.94 (exp26); content-type
 dissociation (exp27, N=150); localization (exp28); downstream QA content effects (exp29, N=300,
 machinery-controlled): gemma12b +0.36\*, qwen7b −0.80\*; bankability ceiling (exp24/25): retained
-−2.8 nats, content-bankable ≈0, machinery ~0.3–0.6.
+−2.8 nats, content-bankable ≈0, machinery ~0.3–0.6; base→instruct mode flip (§6.4) exp26: Qwen
+semantic −0.72→+0.14, code +0.17→−0.37; architecture probe (5th falsification) exp30.

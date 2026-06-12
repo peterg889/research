@@ -125,6 +125,42 @@ def fig10():
     fig.suptitle("Mode–task match: semantic imprinting helps relevance not extraction; surface the reverse",y=1.03)
     fig.savefig(FIG/"fig10_mode_task.png"); plt.close(fig); print("fig10 ok")
 
+# Fig 11: base-vs-instruct mode flip (the cause = instruction-tuning)
+def fig11():
+    RNG2=np.random.RandomState(2)
+    def boot(d,n=3000):
+        d=np.asarray(d,float); idx=RNG2.randint(0,len(d),(n,len(d)))
+        return d.mean(), *np.percentile(d[idx].mean(1),[2.5,97.5])
+    def bank(m,typ):
+        p=RES/f"exp26_bank_semantic/{m}/results.json"
+        if not p.exists(): return None
+        S=json.loads(p.read_text())["samples"]
+        return boot([s[f"{typ}_strip"]-s[f"{typ}_neutral"] for s in S])
+    pairs=[("Gemma-4B","gemma3_4b_base","gemma3_4b"),
+           ("Qwen-7B","qwen25_7b_base","qwen25_7b"),
+           ("Mistral-7B","mistral_7b_base","mistral_7b")]
+    fig,(a1,a2)=plt.subplots(1,2,figsize=(11.5,4.4),sharey=True)
+    x=np.arange(len(pairs)); w=0.38
+    for ax,typ,title in [(a1,"sem","SEMANTIC (meaning)"),(a2,"code","SURFACE (code)")]:
+        for off,which,hatch,lab in [(-w/2,1,"","base (pretrained)"),(w/2,2,"//","instruct-tuned")]:
+            means,err,cols=[],[[],[]],[]
+            for _,b,i in pairs:
+                v=bank(b if which==1 else i, typ)
+                mag=-v[0]  # positive = banks
+                means.append(mag); err[0].append(v[2]-v[0]); err[1].append(v[0]-v[1])
+                cols.append("#888" if which==1 else "#1a73e8")
+            ax.bar(x+off,means,w,yerr=err,color=cols,hatch=hatch,alpha=0.9,
+                   error_kw=dict(lw=1,capsize=2),label=lab,edgecolor="k",lw=0.4)
+        ax.axhline(0,color="k",lw=0.8); ax.set_xticks(x); ax.set_xticklabels([p[0] for p in pairs])
+        ax.set_title(title)
+    a1.set_ylabel("banking  (nats; higher = banks more)"); a1.legend(fontsize=9,loc="upper right")
+    a2.annotate("Qwen tuning\nFLIPS the mode",xy=(1+w/2,0.3),xytext=(1.3,2.0),fontsize=9,ha="left",
+                arrowprops=dict(arrowstyle="->",lw=1))
+    a1.annotate("Qwen tuning\nDESTROYS meaning",xy=(1+w/2,0.1),xytext=(0.0,2.2),fontsize=9,ha="left",
+                arrowprops=dict(arrowstyle="->",lw=1))
+    fig.suptitle("Imprinting mode is set by INSTRUCTION-TUNING: all base models bank meaning; Qwen's tuning flips to surface",y=1.03,fontsize=11.5)
+    fig.savefig(FIG/"fig11_base_vs_instruct.png"); plt.close(fig); print("fig11 ok")
+
 if __name__=="__main__":
-    fig7(); fig8(); fig9(); fig10()
+    fig7(); fig8(); fig9(); fig10(); fig11()
     print("v5 figures in", FIG)
