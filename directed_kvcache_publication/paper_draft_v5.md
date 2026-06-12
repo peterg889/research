@@ -25,7 +25,10 @@ monotonically with model size — but cannot store arbitrary literals; Qwen 2.5 
 *surface form* (codes, pseudowords) but not meaning. Imprintability predicts semantic banking
 across eight models at r=0.94, and is the same trait that gates a small but significant
 reranking benefit (Gemma 12B/27B beat no-priming by +0.036 MRR). The semantic imprint is
-distributed and read out in late layers.
+distributed and read out in late layers. The mode is set by **instruction-tuning, not
+architecture** (five architectural accounts fail): every pretrained *base* model semantically
+imprints, and Qwen 2.5's alignment uniquely *flips* it to surface-form — so imprinting mode is a
+*trainable* property.
 
 Third, downstream value follows from **mode–task match**: semantic imprinting helps semantic
 relevance (reranking) but *hurts* precise extraction (priming a passage with the question
@@ -228,6 +231,29 @@ late layers** (peak ~L44/48; full-cache recovery +4.1 nats, single-layer patches
 +0.9 → non-localized). Qwen shows no semantic recovery. The semantic imprint is a distributed,
 late-stage property of the cached representation.
 
+### 6.4 The cause is instruction-tuning, not architecture
+Five architectural accounts of imprintability fail (QK-norm, attention sharpness, prefix-salience,
+fixed-direction sufficiency, residual-norm control — the last killed by Mistral, which has the
+most explosive residual stream yet high imprintability; §8). The cause is in the *training*.
+Comparing pretrained **base** models to their instruction-tuned versions on the banking probe:
+
+| | code bank | semantic bank |
+|---|---|---|
+| Gemma-4B base | +0.31 (no) | **−1.11\*** |
+| Gemma-4B instruct | +0.15 (no) | **−2.46\*** |
+| Qwen-7B base | +0.17 (no) | **−0.72\*** |
+| Qwen-7B instruct | **−0.37\* (code!)** | +0.14 (none) |
+| Mistral-7B base | −0.16 (code) | **−1.08\*** |
+| Mistral-7B instruct | −0.56\* (code) | **−1.36\*** |
+
+Two facts: (i) **every pretrained base model semantically imprints** (−0.7 to −1.1) — semantic
+imprinting is a *universal* property of pretrained LMs, not a Gemma quirk; (ii) **instruction-
+tuning modulates it, and Qwen 2.5's tuning uniquely *flips the mode*** — destroying semantic
+imprinting (−0.72→+0.14) and creating surface/code imprinting (+0.17→−0.37), while Gemma's and
+Mistral's tuning preserve and amplify the semantic mode. So imprinting mode is a **trainable**
+property set in alignment training, not a fixed architectural fact — which is exactly why every
+architectural ablation failed. A practical corollary: a model could be tuned toward either mode.
+
 ---
 
 ## 7. Mode–Task Match: When Imprinting Helps
@@ -274,10 +300,12 @@ Value comes from **matching imprinting mode to task type**, not from the techniq
 - **A representation-level "content-coherence" mechanism is a positional artifact.** Position-matched
   re-measurement shrank the Gemma effect ~70%, and Mistral (more "coherent" by that metric) shows
   no behavioral effect — falsifying it.
-- **The architectural root of imprintability resists explanation.** QK-norm (ablation *raises*
-  imprintability), attention sharpness (families respond oppositely to a temperature knob), prefix
-  attention-salience (Gemma attends to the prefix *less*), and a fixed-direction steering vector
-  (reproduces <25%) were each falsified. Imprintability is an empirical trait; its cause is open.
+- **No *architectural* account of imprintability survives** — and that turned out to be the clue.
+  QK-norm (ablation *raises* imprintability), attention sharpness (families respond oppositely to a
+  temperature knob), prefix attention-salience (Gemma attends to the prefix *less*), a fixed-direction
+  steering vector (reproduces <25%), and residual-norm control (killed by Mistral) were each
+  falsified. All five failed because the cause is not architectural but in *training* (§6.4): the
+  imprinting mode is set by instruction-tuning.
 - **No universal win, and no precise-fact injection.** Most context value is un-bankable; priming a
   document with an arbitrary external fact recovers ~0 of it on the semantic imprinter.
 
