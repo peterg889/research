@@ -50,6 +50,10 @@ MODELS = {
     "mistral_7b": {"name": "mistralai/Mistral-7B-Instruct-v0.3", "loader": "AutoModelForCausalLM"},
     "qwen25_1_5b":{"name": "Qwen/Qwen2.5-1.5B-Instruct", "loader": "AutoModelForCausalLM"},
     "gemma3_1b":  {"name": "google/gemma-3-1b-it", "loader": "Gemma3ForCausalLM"},
+    # PHASE 3 base-vs-instruct: is imprinting MODE a pretraining or a tuning property?
+    "gemma3_4b_base": {"name": "google/gemma-3-4b-pt", "loader": "Gemma3ForConditionalGeneration"},
+    "qwen25_7b_base": {"name": "Qwen/Qwen2.5-7B", "loader": "AutoModelForCausalLM"},
+    "mistral_7b_base":{"name": "mistralai/Mistral-7B-v0.3", "loader": "AutoModelForCausalLM"},
 }
 ONLY = os.environ.get("ONLY_MODELS")
 if ONLY: MODELS = {k: MODELS[k] for k in ONLY.split(",") if k in MODELS}

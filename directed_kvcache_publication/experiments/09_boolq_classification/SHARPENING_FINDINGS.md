@@ -888,3 +888,28 @@ Mistral) but it's a confounded derived metric, not a clean architectural feature
 architectural accounts now falsified (QK-norm, sharpness, prefix-salience, fixed-direction,
 norm-control). Signal points to TRAINING: gemma3_4b BASE imprint 0.21 vs INSTRUCT 0.60 (3x).
 Next: Phase 3 -- does training (base->instruct) determine imprintability AND mode?
+
+## ★ RESOLVED: imprinting mode is set by INSTRUCTION-TUNING, not architecture (Phase 3) ★
+Base-vs-instruct semantic+code banking (machinery-controlled, N=150):
+```
+                 CODE bank        SEMANTIC bank
+gemma4b BASE     +0.31* (no)      -1.11* (banks meaning)
+gemma4b instruct +0.15* (no)      -2.46* (banks MORE)
+qwen7b  BASE     +0.17* (no)      -0.72* (banks meaning!)
+qwen7b  instruct -0.37* (code!)   +0.14  (no meaning)        <- TUNING FLIPPED THE MODE
+mistral BASE     -0.16* (code)    -1.08* (banks meaning)
+mistral instruct -0.56* (code)    -1.36* (banks MORE)
+```
+TWO findings: (1) ALL pretrained BASE models semantically imprint (-0.72..-1.11) -> semantic
+imprinting is a UNIVERSAL pretrained-LM property, not a Gemma quirk. (2) INSTRUCTION-TUNING
+modulates it, and QWEN 2.5's tuning uniquely SUPPRESSES semantic imprinting (sem -0.72->+0.14)
+while CREATING surface/code imprinting (code +0.17->-0.37) -- a clean MODE FLIP. Gemma & Mistral
+tuning PRESERVE+amplify semantic imprinting.
+=> "why Gemma/Mistral not Qwen" RESOLVED: it's Qwen 2.5's POST-TRAINING (alignment), not its
+architecture. This is why ALL FIVE architectural ablations failed -- the cause was never
+architectural. Imprinting mode is a TRAINABLE property (base->instruct flip demonstrates it),
+not a fixed architectural fact. Strong implication: you could tune a model toward semantic or
+surface imprinting. (Note: gemma4b base imprintability 0.21 by the generic-prefix metric is low
+because base doesn't follow the 'extract' instruction, but it DOES imprint semantic CONTENT when
+primed with content -- banking -1.11 -- so the reranking-based imprintability metric under-reads
+base models.)
