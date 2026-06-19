@@ -43,10 +43,11 @@ construction can and cannot do.
 
 ## 1. Introduction
 
-KV-cache reuse is a standard RAG optimization: TurboRAG, CacheBlend, SGLang and others encode
-document chunks offline and reuse their key–value states, cutting time-to-first-token by up to
-an order of magnitude. The literature optimizes what happens *after* construction — which
-entries to keep, how to compress, how to schedule. We ask whether *construction* itself carries
+KV-cache reuse is a standard RAG optimization: systems such as TurboRAG [@turborag], CacheBlend
+[@cacheblend], and SGLang [@sglang] encode document chunks offline and reuse their key–value
+states, cutting time-to-first-token by up to an order of magnitude. The literature optimizes what
+happens *after* construction — which entries to keep [@h2o; @snapkv], how to compress
+[@gisttokens; @icae], how to schedule. We ask whether *construction* itself carries
 usable signal, via **cache priming**: encode `[BOS, context, \n, document]` in one pass so the
 context shapes the document tokens through attention, then discard the context's cache entries,
 reposition the document keys (RoPE delta-rotation) so positions are indistinguishable from a
@@ -81,22 +82,58 @@ the casualties together.
 
 ## 2. Related Work
 
-**Cache reuse / compression.** TurboRAG, CacheBlend, SGLang reuse precomputed caches; H2O,
-SnapKV compress them. All take construction as fixed. Our per-tensor normalization round-trip is
-a near-identity that independently improves NLL; our focus is construction-time *conditioning*.
+Our work sits at the intersection of five threads. For each we note what we build on and where
+we differ; the recurring distinction is that prior work asks *how much* context can be stored or
+*how to recover* what precomputation loses, whereas we ask *what kind* of context survives
+zero-retention construction, *why it varies across models*, and *when it helps*.
 
-**Prefix/prompt tuning, activation steering.** These learn or add persistent prefixes/directions.
-Cache priming differs: the prefix is *discarded* (zero inference cost), and we study discrete,
-natural-language context and its imprint. We borrow steering-vector methodology to test whether
-priming reduces to a fixed direction — it does not.
+**KV-cache reuse for RAG.** Precompute-and-reuse systems encode document chunks offline and
+concatenate their caches at inference [@turborag; @sglang], cutting time-to-first-token by up to
+an order of magnitude. Because precomputation omits cross-chunk attention and duplicates attention
+sinks, it degrades quality; the dominant response is to *recover* the lost signal — CacheBlend
+selectively recomputes a token subset [@cacheblend] and CacheClip uses an auxiliary model to pick
+the tokens worth recomputing [@cacheclip]. We adopt the same construction primitive as TurboRAG
+(precompute plus RoPE position-id repositioning) but pose the inverse question — can construction-
+time *conditioning add* usable signal? Our bankability ceiling (§5) and imprinting-mode result
+(§6) explain *why* precomputation loses quality (most cross-chunk semantic content is not bankable
+into a stripped cache, and how much depends on a model-specific trait), making our analysis
+complementary to these recovery methods.
 
-**Memory and gisting.** "Gist tokens" and recurrent-memory methods compress context into a few
-*retained* tokens. Our setting is the zero-retention extreme; the imprintability trait and its
-modes characterize what survives that extreme.
+**KV-cache compression and prompt/context compression.** A large literature compresses the cache
+post-hoc by evicting or summarizing tokens [@h2o; @snapkv], or compresses context into a *few
+retained* learned slots — gist tokens [@gisttokens], in-context autoencoders [@icae], and
+distillation into cache vectors [@kvdistill]. A complementary strand probes the *limits* of such
+compression [@gistsilverbullet; @cramming]. Our zero-retention priming is the degenerate extreme
+(zero retained tokens), and our bankability ceiling is a *training-free* measurement of that limit
+(§5). Critically, this literature measures *how much* compresses; we introduce a *what-kind* axis —
+a content-type dissociation (meaning vs. surface form) that is model-specific and, we show,
+*trainable* (§6.4). This predicts what a compression method can preserve on a given model and warns
+that methods validated on one model family may not transfer.
 
-**Confidence vs. correctness / RoPE.** A recurring theme — perplexity gains need not imply better
-answers — motivates our margin metric. Repositioning cached keys requires per-layer RoPE
-delta-rotation in float32, with model-family-specific frequencies and sliding/full layer handling.
+**Continuous-prompt and steering methods.** Prefix- and prompt-tuning learn continuous prefixes
+that *persist* at inference [@prefixtuning; @prompttuning], and activation steering adds a fixed
+direction to the residual stream [@caa]. Cache priming differs on both counts: the prefix is
+*discrete natural language* and is *discarded* before storage (zero inference cost). We borrow the
+steering-vector methodology to test whether priming's effect reduces to a single fixed direction —
+it does not; the imprint is content-routed (§8).
+
+**Long-context behavior and the evaluation confound.** Work on how models use long contexts shows
+that placement and surface statistics strongly shape behavior and that perplexity need not track
+downstream quality [@lostinmiddle]. We make a specific instance of this concrete and actionable:
+absolute NLL conflates entropy with discrimination for cache-construction interventions, so we
+evaluate with an entropy-invariant contrastive margin and a battery of controls (§3.2, §4) — a
+correction that overturned several clean-looking claims, including our own.
+
+**Mechanistic interpretability of context use.** We use activation patching from the causal-tracing
+lineage [@rome] and contrastive steering vectors [@caa] as tools to localize and test the imprint
+(§6.3, §8). Our finding that the semantic imprint is distributed and read out in *late* layers
+connects to evidence that in-context and task processing concentrate in middle–late layers
+[@wheredoesicl; @layerbylayer]. Most directly, the relationship between in-context learning and
+instruction tuning — that ICL reshapes hidden states as implicit instruction tuning [@iclimplicitit]
+and that instruction tuning reshapes middle-layer representations [@layerbylayer] — frames our most
+novel result (§6.4): instruction tuning *sets a model's context-imprinting mode*, and can preserve,
+amplify, or *flip* it. To our knowledge no prior work shows instruction tuning flipping a model from
+semantic to surface-form context encoding.
 
 ---
 

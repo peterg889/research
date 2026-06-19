@@ -1,0 +1,171 @@
+% ==========================================================================
+%  References for "Imprinting Mode" (paper_draft_v5.md)
+%  Verified against arXiv / official venues. Last verified: 2026-06-19.
+% ==========================================================================
+
+% ---- KV-cache reuse / RAG acceleration -----------------------------------
+
+@inproceedings{turborag,
+  title     = {{TurboRAG}: Accelerating Retrieval-Augmented Generation with Precomputed {KV} Caches for Chunked Text},
+  author    = {Lu, Songshuo and Wang, Hua and Rong, Yutian and Chen, Zhi and Tang, Yaohua},
+  booktitle = {Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing (EMNLP)},
+  pages     = {6588--6601},
+  year      = {2025},
+  note      = {arXiv:2410.07590}
+}
+
+@inproceedings{cacheblend,
+  title     = {{CacheBlend}: Fast Large Language Model Serving for {RAG} with Cached Knowledge Fusion},
+  author    = {Yao, Jiayi and Li, Hanchen and Liu, Yuhan and Ray, Siddhant and Cheng, Yihua and Zhang, Qizheng and Du, Kuntai and Lu, Shan and Jiang, Junchen},
+  booktitle = {Proceedings of the Twentieth European Conference on Computer Systems (EuroSys)},
+  year      = {2025},
+  note      = {arXiv:2405.16444}
+}
+
+@article{cacheclip,
+  title   = {{CacheClip}: Accelerating {RAG} with Effective {KV} Cache Reuse},
+  author  = {Yang, Bin and Leng, Qiuyu and Zeng, Jun and Wu, Zhenhua},
+  journal = {arXiv preprint arXiv:2510.10129},
+  year    = {2025}
+}
+
+@inproceedings{sglang,
+  title     = {{SGLang}: Efficient Execution of Structured Language Model Programs},
+  author    = {Zheng, Lianmin and Yin, Liangsheng and Xie, Zhiqiang and Sun, Chuyue and Huang, Jeff and Yu, Cody Hao and Cao, Shiyi and Kozyrakis, Christos and Stoica, Ion and Gonzalez, Joseph E. and Barrett, Clark and Sheng, Ying},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2024},
+  note      = {arXiv:2312.07104}
+}
+
+% ---- KV-cache compression / token eviction -------------------------------
+
+@inproceedings{h2o,
+  title     = {{H2O}: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models},
+  author    = {Zhang, Zhenyu and Sheng, Ying and Zhou, Tianyi and Chen, Tianlong and Zheng, Lianmin and Cai, Ruisi and Song, Zhao and Tian, Yuandong and R{\'e}, Christopher and Barrett, Clark and Wang, Zhangyang and Chen, Beidi},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2023},
+  note      = {arXiv:2306.14048}
+}
+
+@inproceedings{snapkv,
+  title     = {{SnapKV}: {LLM} Knows What You are Looking for Before Generation},
+  author    = {Li, Yuhong and Huang, Yingbing and Yang, Bowen and Venkitesh, Bharat and Locatelli, Acyr and Ye, Hanchen and Cai, Tianle and Lewis, Patrick and Chen, Deming},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2024},
+  note      = {arXiv:2404.14469}
+}
+
+% ---- Prompt / context compression (soft tokens) --------------------------
+
+@inproceedings{gisttokens,
+  title     = {Learning to Compress Prompts with Gist Tokens},
+  author    = {Mu, Jesse and Li, Xiang Lisa and Goodman, Noah},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2023},
+  note      = {arXiv:2304.08467}
+}
+
+@inproceedings{icae,
+  title     = {In-context Autoencoder for Context Compression in a Large Language Model},
+  author    = {Ge, Tao and Hu, Jing and Wang, Lei and Wang, Xun and Chen, Si-Qing and Wei, Furu},
+  booktitle = {The Twelfth International Conference on Learning Representations (ICLR)},
+  year      = {2024},
+  note      = {arXiv:2307.06945}
+}
+
+@article{kvdistill,
+  title   = {{KV-Distill}: Nearly Lossless Learnable Context Compression for {LLMs}},
+  author  = {Chari, Vivek and Qin, Guanghui and Van Durme, Benjamin},
+  journal = {arXiv preprint arXiv:2503.10337},
+  year    = {2025}
+}
+
+@article{gistsilverbullet,
+  title   = {A Silver Bullet or a Compromise for Full Attention? A Comprehensive Study of Gist Token-based Context Compression},
+  author  = {Deng, Chenlong and Zhang, Zhisong and Mao, Kelong and Li, Shuaiyi and Huang, Xinting and Yu, Dong and Dou, Zhicheng},
+  journal = {arXiv preprint arXiv:2412.17483},
+  year    = {2024}
+}
+
+@inproceedings{cramming,
+  title     = {Cramming 1568 Tokens into a Single Vector and Back Again: Exploring the Limits of Embedding Space Capacity},
+  author    = {Kuratov, Yuri and Arkhipov, Mikhail and Bulatov, Aydar and Burtsev, Mikhail},
+  booktitle = {Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (ACL)},
+  year      = {2025},
+  note      = {arXiv:2502.13063}
+}
+
+% ---- Long-context behavior -----------------------------------------------
+
+@article{lostinmiddle,
+  title   = {Lost in the Middle: How Language Models Use Long Contexts},
+  author  = {Liu, Nelson F. and Lin, Kevin and Hewitt, John and Paranjape, Ashwin and Bevilacqua, Michele and Petroni, Fabio and Liang, Percy},
+  journal = {Transactions of the Association for Computational Linguistics (TACL)},
+  volume  = {12},
+  pages   = {157--173},
+  year    = {2024},
+  note    = {arXiv:2307.03172}
+}
+
+% ---- Mechanistic interpretability / activation steering -------------------
+
+@inproceedings{rome,
+  title     = {Locating and Editing Factual Associations in {GPT}},
+  author    = {Meng, Kevin and Bau, David and Andonian, Alex and Belinkov, Yonatan},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2022},
+  note      = {arXiv:2202.05262}
+}
+
+@inproceedings{caa,
+  title     = {Steering {Llama} 2 via Contrastive Activation Addition},
+  author    = {Rimsky, Nina and Gabrieli, Nick and Schulz, Julian and Tong, Meg and Hubinger, Evan and Turner, Alexander Matt},
+  booktitle = {Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (ACL)},
+  pages     = {15504--15522},
+  year      = {2024},
+  note      = {arXiv:2312.06681}
+}
+
+% ---- Parameter-efficient tuning (continuous prompts) ---------------------
+
+@inproceedings{prefixtuning,
+  title     = {Prefix-Tuning: Optimizing Continuous Prompts for Generation},
+  author    = {Li, Xiang Lisa and Liang, Percy},
+  booktitle = {Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (ACL-IJCNLP)},
+  year      = {2021},
+  note      = {arXiv:2101.00190}
+}
+
+@inproceedings{prompttuning,
+  title     = {The Power of Scale for Parameter-Efficient Prompt Tuning},
+  author    = {Lester, Brian and Al-Rfou, Rami and Constant, Noah},
+  booktitle = {Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing (EMNLP)},
+  pages     = {3045--3059},
+  year      = {2021},
+  note      = {arXiv:2104.08691}
+}
+
+% ---- ICL mechanism / ICL vs. instruction tuning --------------------------
+
+@inproceedings{wheredoesicl,
+  title     = {Where does In-context Learning Happen in Large Language Models?},
+  author    = {Sia, Suzanna and Mueller, David and Duh, Kevin},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2024}
+}
+
+@inproceedings{iclimplicitit,
+  title     = {Exploring the Relationship between In-Context Learning and Instruction Tuning},
+  author    = {Duan, Hanyu and Tang, Yixuan and Yang, Yi and Abbasi, Ahmed and Tam, Kar Yan},
+  booktitle = {Findings of the Association for Computational Linguistics: EMNLP 2024},
+  year      = {2024},
+  note      = {arXiv:2311.10367}
+}
+
+@inproceedings{layerbylayer,
+  title     = {Layer by Layer: Uncovering Where Multi-Task Learning Happens in Instruction-Tuned Large Language Models},
+  author    = {Zhao, Zheng and Ziser, Yftah and Cohen, Shay B.},
+  booktitle = {Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing (EMNLP)},
+  year      = {2024},
+  note      = {arXiv:2410.20008}
+}
