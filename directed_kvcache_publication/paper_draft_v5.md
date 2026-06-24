@@ -18,17 +18,20 @@ matching, a machinery-neutral prime, matched footing) overturns several further 
 
 Second, the real phenomenon. We show that zero-retention priming *does* bank context into a
 document's stored KV — substantially — but **what** it banks is governed by a single
-measurable model trait we call **imprintability**. We establish a clean double dissociation
-**by content type**: the Gemma family (and Mistral) imprint *meaning* — recovering up to 35%
-of a semantic context's value from a stripped cache (−3.8 nats on Gemma 27B), scaling
-monotonically with model size — but cannot store arbitrary literals; Qwen 2.5 imprints
-*surface form* (codes, pseudowords) but not meaning. Imprintability predicts semantic banking
-across eight models at r=0.94, and is the same trait that gates a small but significant
-reranking benefit (Gemma 12B/27B beat no-priming by +0.036 MRR). The semantic imprint is
-distributed and read out in late layers. The mode is set by **instruction-tuning, not
+measurable model trait we call **imprintability**. The robust, reproducible result is the
+**semantic axis**: priming banks *meaning* into the cache, recovering up to 35% of a semantic
+context's value from a stripped cache (−3.8 nats on Gemma 27B), scaling monotonically across the
+Gemma family, present in Mistral, weak/absent in instruct-tuned Qwen 2.5 — with imprintability
+predicting semantic banking at r=0.94 across eight models. The complementary *surface-form*
+(literal-token) axis is real but **model-specific and idiosyncratic** (e.g. Gemma-27B does store
+literals; Qwen-14B anti-stores them), so we do *not* claim a clean symmetric double dissociation
+on a single Gemma-vs-Qwen pair. Imprintability is the same trait that gates a small but
+significant reranking benefit (Gemma 12B/27B beat no-priming by +0.036 MRR). The semantic imprint
+is distributed and read out in late layers. Mode is set by **instruction-tuning, not
 architecture** (five architectural accounts fail): every pretrained *base* model semantically
-imprints, and Qwen 2.5's alignment uniquely *flips* it to surface-form — so imprinting mode is a
-*trainable* property.
+imprints, and Qwen 2.5's alignment uniquely *suppresses* it while strengthening surface imprinting
+(sem −0.72→+0.14, code +0.17→−0.37) — a controlled base-vs-instruct demonstration that imprinting
+mode is a *trainable* property.
 
 Third, downstream value follows from **mode–task match**: semantic imprinting helps semantic
 relevance (reranking) but *hurts* precise extraction (priming a passage with the question
@@ -61,10 +64,10 @@ this paper.** We make four contributions:
 1. **A measurement correction (§4).** Absolute NLL is entropy-confounded; the contrastive margin
    and a set of controls dissolve the keyword headline and several successor claims, including
    our own.
-2. **Imprinting mode (§6).** Priming banks context in a model-specific mode — *semantic* (Gemma,
-   Mistral) or *surface-form* (Qwen) — a clean double dissociation by content type, governed by a
-   single trait (**imprintability**, r=0.94 with semantic banking) that scales with model size, and
-   *set by instruction-tuning, not architecture* (§6.4).
+2. **Imprinting mode (§6).** Priming banks context along a robust **semantic** axis governed by a
+   single trait (**imprintability**, r=0.94 with semantic banking) that scales with model size (and
+   a complementary, more *model-specific* surface-form axis); the mode is *set by instruction-tuning,
+   not architecture* (§6.4), with a controlled base→instruct flip in Qwen.
 3. **Mode–task match (§7).** Downstream value depends on matching imprinting mode to task:
    semantic imprinting helps relevance (reranking), hurts extraction (QA); surface imprinting the
    reverse. Neither is universally useful.
@@ -146,10 +149,15 @@ document keys to positions `1..D` (float32 RoPE delta); per-tensor normalize. **
 `cache_position` (it reintroduces a one-token look-ahead).
 
 ### 3.2 Metrics and controls (the part that matters)
-- **Contrastive margin** `= mean_k NLL(distractor_k) − NLL(correct)` — entropy-invariant; absolute
-  NLL is not, so it is unsafe for evaluating priming.
-- **Gold-class prior-shift control** — split the margin change by gold label; a symmetric split is
-  a label-prior shift, not discrimination.
+- **Contrastive margin** `= mean_k NLL(distractor_k) − NLL(correct)`. This is invariant to a
+  *uniform additive* NLL shift but **not** to multiplicative logit sharpening (temperature `T`
+  scales the margin by `1/T`), so it is not a complete entropy control on its own. We therefore
+  pair it with a **lockstep test** — does priming move the correct answer's NLL while leaving
+  distractors flat (genuine) or in lockstep with them (sharpening)? — and **rank / top-1**
+  (which are invariant to any monotone per-example transform). Absolute NLL alone is unsafe.
+- **Gold-class prior-shift control** — for binary/labelled tasks, split the *gold-aligned* margin
+  change by gold class. A *symmetric* split (one class up, the other down) is a label-prior shift;
+  *both classes up* is genuine discrimination. We report this per model, not pooled.
 - **Machinery-neutral prime** — a content-free, length-matched prime (newlines) isolates the
   reposition+normalize *construction* cost from the prime's *content* effect.
 - **Matched footing** — hold the prime fixed and vary only the variable of interest (e.g., whether
@@ -180,15 +188,24 @@ and an oracle. Re-scored with the contrastive margin (5 models × 4 datasets × 
 | **generic instruction (extract)** | +0.172 | **+0.270** |
 
 ![Figure 1](figures/fig1_measurement_correction.png)
-*Figure 1: The entropy confound. Every prefix lowers absolute NLL (gray), but on the
-entropy-invariant contrastive margin (blue) the keyword "win" vanishes (d≈0) and only
-extract-style instructions improve discrimination.*
+*Figure 1: The entropy confound. Every prefix lowers absolute NLL (gray), but on the contrastive
+margin (blue) the pooled keyword effect collapses to ≈0 and only extract-style instructions move
+the pooled margin.*
 
-The keyword advantage was almost entirely entropy reduction (margin d≈0). Only extract-style
-instructions move the margin. On BoolQ, the one apparent classification effect is a near-perfect
-*label-prior shift* (gold=yes +0.328 / gold=no −0.326, net ≈0), not discrimination. **All
-cache-priming claims based on perplexity/NLL are presumptively inflated by this confound.** The
-rest of the paper uses entropy-invariant metrics and explicit controls.
+The pooled keyword margin (d≈0.00) is, however, a **sign-cancellation artifact**, not a per-sample
+null: the per-model TF-IDF margin effect is large and bidirectional — it *helps* low-imprintability
+models (Qwen-1.5B +0.243\*, Mistral-7B +0.104\*) and *hurts* high-imprintability Gemma (−0.240\*),
+averaging to zero across models. So the honest statement is not "keyword priming does nothing" but
+"keyword priming's discrimination effect is **model-specific and bidirectional**" — which in fact
+foreshadows the imprinting-mode thesis (§6). The robust pooled positive is the generic
+*extract*-style instruction (+0.270), whose lockstep signature is genuine (the correct answer's
+NLL falls while distractors' rise). On BoolQ, our earlier "label-prior shift only" reading does
+**not** survive the full data: extract priming produces a *real* discrimination gain on the larger
+instruct models (gemma-12B gold=yes +0.916\* / gold=no +0.782\*, balanced accuracy 0.875→0.883;
+qwen-7B +0.390\*/+0.489\*; ministral-8B +0.450\*/+0.001) and improves accuracy, ECE, and Brier;
+only qwen-1.5B shows the pure prior shift (+0.40/−0.33). The lesson stands — perplexity/NLL gains
+are presumptively inflated — but the corrected control is the per-model gold-aligned margin, and
+priming does sharpen discrimination, not merely shift the prior, on capable models.
 
 A cascade of further "clean" claims fell to the controls: a "contrastive" keyword construction
 turned out to add nothing over plain passage keywords (neighbor-subtraction inert, n.s. on four
@@ -218,9 +235,10 @@ document's KV. The surprise is that the imprint is not nothing — it is *typed*
 
 ## 6. Imprinting Mode: Semantic vs. Surface (the central result)
 
-### 6.1 A double dissociation by content type
+### 6.1 What is banked: a robust semantic axis and an idiosyncratic surface axis
 We prime a filler document with a fact whose answer ranges from meaningless to meaningful, strip
-it, and measure how much the answer is recovered (machinery-controlled; negative = banked):
+it, and measure how much the answer is recovered (machinery-controlled; negative = banked). For
+one representative pair:
 
 | answer type | gemma3_12b | qwen25_7b |
 |---|---|---|
@@ -230,15 +248,25 @@ it, and measure how much the answer is recovered (machinery-controlled; negative
 | common word | **−0.93\*** | +0.29 (worse) |
 | phrase | **−2.02\*** | −0.10 (n.s.) |
 
-**Gemma imprints *meaning*** (words/phrases, up to −3.7 nats) but not meaningless tokens; **Qwen
-imprints *surface form*** (codes, pseudowords) but not meaning. A clean double dissociation —
-each family fails at the other's content type. (Testing only *codes*, as we first did, hid this:
-codes are a surface item where Qwen wins.)
+For *this pair* the picture is a tidy double dissociation — Gemma imprints meaning, Qwen imprints
+surface form. **But that tidiness does not survive the full model set, and we do not claim it.**
+The *semantic* axis is robust and law-like (§6.2): it scales monotonically across the Gemma family,
+appears in Mistral, and is weak/absent in instruct Qwen. The *surface/literal* axis is real but
+**idiosyncratic** — across the eight instruct models the code-banking column is non-monotonic and
+sign-unstable: Gemma-27B *does* bank a literal code (−0.33\*), Mistral banks it *more* than Qwen-7B
+(−0.57\*), and Qwen-14B strongly *anti-banks* it (+0.78\*). So "Gemma cannot store literals" and
+"Qwen imprints surface form" are properties of the cherry-picked 12B-vs-7B pair, not general laws.
+The principled, controlled evidence for surface imprinting is instead the *base→instruct flip*
+(§6.4), where Qwen's tuning demonstrably trades meaning for surface form. We therefore present the
+semantic axis as the headline and the surface axis as a model-specific, training-dependent
+phenomenon.
 
 ![Figure 2](figures/fig8_content_dissociation.png)
-*Figure 2: Content-type double dissociation. Gemma (12B) banks meaningful words/phrases but not
-meaningless codes/pseudowords; Qwen (7B) banks surface forms but not meaning. Banking = nats
-recovered from the stripped cache; bars are bootstrap 95% CIs.*
+*Figure 2: Content-type banking for one representative pair (Gemma-12B vs Qwen-7B). Gemma banks
+meaningful words/phrases; Qwen banks surface forms (codes/pseudowords). This tidy pattern is
+pair-specific — the surface axis is idiosyncratic across the full model set (§6.1); the semantic
+axis (Fig. 3–4) is the robust, scaling result. Banking = nats recovered from the stripped cache;
+bars are bootstrap 95% CIs.*
 
 ### 6.2 One trait predicts it: imprintability (r=0.94)
 Define **imprintability** as the mean |Δ query-NLL| a generic prefix induces (what we earlier
@@ -319,11 +347,15 @@ salience, which is exactly what relevance scoring rewards.
 |---|---|---|---|
 | content effect on answer NLL | **+0.36\* (hurts)** | +0.12 (n.s.) | **−0.80\* (helps)** |
 
-Here the dissociation **reverses**: surface imprinting (Qwen) banks the question's matchable
-*tokens* and helps locate the answer; semantic imprinting (Gemma) banks the question's *meaning*,
-shifts the passage toward the question's topic, and *blurs* the precise answer.
+Here the direction **reverses**: surface imprinting (Qwen) banks the question's matchable
+*tokens* and helps locate the answer; semantic imprinting (Gemma-12B) banks the question's
+*meaning*, shifts the passage toward the question's topic, and *blurs* the precise answer.
+(Caveat: the QA "hurts" effect is significant on Gemma-12B but only a non-significant +0.12 on
+Gemma-4B, where the reposition machinery cost dominates; the extraction side rests on the larger
+semantic imprinter, and §9 of the task-aware program below re-tests it across more models.)
 
-**The 2×2.**
+**The 2×2** (illustrative of one semantic vs one surface imprinter; the *cells* are robust, the
+*generalization across families* is what the task-aware experiments below stress-test):
 
 | | Gemma (semantic imprinter) | Qwen (surface imprinter) |
 |---|---|---|
@@ -389,9 +421,9 @@ Value comes from **matching imprinting mode to task type**, not from the techniq
 
 We set out to optimize KV-cache construction and learned, first, that the optimization we thought
 we had was an artifact of how we measured it. Measured correctly, zero-retention priming *does*
-bank context — but in a model-specific **mode**: Gemma-family models imprint *meaning*, Qwen
-imprints *surface form*, with a single trait (imprintability, r=0.94) predicting which and how
-much, and downstream value set by whether that mode matches the task. The honest verdict is that
+bank context — predominantly *semantically*: a robust, scaling **semantic-imprinting** axis (with
+a more model-specific surface-form axis), governed by a single trait (imprintability, r=0.94) that
+also gates downstream value through mode–task match. The honest verdict is that
 directed cache construction is not a free-lunch accelerator but a *typed*, bounded mechanism whose
 value is conditional and predictable. And the mode is not an architectural accident: five
 architectural accounts fail, while a base-vs-instruct comparison localizes it to instruction-tuning
