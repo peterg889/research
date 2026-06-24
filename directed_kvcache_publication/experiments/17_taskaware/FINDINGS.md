@@ -34,18 +34,49 @@ Smoke (gemma3_4b, n=8): selection HELPS strongly (selVal vs bare_norm ≈ −1.6
 top of selection ~0/slightly hurts (COND|sel ≈ +0.5). If this holds: for extraction on a semantic
 imprinter, task-aware SELECTION dominates CONDITIONING. Open cell: Qwen-7B (where conditioning helped).
 
-## exp32 — binding shuffle: does priming bank MEANING or TOKEN PRESENCE? [RUNNING]
+## exp32 — binding shuffle: does priming bank MEANING or TOKEN PRESENCE? (N=150, 4/5 done)
 Two facts primed, ask about one (requires city→topic BINDING). ordered vs token-shuffled prime.
-BINDING = strip_ord − strip_shuf (neg = ordered beats shuffled = genuine relational banking).
-Smoke (gemma3_4b, n=6): bankOrd ≈ −2.84, bankShuf ≈ −1.18, BINDING ≈ −1.67 → ordered banks the
-correct association ~1.7 nats better than shuffled. → unlike QA, when the task REQUIRES binding,
-word order matters; genuine structure is banked. Full run tests whether BINDING splits by mode
-(negative for Gemma/Mistral semantic imprinters, ~0 for Qwen surface imprinter).
+ORDER = strip_ord − strip_shuf (neg = ordered beats shuffled = genuine structure banking; pos =
+shuffled/token-presence beats ordered/meaning).
 
-## Emerging honest reframe (pending full exp32/31b)
-- A downstream task's response to zero-retention priming is dominated by TOKEN PRESENCE
-  (order-invariant), sign set by model (and scale), NOT by a clean semantic-vs-surface split.
-- The semantic/structure ("meaning") component appears specifically when the task REQUIRES
-  relational binding (exp32), and that is the right regime to test imprinting mode.
-- Practically: if you know the task is extraction, SELECT relevant tokens (cheaper + better) rather
-  than condition; conditioning's residual value (if any) is mode/scale-specific.
+| model | bankOrd | bankShuf | ORDER (ord−shuf) |
+|---|---|---|---|
+| gemma3_12b | −0.39 (n.s.) | −1.82* | **+1.43*** (shuffled/tokens bank MORE) |
+| gemma3_4b  | −1.92* | −1.41* | **−0.51*** (ordered banks more) |
+| mistral_7b | −0.71* | +0.36* | **−1.07*** (ordered banks more; shuffle HURTS) |
+| qwen25_7b  | +0.07 (n.s.) | −0.05 (n.s.) | +0.12 (n.s.) (banks neither) |
+| gemma3_27b | (pending) | | |
+
+**There is NO clean mapping from "imprinting mode" to structure banking.** Within the Gemma family
+the ORDER sign FLIPS with scale (4b −0.51 → 12b +1.43). Interpretation that fits all four:
+- Imprintability (scales with size) = strength of SEMANTIC ABSTRACTION of primed content.
+- Abstraction TRADES OFF against literal token traces. For LITERAL recall, token presence
+  (order-invariant) is what helps; semantic integration of ordered input competes with it.
+- Small/mid models (gemma3_4b, mistral) still leave enough structure trace that ordered > shuffled.
+- The most imprintable model (gemma3_12b) abstracts ordered meaning away from literal traces, so
+  shuffled (pure token presence) recalls the literal answer better (+1.43).
+- The surface model (qwen7b) banks neither structure nor tokens for a 2-fact bind (can't bind).
+
+## exp33 — single-fact shuffle on exp26's EXACT measure [QUEUED]
+Direct test of whether the paper's headline "semantic axis" is meaning or token presence. With ONE
+fact (one topic to recall), token presence should suffice → predict ORDER≈0 (banking survives
+shuffle) → "semantic" label = token-type/token-presence, not meaning/structure. Confirms or refutes.
+
+## Emerging honest reframe (firming up)
+1. Zero-retention priming banks TOKEN PRESENCE / token-type imprint, NOT relational meaning.
+   Imprintability = strength of that imprint (≈ semantic abstraction), scales with size.
+2. Effect on a downstream task is order-invariant with a model+scale-specific SIGN; no clean
+   semantic-vs-surface split (qwen7b helps QA, qwen14b hurts; gemma4b vs 12b flip on binding).
+3. Genuine RELATIONAL/structure banking is weak, model-idiosyncratic, and at high imprintability
+   COMPETES with literal recall. The "semantic axis" framing overstates meaning; it is largely a
+   content-token-imprint axis. (exp33 will confirm on the headline measure.)
+4. Practical task-aware takeaway (exp31b, pending): for EXTRACTION, task-aware SELECTION (drop
+   irrelevant tokens, à la SnapKV/Beyond RAG) is cheaper AND better than conditioning; conditioning's
+   residual value is mode/scale-specific and small.
+
+## Consequences for paper_draft_v5.md (to apply once exp33/31b land)
+- §6 "robust semantic axis": relabel toward content-token-imprint; report the shuffle controls;
+  keep imprintability r=0.94 but reinterpret it as abstraction strength, not meaning-banking.
+- §7 mode-task 2×2: demote hard (qwen7b-specific; QA effect is token presence; no family law).
+- Add a task-aware section: selection ≥ conditioning for extraction (honest negative for our method),
+  positioned against Beyond RAG / SnapKV.
