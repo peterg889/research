@@ -405,6 +405,13 @@ The two probes converge on the same three-way ranking, and they overturn the bin
   codes (CODE ORDER −0.74\*). Only here does zero-retention priming bank *meaning*.
 - **Qwen-7B banks little** of either, single- or two-fact: consistent with a weak imprinter.
 
+![Figure 7](figures/fig12_shuffle_controls.png)
+*Figure 7: What is banked — a word-order shuffle control. ORDER = banking(ordered) −
+banking(shuffled); ≈0 means token presence (order-invariant), <0 means structure (order matters).
+Two probes (single-fact exp33, two-fact binding exp32) agree: the Gemma family is order-invariant
+(token presence; at 12B the shuffled prime even banks more), Mistral is strongly order-dependent
+(genuine structure), Qwen banks little. Bars are bootstrap 95% CIs.*
+
 There is, in short, **no clean two-way semantic/surface mode**: the families differ in *what* they
 bank, not on a single axis. A coherent reading is that **imprintability measures the strength of a
 model's content-token imprint (≈ how aggressively it abstracts a prefix into the kept
@@ -478,6 +485,13 @@ alone; both machinery-matched (pos = hurts).
 | Gemma-12B | −0.03 (n.s.) | +0.16 (n.s.) | **+0.52\* (hurts)** |
 | Gemma-4B  | −0.12 (n.s.) | **+1.03\* (hurts)** | **+1.05\* (hurts)** |
 | Qwen-7B   | **+1.00\* (hurts)** | **−0.51\* (helps)** | **−0.63\* (helps)** |
+
+![Figure 8](figures/fig13_select_vs_condition.png)
+*Figure 8: Task-aware extraction — select vs. condition is mode-dependent. selVal = aggressive
+top-k=32 selection vs. the full (normalized) document; COND|sel = conditioning the selected set vs.
+selection alone (retained set held fixed); positive = hurts. On Gemma, conditioning hurts and
+selection is neutral; on Qwen-7B selection hurts while conditioning helps — opposite prescriptions.
+Bars are bootstrap 95% CIs.*
 
 The best build operation is **mode-dependent, and the two modes want opposite things**:
 
