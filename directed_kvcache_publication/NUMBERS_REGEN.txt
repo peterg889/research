@@ -1,0 +1,57 @@
+==============================================================================
+DETERMINISTIC NUMBERS REGEN — source of truth for the paper
+==============================================================================
+
+## 1. BoolQ (exp10): extract vs bare — gold-aligned Δmargin by class, + balanced-acc
+  gemma3_12b     gold=yes +0.916 [+0.759,+1.077]*  gold=no +0.782 [+0.632,+0.937]*  balAcc bare=0.875->extract=0.883
+  ministral_8b   gold=yes +0.450 [+0.420,+0.480]*  gold=no +0.001 [-0.037,+0.039]   balAcc bare=0.850->extract=0.863
+  qwen25_1_5b    gold=yes +0.403 [+0.375,+0.432]*  gold=no -0.326 [-0.361,-0.292]*  balAcc bare=0.767->extract=0.759
+  qwen25_7b      gold=yes +0.390 [+0.286,+0.488]*  gold=no +0.489 [+0.381,+0.602]*  balAcc bare=0.852->extract=0.857
+
+## 2. exp05 discrimination: Δ(margin_mean) vs bare, PER MODEL (pooling masks signs)
+  gemma3_12b     tfidf16 -0.240 [-0.310,-0.169]*   generic16 +0.411 [+0.310,+0.515]*
+  ministral_8b   tfidf16 -0.071 [-0.093,-0.048]*   generic16 +0.074 [+0.052,+0.096]*
+  mistral_7b     tfidf16 +0.104 [+0.056,+0.150]*   generic16 +0.568 [+0.508,+0.626]*
+  qwen25_1_5b    tfidf16 +0.243 [+0.204,+0.284]*   generic16 +0.254 [+0.217,+0.291]*
+  qwen25_7b      tfidf16 -0.034 [-0.091,+0.023]    generic16 +0.164 [+0.114,+0.212]*
+
+## 3. banking: SEMANTIC (exp26, all models) — neg=banks
+  qwen25_1_5b    sem -0.224 [-0.328,-0.122]*   code +0.180 [+0.134,+0.230]*
+  qwen25_7b      sem +0.142 [-0.052,+0.324]    code -0.373 [-0.537,-0.211]*
+  qwen25_14b     sem -0.013 [-0.243,+0.211]    code +0.781 [+0.642,+0.917]*
+  mistral_7b     sem -1.361 [-1.553,-1.182]*   code -0.565 [-0.630,-0.502]*
+  gemma3_1b      sem -0.569 [-0.782,-0.357]*   code -0.009 [-0.052,+0.035] 
+  gemma3_4b      sem -2.456 [-2.899,-2.032]*   code +0.151 [+0.038,+0.265]*
+  gemma3_12b     sem -3.622 [-4.220,-3.016]*   code -0.068 [-0.161,+0.025] 
+  gemma3_27b     sem -3.770 [-4.272,-3.286]*   code -0.330 [-0.454,-0.197]*
+## 3b. content spectrum (exp27, gemma12b vs qwen7b) — neg=banks
+  gemma3_12b: code=-0.071 [-0.162,+0.019]   pseudoword=-0.388 [-0.688,-0.098]*  rare_word=-3.668 [-4.248,-3.115]*  common_word=-0.935 [-1.427,-0.457]*  phrase=-2.019 [-2.383,-1.650]*
+  qwen25_7b: code=-0.328 [-0.473,-0.176]*  pseudoword=-0.265 [-0.453,-0.070]*  rare_word=+0.176 [+0.014,+0.335]*  common_word=+0.293 [-0.000,+0.572]   phrase=-0.099 [-0.234,+0.033] 
+
+## 4. imprintability (|Δ generic| from exp14) x semantic banking (exp26)  r
+  Pearson r = 0.943  (n=8)
+
+## 5. reranking (exp14c N=900): tfidf_plain vs bare / vs generic
+  gemma3_4b    (n=900) tfidf-bare +0.009 [-0.009,+0.027]   tfidf-gen +0.047 [+0.026,+0.067]*  gen-bare -0.038 [-0.057,-0.019]*
+  gemma3_12b   (n=900) tfidf-bare +0.036 [+0.017,+0.055]*  tfidf-gen +0.064 [+0.043,+0.084]*  gen-bare -0.028 [-0.048,-0.009]*
+  gemma3_27b   (n=900) tfidf-bare +0.036 [+0.016,+0.055]*  tfidf-gen +0.061 [+0.040,+0.082]*  gen-bare -0.025 [-0.046,-0.005]*
+  qwen25_7b    (n=900) tfidf-bare -0.007 [-0.026,+0.012]   tfidf-gen +0.007 [-0.013,+0.026]   gen-bare -0.014 [-0.032,+0.005] 
+  qwen25_14b   (n=900) tfidf-bare -0.010 [-0.029,+0.010]   tfidf-gen -0.003 [-0.022,+0.018]   gen-bare -0.007 [-0.026,+0.011] 
+  mistral_7b   (n=900) tfidf-bare -0.003 [-0.020,+0.016]   tfidf-gen -0.000 [-0.020,+0.019]   gen-bare -0.002 [-0.023,+0.017] 
+
+## 6. base vs instruct (exp26): sem + code banking
+  gemma3_4b_base     sem -1.109 [-1.403,-0.842]*  code +0.313 [+0.295,+0.331]*
+  gemma3_4b          sem -2.456 [-2.899,-2.032]*  code +0.151 [+0.038,+0.265]*
+  qwen25_7b_base     sem -0.718 [-0.923,-0.532]*  code +0.169 [+0.136,+0.202]*
+  qwen25_7b          sem +0.142 [-0.052,+0.324]   code -0.373 [-0.537,-0.211]*
+  mistral_7b_base    sem -1.084 [-1.225,-0.951]*  code -0.162 [-0.187,-0.139]*
+  mistral_7b         sem -1.361 [-1.553,-1.182]*  code -0.565 [-0.630,-0.502]*
+
+## 7. downstream QA (exp29, machinery-controlled): q_primed - q_neutral (pos=hurts)
+  gemma3_12b   content +0.358 [+0.187,+0.526]*  machinery +0.164 [+0.045,+0.284]*
+  gemma3_4b    content +0.116 [-0.077,+0.303]   machinery +0.923 [+0.740,+1.113]*
+  qwen25_7b    content -0.800 [-0.993,-0.627]*  machinery +0.004 [-0.102,+0.112] 
+
+==============================================================================
+DONE
+==============================================================================
