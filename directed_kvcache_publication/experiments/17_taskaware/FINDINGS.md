@@ -27,12 +27,28 @@ Hold the question's TOKEN SET fixed; vary only order/meaning. content = prime �
 3. (qwen25_14b shows a large machinery cost neutral−bare = +1.89; the reposition/normalize step
    damages its cache more than others. Content contrast is still machinery-matched and valid.)
 
-## exp31b — conditioning vs selection (the make-or-break control) [RUNNING]
-Per item: pick top-k=32 doc tokens by question→doc attention (SnapKV-style). Compare iso-budget.
-Decisive contrast: sel_k_primed − sel_k_plain (value of conditioning, retained set held fixed).
-Smoke (gemma3_4b, n=8): selection HELPS strongly (selVal vs bare_norm ≈ −1.6) and conditioning on
-top of selection ~0/slightly hurts (COND|sel ≈ +0.5). If this holds: for extraction on a semantic
-imprinter, task-aware SELECTION dominates CONDITIONING. Open cell: Qwen-7B (where conditioning helped).
+## exp31b — conditioning vs selection (the make-or-break control) (QA N=300, k=32; 2/3 done)
+Per item: pick top-k=32 doc tokens by question→doc attention (SnapKV-style). Iso-budget contrasts:
+ selVal = sel_plain − bare_norm (pure task-aware selection); COND|sel = sel_primed − sel_plain
+ (conditioning value, retained set FIXED); primeVal = prime_full − bare_norm (full conditioning).
+
+| model | selVal (selection) | COND|sel (condition given sel) | primeVal (full condition) |
+|---|---|---|---|
+| gemma3_12b | −0.03 (n.s.) | +0.16 (n.s.) | **+0.52*** (hurts) |
+| qwen25_7b  | **+1.00*** (HURTS) | **−0.51*** (helps) | **−0.63*** (helps) |
+| gemma3_4b  | (pending) | | |
+
+**CLEAN MODE-DEPENDENT DISSOCIATION — the positive task-aware result.**
+- Semantic imprinter (gemma3_12b): conditioning HURTS extraction; selection is neutral. → for QA,
+  keep tokens / don't prime.
+- Surface imprinter (qwen3_7b): SELECTION HURTS by a full nat (needs the whole doc), and
+  CONDITIONING HELPS (even on the selected set, −0.51). → for QA, prime, don't prune.
+- Therefore a one-size task-aware method (pure SELECTION, as in Beyond RAG / SnapKV) would HURT
+  qwen7b by ~1 nat; our discarded-prefix CONDITIONING recovers 0.63. The imprinting MODE tells you
+  which task-aware operation to apply. This is a real differentiator vs the selection literature.
+- (Caveat from exp31a: qwen14b HURTS in QA, so "surface imprinter ⇒ condition" is demonstrated for
+  qwen7b; whether it is a general surface-mode law needs the larger surface set. State as a
+  mode-indexed decision rule with the qwen7b/gemma12b pair as the worked example, not a universal law.)
 
 ## exp32 — binding shuffle: does priming bank MEANING or TOKEN PRESENCE? (N=150, 4/5 done)
 Two facts primed, ask about one (requires city→topic BINDING). ordered vs token-shuffled prime.
@@ -57,10 +73,34 @@ the ORDER sign FLIPS with scale (4b −0.51 → 12b +1.43). Interpretation that 
   shuffled (pure token presence) recalls the literal answer better (+1.43).
 - The surface model (qwen7b) banks neither structure nor tokens for a 2-fact bind (can't bind).
 
-## exp33 — single-fact shuffle on exp26's EXACT measure [QUEUED]
-Direct test of whether the paper's headline "semantic axis" is meaning or token presence. With ONE
-fact (one topic to recall), token presence should suffice → predict ORDER≈0 (banking survives
-shuffle) → "semantic" label = token-type/token-presence, not meaning/structure. Confirms or refutes.
+## exp33 — single-fact shuffle on exp26's EXACT measure (N=150, done)
+Direct test of whether the headline "semantic axis" is meaning or token presence: same fact tokens
+ORDERED vs SHUFFLED. SEM_ORDER = sem_ord − sem_shuf (neg = meaning/structure; ~0 = token presence).
+
+| model | SEM banking | SEM_ORDER (ord−shuf) | reading |
+|---|---|---|---|
+| gemma3_4b  | −2.46* | −0.20 (n.s.) | TOKEN PRESENCE (order-invariant) |
+| gemma3_12b | −3.62* | −0.28 (n.s.) | TOKEN PRESENCE |
+| gemma3_27b | −3.77* | +0.47* (shuffle better) | TOKEN PRESENCE |
+| mistral_7b | −1.36* | −1.55* (shuffle KILLS it) | GENUINE STRUCTURE/MEANING |
+| qwen25_7b  | +0.14 (n.s.) | −0.16 (n.s.) | banks little |
+
+**Decisive:** the Gemma family's "semantic banking" is ORDER-INVARIANT (token presence); only
+Mistral's is order-dependent (genuine structure; shuffling destroys it). Two independent shuffle
+probes — binding (exp32) and single-fact (exp33) — AGREE on this split.
+
+## CONVERGED REFRAME (both shuffle probes agree) — replaces the binary semantic-vs-surface "mode"
+The paper's "semantic imprinters (Gemma, Mistral) vs surface imprinter (Qwen)" binary is WRONG.
+The true distinction is THREE-WAY, by what is banked:
+- **Gemma family = TOKEN-PRESENCE imprinter.** High-magnitude banking that is order-invariant even
+  for "semantic" content (exp33 SEM_ORDER n.s.; exp32 binding shuffle ≥ ordered). Its "semantic
+  banking" is lexical/token-type (a meaningful word imprints more than a digit code), NOT meaning.
+- **Mistral = GENUINE STRUCTURE/MEANING imprinter.** Banking is order-dependent; shuffling destroys
+  it (exp33 SEM_ORDER −1.55*, CODE_ORDER −0.74*; exp32 ORDER −1.07*).
+- **Qwen = weak imprinter.** Banks little of either (single or 2-fact).
+Imprintability (r=0.94) predicts banking MAGNITUDE, dominated by Gemma's token-presence imprint —
+so "imprintability predicts semantic banking" should be "predicts banking magnitude; the kind of
+banking is model-specific (token presence for Gemma, structure for Mistral)."
 
 ## Emerging honest reframe (firming up)
 1. Zero-retention priming banks TOKEN PRESENCE / token-type imprint, NOT relational meaning.

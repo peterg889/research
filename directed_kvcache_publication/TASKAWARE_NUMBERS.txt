@@ -1,0 +1,32 @@
+==================================================================================
+TASK-AWARE + SHUFFLE-CONTROL NUMBERS — source of truth
+==================================================================================
+
+## exp31a QA: sem(ordered Q) vs surf(shuffled Q) prime, machinery-controlled (pos=hurts)
+  gemma3_12b  n=300 semC=+0.358[+0.187,+0.526]* surfC=+0.322[+0.163,+0.479]* order=+0.036[-0.119,+0.195] 
+  gemma3_4b   n=300 semC=+0.116[-0.077,+0.303]  surfC=-0.042[-0.233,+0.151]  order=+0.158[-0.019,+0.318] 
+  qwen25_7b   n=300 semC=-0.800[-0.993,-0.627]* surfC=-0.729[-0.907,-0.568]* order=-0.070[-0.170,+0.027] 
+  qwen25_14b  n=300 semC=+0.439[+0.247,+0.622]* surfC=+0.276[+0.127,+0.417]* order=+0.163[+0.023,+0.302]*
+
+## exp31b QA: conditioning vs SELECTION (k=32). pos=hurts. COND|sel<0 => conditioning helps given selection
+  gemma3_12b  n=300 selVal=-0.032[-0.161,+0.097]  COND|sel=+0.160[-0.017,+0.321]  primeVal=+0.520[+0.351,+0.692]*
+  gemma3_4b   n=300 selVal=-0.119[-0.292,+0.062]  COND|sel=+1.032[+0.836,+1.219]* primeVal=+1.046[+0.843,+1.240]*
+  qwen25_7b   n=300 selVal=+1.004[+0.793,+1.213]* COND|sel=-0.509[-0.687,-0.342]* primeVal=-0.632[-0.806,-0.464]*
+
+## exp32 binding (2-fact): ORDER=strip_ord-strip_shuf. neg=ordered banks more (structure); pos=shuffled (tokens)
+  gemma3_4b   n=150 bankOrd=-1.920[-2.330,-1.516]* bankShuf=-1.407[-1.784,-1.055]* ORDER=-0.513[-0.795,-0.244]*
+  gemma3_12b  n=150 bankOrd=-0.392[-0.869,+0.074]  bankShuf=-1.818[-2.319,-1.330]* ORDER=+1.426[+0.905,+1.947]*
+  gemma3_27b  n=150 bankOrd=-1.717[-2.134,-1.311]* bankShuf=-1.945[-2.401,-1.495]* ORDER=+0.228[-0.230,+0.690] 
+  mistral_7b  n=150 bankOrd=-0.705[-0.846,-0.569]* bankShuf=+0.364[+0.250,+0.474]* ORDER=-1.070[-1.221,-0.919]*
+  qwen25_7b   n=150 bankOrd=+0.069[-0.197,+0.342]  bankShuf=-0.045[-0.305,+0.210]  ORDER=+0.115[-0.021,+0.242] 
+
+## exp33 single-fact: SEM & CODE banking, ORDER=ord-shuf. neg=meaning/structure; ~0=token presence
+  gemma3_4b   n=150 SEMbank=-2.456[-2.899,-2.032]* SEM_ORDER=-0.201[-0.577,+0.184]  CODE_ORDER=+0.160[+0.053,+0.269]*
+  gemma3_12b  n=150 SEMbank=-3.622[-4.220,-3.016]* SEM_ORDER=-0.280[-0.825,+0.268]  CODE_ORDER=-0.029[-0.128,+0.065] 
+  gemma3_27b  n=150 SEMbank=-3.770[-4.272,-3.286]* SEM_ORDER=+0.465[+0.008,+0.937]* CODE_ORDER=-0.032[-0.168,+0.103] 
+  mistral_7b  n=150 SEMbank=-1.361[-1.553,-1.182]* SEM_ORDER=-1.553[-1.743,-1.364]* CODE_ORDER=-0.739[-0.824,-0.654]*
+  qwen25_7b   n=150 SEMbank=+0.142[-0.052,+0.324]  SEM_ORDER=-0.159[-0.326,+0.016]  CODE_ORDER=+0.011[-0.115,+0.136] 
+
+==================================================================================
+DONE
+==================================================================================
