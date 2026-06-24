@@ -285,25 +285,26 @@ one representative pair:
 | common word | **−0.93\*** | +0.29 (worse) |
 | phrase | **−2.02\*** | −0.10 (n.s.) |
 
-For *this pair* the picture is a tidy double dissociation — Gemma imprints meaning, Qwen imprints
-surface form. **But that tidiness does not survive the full model set, and we do not claim it.**
-The *semantic* axis is robust and law-like (§6.2): it scales monotonically across the Gemma family,
-appears in Mistral, and is weak/absent in instruct Qwen. The *surface/literal* axis is real but
-**idiosyncratic** — across the eight instruct models the code-banking column is non-monotonic and
-sign-unstable: Gemma-27B *does* bank a literal code (−0.33\*), Mistral banks it *more* than Qwen-7B
-(−0.57\*), and Qwen-14B strongly *anti-banks* it (+0.78\*). So "Gemma cannot store literals" and
-"Qwen imprints surface form" are properties of the cherry-picked 12B-vs-7B pair, not general laws.
-The principled, controlled evidence for surface imprinting is instead the *base→instruct flip*
-(§6.4), where Qwen's tuning demonstrably trades meaning for surface form. We therefore present the
-semantic axis as the headline and the surface axis as a model-specific, training-dependent
-phenomenon.
+For *this pair* the picture looks like a tidy double dissociation — Gemma banks meaningful
+words/phrases, Qwen banks surface forms. **But that tidiness does not survive scrutiny on two
+counts, and we do not claim it.** First, it is pair-specific: across the eight instruct models the
+code-banking column is non-monotonic and sign-unstable (Gemma-27B *does* bank a literal code
+−0.33\*, Mistral banks it *more* than Qwen-7B −0.57\*, Qwen-14B strongly *anti-banks* it +0.78\*),
+so "Gemma cannot store literals" / "Qwen imprints surface form" are not general laws. Second, and
+more fundamentally, the word-order shuffle control of §6.5 shows that what looks like Gemma
+"imprinting meaning" here is actually **token presence** (the banking is order-invariant) — the
+high column for meaningful words reflects that a *meaningful word is a more imprintable token than a
+digit code*, not that meaning is banked. The robust claim is therefore a **content-imprint axis**
+whose *magnitude* scales (§6.2); the *kind* of banking (token presence for Gemma, structure for
+Mistral) is settled in §6.5, and the base→instruct flip (§6.4) is the controlled evidence that the
+banked content *type* is trainable.
 
 ![Figure 2](figures/fig8_content_dissociation.png)
 *Figure 2: Content-type banking for one representative pair (Gemma-12B vs Qwen-7B). Gemma banks
-meaningful words/phrases; Qwen banks surface forms (codes/pseudowords). This tidy pattern is
-pair-specific — the surface axis is idiosyncratic across the full model set (§6.1); the semantic
-axis (Fig. 3–4) is the robust, scaling result. Banking = nats recovered from the stripped cache;
-bars are bootstrap 95% CIs.*
+meaningful words/phrases more than digit codes; Qwen the reverse. This tidy pattern is pair-specific
+and, per the shuffle control (§6.5), reflects token *imprintability* (a meaningful word is a more
+imprintable token), not meaning-banking. The robust, scaling result is the content-imprint
+*magnitude* (Fig. 3–4). Banking = nats recovered from the stripped cache; bars are bootstrap 95% CIs.*
 
 ### 6.2 One trait predicts the magnitude: imprintability (r=0.94)
 Define **imprintability** as the mean |Δ query-NLL| a generic prefix induces (what we earlier
