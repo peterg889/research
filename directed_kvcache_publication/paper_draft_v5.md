@@ -85,7 +85,7 @@ the casualties together.
 
 ## 2. Related Work
 
-Our work sits at the intersection of five threads. For each we note what we build on and where
+Our work sits at the intersection of six threads. For each we note what we build on and where
 we differ; the recurring distinction is that prior work asks *how much* context can be stored or
 *how to recover* what precomputation loses, whereas we ask *what kind* of context survives
 zero-retention construction, *why it varies across models*, and *when it helps*.
@@ -101,6 +101,22 @@ time *conditioning add* usable signal? Our bankability ceiling (§5) and imprint
 (§6) explain *why* precomputation loses quality (most cross-chunk semantic content is not bankable
 into a stripped cache, and how much depends on a model-specific trait), making our analysis
 complementary to these recovery methods.
+
+**Task-aware and trained caches.** Closest to our motivating question — *can knowing the task at
+build time improve the cache?* — are three recent lines. (i) *Task-aware compression*: Beyond RAG
+[@beyondrag] precomputes a single compressed cache tuned to a task description rather than a query
+("condense study material for an open-book exam"), beating query-agnostic compression and
+approaching query-aware compression. (ii) *Query-aware vs. query-agnostic selection*: SnapKV
+[@snapkv] and Ada-KV [@adakv] keep the tokens an observed query attends to, while KVzip [@kvzip]
+targets the query-agnostic regime. (iii) *Trained caches*: Cartridges [@cartridges] distills a
+corpus into a small trainable cache via self-study, matching in-context learning at a fraction of
+the memory. All three change *which tokens (or trained slots) are retained*. We differ on the
+mechanism: we *retain nothing* and instead ask whether construction-time *conditioning* — a
+discarded natural-language prefix that reshapes the kept document keys/values — adds usable signal,
+and we make the selection methods a first-class baseline (does conditioning beat task-aware
+*selection* of the same budget?). Our contribution to this thread is the *mode* account: which
+conditioning content a given model can bank is governed by a measurable trait (§6.2), so the right
+task-aware prime is *model-specific* — a prescription these retention-based methods do not provide.
 
 **KV-cache compression and prompt/context compression.** A large literature compresses the cache
 post-hoc by evicting or summarizing tokens [@h2o; @snapkv], or compresses context into a *few
@@ -124,8 +140,9 @@ it does not; the imprint is content-routed (§8).
 that placement and surface statistics strongly shape behavior and that perplexity need not track
 downstream quality [@lostinmiddle]. We make a specific instance of this concrete and actionable:
 absolute NLL conflates entropy with discrimination for cache-construction interventions, so we
-evaluate with an entropy-invariant contrastive margin and a battery of controls (§3.2, §4) — a
-correction that overturned several clean-looking claims, including our own.
+evaluate with a contrastive margin (invariant to additive NLL offsets) backed by a battery of
+controls — a lockstep sharpening test, rank/top-1 metrics, and per-model prior-shift splits
+(§3.2, §4) — a correction that overturned several clean-looking claims, including our own.
 
 **Mechanistic interpretability of context use.** We use activation patching from the causal-tracing
 lineage [@rome] and contrastive steering vectors [@caa] as tools to localize and test the imprint
