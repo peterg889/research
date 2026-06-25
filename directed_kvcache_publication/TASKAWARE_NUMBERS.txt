@@ -8,10 +8,17 @@ TASK-AWARE + SHUFFLE-CONTROL NUMBERS — source of truth
   qwen25_7b   n=300 semC=-0.800[-0.993,-0.627]* surfC=-0.729[-0.907,-0.568]* order=-0.070[-0.170,+0.027] 
   qwen25_14b  n=300 semC=+0.439[+0.247,+0.622]* surfC=+0.276[+0.127,+0.417]* order=+0.163[+0.023,+0.302]*
 
-## exp31b QA: conditioning vs SELECTION (k=32). pos=hurts. COND|sel<0 => conditioning helps given selection
-  gemma3_12b  n=300 selVal=-0.032[-0.161,+0.097]  COND|sel=+0.160[-0.017,+0.321]  primeVal=+0.520[+0.351,+0.692]*
-  gemma3_4b   n=300 selVal=-0.119[-0.292,+0.062]  COND|sel=+1.032[+0.836,+1.219]* primeVal=+1.046[+0.843,+1.240]*
-  qwen25_7b   n=300 selVal=+1.004[+0.793,+1.213]* COND|sel=-0.509[-0.687,-0.342]* primeVal=-0.632[-0.806,-0.464]*
+## exp31b QA: conditioning vs SELECTION (k=32, 8 models). pos=hurts. COND|sel<0 => conditioning helps given selection
+   imprintability does NOT cleanly predict the direction; ans-surv = answer-span survival under top-k selection
+  qwen25_1_5b  imp=0.20 n=300 primeVal=-0.273[-0.468,-0.092]* COND|sel=-0.206[-0.434,+0.016]  selVal=+0.883[+0.730,+1.042]* ans-surv=0.43
+  qwen25_3b    imp=0.30 n=300 primeVal=-0.837[-1.155,-0.533]* COND|sel=-0.855[-1.266,-0.457]* selVal=+1.888[+1.648,+2.151]* ans-surv=0.42
+  qwen25_7b    imp=0.37 n=300 primeVal=-0.632[-0.806,-0.464]* COND|sel=-0.509[-0.687,-0.342]* selVal=+1.004[+0.793,+1.213]* ans-surv=0.53
+  qwen25_14b   imp=0.39 n=300 primeVal=+2.369[+2.100,+2.650]* COND|sel=+2.540[+2.263,+2.838]* selVal=+0.882[+0.689,+1.076]* ans-surv=0.55
+  gemma3_1b    imp=0.43 n=300 primeVal=-1.908[-2.188,-1.650]* COND|sel=-1.045[-1.323,-0.791]* selVal=-0.332[-0.570,-0.096]* ans-surv=0.47
+  mistral_7b   imp=0.55 n=300 primeVal=+0.343[+0.198,+0.499]* COND|sel=+0.115[-0.004,+0.239]  selVal=+0.502[+0.374,+0.638]* ans-surv=0.52
+  gemma3_4b    imp=0.60 n=300 primeVal=+1.046[+0.843,+1.240]* COND|sel=+1.032[+0.836,+1.219]* selVal=-0.119[-0.292,+0.062]  ans-surv=0.70
+  gemma3_12b   imp=0.84 n=300 primeVal=+0.520[+0.351,+0.692]* COND|sel=+0.160[-0.017,+0.321]  selVal=-0.032[-0.161,+0.097]  ans-surv=0.66
+  -> r(imprintability,primeVal)=0.290  r(imprintability,COND|sel)=0.188  (NO clean trait law)
 
 ## exp32 binding (2-fact): ORDER=strip_ord-strip_shuf. neg=ordered banks more (structure); pos=shuffled (tokens)
   gemma3_4b   n=150 bankOrd=-1.920[-2.330,-1.516]* bankShuf=-1.407[-1.784,-1.055]* ORDER=-0.513[-0.795,-0.244]*

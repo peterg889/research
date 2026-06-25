@@ -38,17 +38,30 @@ Per item: pick top-k=32 doc tokens by question→doc attention (SnapKV-style). I
 | qwen25_7b  | **+1.00*** (HURTS) | **−0.51*** (helps) | **−0.63*** (helps) |
 | gemma3_4b  | (pending) | | |
 
-**CLEAN MODE-DEPENDENT DISSOCIATION — the positive task-aware result.**
-- Semantic imprinter (gemma3_12b): conditioning HURTS extraction; selection is neutral. → for QA,
-  keep tokens / don't prime.
-- Surface imprinter (qwen3_7b): SELECTION HURTS by a full nat (needs the whole doc), and
-  CONDITIONING HELPS (even on the selected set, −0.51). → for QA, prime, don't prune.
-- Therefore a one-size task-aware method (pure SELECTION, as in Beyond RAG / SnapKV) would HURT
-  qwen7b by ~1 nat; our discarded-prefix CONDITIONING recovers 0.63. The imprinting MODE tells you
-  which task-aware operation to apply. This is a real differentiator vs the selection literature.
-- (Caveat from exp31a: qwen14b HURTS in QA, so "surface imprinter ⇒ condition" is demonstrated for
-  qwen7b; whether it is a general surface-mode law needs the larger surface set. State as a
-  mode-indexed decision rule with the qwen7b/gemma12b pair as the worked example, not a universal law.)
+**UPDATE 2026-06-25 — expanded to 8 models + answer-span survival logging (the honest verdict).**
+Models span imprintability 0.20→0.84. primeVal/COND|sel pos=conditioning hurts; selVal pos=selection hurts:
+
+| model | imp | primeVal | COND|sel | selVal | ans-surv |
+|---|---|---|---|---|---|
+| qwen1.5b | 0.20 | −0.27* | −0.21 | +0.88* | 0.43 |
+| qwen3b | 0.30 | −0.84* | −0.85* | +1.89* | 0.42 |
+| qwen7b | 0.37 | −0.63* | −0.51* | +1.00* | 0.53 |
+| qwen14b | 0.39 | +2.37* | +2.54* | +0.88* | 0.55 |
+| gemma1b | 0.43 | −1.91* | −1.05* | −0.33* | 0.47 |
+| mistral7b | 0.55 | +0.34* | +0.12 | +0.50* | 0.52 |
+| gemma4b | 0.60 | +1.05* | +1.03* | −0.12 | 0.70 |
+| gemma12b | 0.84 | +0.52* | +0.16 | −0.03 | 0.66 |
+
+**The clean "mode-dependent rule" of the 3-model version DOES NOT GENERALIZE.** r(imprintability, primeVal)=0.29
+— NO trait law. gemma1b (helps most, −1.91) and qwen14b (hurts most, +2.37) sit at ~equal imprintability.
+Honest verdict, written into §7.1:
+1. NEITHER operation dominates: conditioning helps 4 (qwen1.5b/3b/7b, gemma1b), hurts 4 (qwen14b, mistral,
+   gemma4b/12b). "Always select" (pruning) AND "always prime" are each wrong for half. Refutes both.
+2. The choice does NOT reduce to imprintability/size → withdrew the "decision rule indexed by imprinting
+   character." Deployable prescription = cheaply PROBE BOTH per model.
+3. The one systematic, CONFOUND-CONTROLLED effect: aggressive query-aware SELECTION hurts the whole Qwen
+   family (+0.9..+1.9) but never Gemma — and NOT via answer dropout (gemma1b survival 0.47 ≈ qwens' 0.42–0.55,
+   yet unharmed). So answer-span-survival logging CLOSED the confound and the Qwen-selection-risk survives it.
 
 ## exp32 — binding shuffle: does priming bank MEANING or TOKEN PRESENCE? (N=150, 4/5 done)
 Two facts primed, ask about one (requires city→topic BINDING). ordered vs token-shuffled prime.

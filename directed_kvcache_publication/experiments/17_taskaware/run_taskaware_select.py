@@ -49,10 +49,18 @@ N = 8 if SMOKE else 300
 KSEL = int(os.environ.get("KSEL", "32"))
 RESULTS = Path(__file__).resolve().parent.parent.parent / "results" / "exp31_taskaware_select"
 RESULTS.mkdir(parents=True, exist_ok=True, mode=0o777)
+# Expanded set spans the imprintability range to test whether select-vs-condition tracks a
+# CONTINUOUS trait (imprintability) rather than family. Low-imprintability/surface models should
+# favor conditioning; high-imprintability ones should favor selection.
 MODELS = {
-    "gemma3_12b": {"name": "google/gemma-3-12b-it", "loader": "Gemma3ForConditionalGeneration"},
-    "qwen25_7b":  {"name": "Qwen/Qwen2.5-7B-Instruct", "loader": "AutoModelForCausalLM"},
-    "gemma3_4b":  {"name": "google/gemma-3-4b-it", "loader": "Gemma3ForConditionalGeneration"},
+    "qwen25_1_5b": {"name": "Qwen/Qwen2.5-1.5B-Instruct", "loader": "AutoModelForCausalLM"},  # imprint 0.20
+    "qwen25_3b":   {"name": "Qwen/Qwen2.5-3B-Instruct",   "loader": "AutoModelForCausalLM"},  # imprint ~0.30
+    "qwen25_7b":   {"name": "Qwen/Qwen2.5-7B-Instruct",   "loader": "AutoModelForCausalLM"},  # imprint 0.37
+    "qwen25_14b":  {"name": "Qwen/Qwen2.5-14B-Instruct",  "loader": "AutoModelForCausalLM"},  # imprint 0.39
+    "gemma3_1b":   {"name": "google/gemma-3-1b-it",       "loader": "Gemma3ForCausalLM"},     # imprint 0.43
+    "mistral_7b":  {"name": "mistralai/Mistral-7B-Instruct-v0.3", "loader": "AutoModelForCausalLM"},  # 0.55 structure
+    "gemma3_4b":   {"name": "google/gemma-3-4b-it",       "loader": "Gemma3ForConditionalGeneration"},  # 0.60
+    "gemma3_12b":  {"name": "google/gemma-3-12b-it",      "loader": "Gemma3ForConditionalGeneration"},  # 0.84
 }
 ONLY = os.environ.get("ONLY_MODELS")
 if ONLY: MODELS = {k: MODELS[k] for k in ONLY.split(",") if k in MODELS}
@@ -78,9 +86,27 @@ def load_model(name, loader):
     if loader == "Gemma3ForConditionalGeneration":
         from transformers import Gemma3ForConditionalGeneration
         m = Gemma3ForConditionalGeneration.from_pretrained(name, **kw).eval()
+    elif loader == "Gemma3ForCausalLM":
+        from transformers import Gemma3ForCausalLM
+        m = Gemma3ForCausalLM.from_pretrained(name, **kw).eval()
     else:
         m = AutoModelForCausalLM.from_pretrained(name, **kw).eval()
     return m, tok
+
+
+def answer_doc_indices(tok, ctx, ans, n_doc):
+    """Doc-relative token indices (within the first n_doc tokens) that overlap the answer span,
+    via the tokenizer's char offset mapping. Used to test whether selection drops the answer."""
+    off = ctx.lower().find(ans.lower())
+    if off < 0:
+        return []
+    try:
+        enc = tok(ctx, add_special_tokens=False, return_offsets_mapping=True)
+        offs = enc["offset_mapping"]
+    except Exception:
+        return []
+    s, e = off, off + len(ans)
+    return [i for i, (a, b) in enumerate(offs) if i < n_doc and a < e and b > s]
 
 def purge(name):
     p = os.path.join(HF_CACHE_DIR, "models--" + name.replace("/", "--"))
@@ -159,7 +185,7 @@ def main():
         max_doc = (_M["slim"]-1-96-len(_M["nl"])) if _M["slim"] is not None else 700
         print(f"  loaded {time.time()-t0:.0f}s  full_attn_layers={sum(1 for t in _M['lt'] if t=='full_attention')}/{len(_M['lt'])}")
         ck = RESULTS / mk / "results.json"; (RESULTS / mk).mkdir(exist_ok=True, mode=0o777)
-        skey = f"tsel_{mk}_k{KSEL}" + ("_smoke" if SMOKE else ""); scored = []
+        skey = f"tsel_{mk}_k{KSEL}_as" + ("_smoke" if SMOKE else ""); scored = []  # _as: logs answer-span survival
         if ck.exists():
             prev = json.loads(ck.read_text())
             if prev.get("scoring_key") == skey: scored = prev["samples"]
@@ -169,7 +195,10 @@ def main():
             A = tok.encode(" " + d["a"], add_special_tokens=False)
             P = tok.encode(d["ctx"], add_special_tokens=False)[:max_doc]
             sel = probe_topk(P, Q, KSEL)
-            rec = {"D": len(P), "k": len(sel)}
+            adoc = answer_doc_indices(tok, d["ctx"], d["a"], len(P))  # answer's doc-token indices in P
+            selset = set(sel)
+            rec = {"D": len(P), "k": len(sel),
+                   "a_span": len(adoc), "a_in_sel": sum(1 for j in adoc if j in selset)}
             # bare      = raw full doc (comparable to exp29).  bare_norm = full doc, repositioned+normalized
             # (the machinery-matched reference for selVal, since norm alone shifts NLL ~0.6-3.7 nats).
             c, cl = build("bare",       P, None, None);          rec["bare"]         = answer_nll(c, cl, Q, A); del c
@@ -182,10 +211,12 @@ def main():
             if (i+1) % 20 == 0 or SMOKE:
                 ck.write_text(json.dumps({"scoring_key": skey, "samples": scored}))
                 Aa = {x: np.mean([s[x] for s in scored]) for x in ["bare","bare_norm","prime_full","sel_k_plain","sel_k_primed"]}
-                print(f"    [{i+1}/{len(data)}] bare={Aa['bare']:.3f} bareN={Aa['bare_norm']:.3f} primeFull={Aa['prime_full']:.3f} "
-                      f"selPlain={Aa['sel_k_plain']:.3f} selPrimed={Aa['sel_k_primed']:.3f} | "
-                      f"selVal(vs bareN)={Aa['sel_k_plain']-Aa['bare_norm']:+.3f} "
-                      f"COND|sel={Aa['sel_k_primed']-Aa['sel_k_plain']:+.3f}")
+                tot_span = sum(s["a_span"] for s in scored); tot_in = sum(s["a_in_sel"] for s in scored)
+                asurv = (tot_in / tot_span) if tot_span else float("nan")
+                print(f"    [{i+1}/{len(data)}] primeFull={Aa['prime_full']:.3f} selPlain={Aa['sel_k_plain']:.3f} "
+                      f"selPrimed={Aa['sel_k_primed']:.3f} | selVal={Aa['sel_k_plain']-Aa['bare_norm']:+.3f} "
+                      f"COND|sel={Aa['sel_k_primed']-Aa['sel_k_plain']:+.3f} primeVal={Aa['prime_full']-Aa['bare_norm']:+.3f} "
+                      f"| ans-span-survival={asurv:.2f}")
         ck.write_text(json.dumps({"scoring_key": skey, "samples": scored})); print(f"  done {len(scored)}")
         del m, tok; gc.collect(); torch.cuda.empty_cache(); purge(spec["name"]); _M.clear()
     print(f"\n{'='*56}\nDONE\n{'='*56}")

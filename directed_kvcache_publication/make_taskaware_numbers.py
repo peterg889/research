@@ -23,13 +23,22 @@ for m in ["gemma3_12b","gemma3_4b","qwen25_7b","qwen25_14b"]:
           f"surfC={f(boot([x['surf_prime']-x['neutral'] for x in s]))} "
           f"order={f(boot([x['sem_prime']-x['surf_prime'] for x in s]))}")
 
-print("\n## exp31b QA: conditioning vs SELECTION (k=32). pos=hurts. COND|sel<0 => conditioning helps given selection")
-for m in ["gemma3_12b","gemma3_4b","qwen25_7b"]:
+print("\n## exp31b QA: conditioning vs SELECTION (k=32, 8 models). pos=hurts. COND|sel<0 => conditioning helps given selection")
+print("   imprintability does NOT cleanly predict the direction; ans-surv = answer-span survival under top-k selection")
+IMP = {"qwen25_1_5b":0.20,"qwen25_3b":0.30,"qwen25_7b":0.37,"qwen25_14b":0.39,
+       "gemma3_1b":0.43,"mistral_7b":0.55,"gemma3_4b":0.60,"gemma3_12b":0.84}
+import numpy as _np
+_pv, _cs, _imp = [], [], []
+for m in ["qwen25_1_5b","qwen25_3b","qwen25_7b","qwen25_14b","gemma3_1b","mistral_7b","gemma3_4b","gemma3_12b"]:
     s = S(f"exp31_taskaware_select/{m}")
     if not s: continue
-    print(f"  {m:11s} n={len(s)} selVal={f(boot([x['sel_k_plain']-x['bare_norm'] for x in s]))} "
-          f"COND|sel={f(boot([x['sel_k_primed']-x['sel_k_plain'] for x in s]))} "
-          f"primeVal={f(boot([x['prime_full']-x['bare_norm'] for x in s]))}")
+    pv = boot([x['prime_full']-x['bare_norm'] for x in s]); cs = boot([x['sel_k_primed']-x['sel_k_plain'] for x in s])
+    sv = boot([x['sel_k_plain']-x['bare_norm'] for x in s])
+    surv = sum(x.get('a_in_sel',0) for x in s) / max(sum(x.get('a_span',0) for x in s), 1)
+    print(f"  {m:12s} imp={IMP[m]:.2f} n={len(s)} primeVal={f(pv)} COND|sel={f(cs)} selVal={f(sv)} ans-surv={surv:.2f}")
+    _pv.append(pv[0]); _cs.append(cs[0]); _imp.append(IMP[m])
+if len(_imp) >= 4:
+    print(f"  -> r(imprintability,primeVal)={_np.corrcoef(_imp,_pv)[0,1]:.3f}  r(imprintability,COND|sel)={_np.corrcoef(_imp,_cs)[0,1]:.3f}  (NO clean trait law)")
 
 print("\n## exp32 binding (2-fact): ORDER=strip_ord-strip_shuf. neg=ordered banks more (structure); pos=shuffled (tokens)")
 for m in ["gemma3_4b","gemma3_12b","gemma3_27b","mistral_7b","qwen25_7b"]:

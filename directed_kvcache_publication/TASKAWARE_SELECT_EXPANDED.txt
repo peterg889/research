@@ -1,0 +1,14 @@
+FINAL exp31b expanded (8 models, N=300, k=32) — primeVal/COND|sel pos=conditioning hurts; selVal pos=selection hurts
+  qwen25_1_5b  Q imp=0.20  primeVal=-0.27[-0.47,-0.09]*  COND|sel=-0.21[-0.43,+0.02]   selVal=+0.88[+0.73,+1.04]*  ans-surv=0.43
+  qwen25_3b    Q imp=0.30  primeVal=-0.84[-1.15,-0.53]*  COND|sel=-0.85[-1.27,-0.46]*  selVal=+1.89[+1.65,+2.15]*  ans-surv=0.42
+  qwen25_7b    Q imp=0.37  primeVal=-0.63[-0.81,-0.46]*  COND|sel=-0.51[-0.69,-0.34]*  selVal=+1.00[+0.79,+1.21]*  ans-surv=0.53
+  qwen25_14b   Q imp=0.39  primeVal=+2.37[+2.10,+2.65]*  COND|sel=+2.54[+2.26,+2.84]*  selVal=+0.88[+0.69,+1.08]*  ans-surv=0.55
+  gemma3_1b    G imp=0.43  primeVal=-1.91[-2.19,-1.65]*  COND|sel=-1.05[-1.32,-0.79]*  selVal=-0.33[-0.57,-0.10]*  ans-surv=0.47
+  mistral_7b   M imp=0.55  primeVal=+0.34[+0.20,+0.50]*  COND|sel=+0.12[-0.00,+0.24]   selVal=+0.50[+0.37,+0.64]*  ans-surv=0.52
+  gemma3_4b    G imp=0.60  primeVal=+1.05[+0.84,+1.24]*  COND|sel=+1.03[+0.84,+1.22]*  selVal=-0.12[-0.29,+0.06]   ans-surv=0.70
+  gemma3_12b   G imp=0.84  primeVal=+0.52[+0.35,+0.69]*  COND|sel=+0.16[-0.02,+0.32]   selVal=-0.03[-0.16,+0.10]   ans-surv=0.66
+
+  r(imprintability, primeVal)=0.290   r(imprintability, COND|sel)=0.187
+
+  selVal by family at comparable ans-span survival (~0.42-0.55):
+    Qwen (1.5b/3b/7b/14b): selection HURTS +0.88..+1.89 ; Gemma (1b): -0.33 ; -> not a dropout artifact

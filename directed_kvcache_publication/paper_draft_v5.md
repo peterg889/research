@@ -36,19 +36,20 @@ and Qwen 2.5's alignment uniquely *suppresses* it while strengthening surface/co
 (sem −0.72→+0.14, code +0.17→−0.37) — a controlled demonstration that the banked content type is a
 *trainable* property.
 
-Third, downstream value and an actionable, **task-aware** construction rule. The mode–task "match"
+Third, downstream value and the limits of a **task-aware** construction rule. The mode–task "match"
 of earlier drafts is weaker than claimed: the QA effect of priming is **token presence** (shuffling
 the question barely changes it) with a sign that does not track family — priming helps Qwen-7B
-(−0.80 nats) but *hurts* the larger Qwen-14B (+0.44) and the Gemmas. What *is* robust and useful is
-that the best build operation when the task is known is **mode-dependent**: against a SnapKV-style
-task-aware **selection** baseline, conditioning (our discarded prime) *hurts* the token-presence
-imprinters (Gemma, +0.5 to +1.0 nats) where selection is the right move, but *helps* Qwen-7B
-(−0.6) where aggressive query-aware selection instead *hurts* by a full nat. So no single operation
-is right for all models; the prescription is a decision rule indexed by imprinting character. We close with
-the bounds — most context value (~65%+) is structurally un-bankable — and argue the durable
-contributions are the content-imprint characterization (and its token-presence/structure
-correction), the evaluation methodology that exposes it, and a mode-indexed rule for task-aware
-cache construction.
+(−0.80 nats) but *hurts* the larger Qwen-14B (+0.44) and the Gemmas. Comparing our discarded-prefix
+**conditioning** to a SnapKV-style task-aware **selection** baseline across eight models, neither
+operation dominates: conditioning *helps* four (Qwen-1.5B/3B/7B, Gemma-1B; up to −1.9 nats) and
+*hurts* four, and — against our hypothesis — which wins does **not** reduce to imprintability
+(r=0.29) or size, so we withdraw the "rule indexed by imprinting" and conclude you must *probe both
+per model*. The one systematic, confound-controlled effect is that aggressive query-aware selection
+*hurts the whole Qwen family* (not Gemma) even at matched answer-span survival — a real risk of
+SnapKV-style pruning that conditioning sidesteps. We close with the bounds — most context value
+(~65%+) is structurally un-bankable — and argue the durable contributions are the content-imprint
+characterization (and its token-presence/structure correction), the evaluation methodology that
+exposes it, and an honest account of when discarded-prefix conditioning beats task-aware selection.
 
 ---
 
@@ -79,11 +80,12 @@ this paper.** We make four contributions:
    little — there is no clean two-way semantic/surface *mode*. The banked content type is *set by
    instruction-tuning, not architecture* (§6.4), with a controlled base→instruct flip in Qwen.
 3. **Task-aware construction (§7).** The mode–task "match" is weaker than earlier claimed (the QA
-   effect is token presence, and its sign is model/scale-specific, not a family law). The robust,
-   actionable result: when the task is known, the best build operation is **mode-dependent** —
-   against a SnapKV-style **selection** baseline, conditioning hurts the token-presence imprinters
-   (select instead) but helps Qwen-7B (where selection itself hurts). The prescription is a
-   decision rule indexed by imprinting character, not a universal "prime the cache."
+   effect is token presence, and its sign is model/scale-specific, not a family law). Comparing
+   discarded-prefix **conditioning** to a SnapKV-style task-aware **selection** baseline across eight
+   models, neither dominates (conditioning helps four, hurts four) and which wins does **not** reduce
+   to a single trait (r=0.29 with imprintability) — so the honest prescription is *probe both per
+   model*, not "prime the cache." The one systematic effect is that aggressive query-aware selection
+   hurts the entire Qwen family (not Gemma) even at matched answer-span survival.
 4. **The ceiling and the negatives (§5, §8).** Context value is large (−2.8 nats when retained)
    but mostly un-bankable; we report every controlled claim that failed (contrastive priming is
    inert, a representation-level "coherence" mechanism is a positional artifact, and five
@@ -452,8 +454,8 @@ Crucially the sign does *not* track family — Qwen-7B is *helped* (−0.80) but
 *hurt* (+0.44), like the Gemmas. So the earlier clean story ("surface imprinters help extraction,
 semantic imprinters hurt it") is **not a law**: it is a property of the specific Qwen-7B vs.
 Gemma-12B pair. We therefore demote the mode–task "2×2" below to an *illustrative* worked pair,
-and replace the prescription with the directly actionable, mode-indexed result of §7.1 (which
-construction operation to use when you know the task).
+and replace the prescription with the eight-model select-vs-condition comparison of §7.1 (which
+construction operation to use when you know the task — and why it must be measured per model).
 
 **The 2×2** (one worked pair — Gemma-12B and Qwen-7B — *not* a family law; see the per-model
 caveats above and the shuffle controls in §6.5):
@@ -469,51 +471,61 @@ Gemma's relevance reranking. Right: question priming helps Qwen-7B's QA extracti
 Gemma-12B's. This is illustrative, not a family law — Qwen-14B reverses Qwen-7B's QA sign (above),
 and the QA effect is token-presence, not meaning (§6.5).*
 
-### 7.1 Task-aware construction: *select* vs. *condition* is mode-dependent
+### 7.1 Task-aware construction: *select* vs. *condition*, and why you must probe per model
 The motivating practical question is: if we know the task at cache-build time, how should we build
 the cache? Two families of operation are available — **selection** (keep the task-relevant tokens,
 drop the rest: the SnapKV/Beyond-RAG move) and **conditioning** (keep the document but reshape its
-kept keys/values with a discarded task prime: our move). We compare them iso-budget on extraction:
-per passage we pick the top-`k`=32 document tokens by question→document attention (a SnapKV-style
-probe), and score the answer under (a) the selected tokens alone, (b) the selected tokens
-*conditioned* by the discarded question, and (c) the full document conditioned by the question.
-`selVal` = selection − normalized full doc; `COND|sel` = conditioning the selected set − selection
-alone; both machinery-matched (pos = hurts).
+kept keys/values with a discarded task prime: our move). We compare them iso-budget on extraction
+across **eight models** (N=300 SQuAD): per passage we pick the top-`k`=32 document tokens by
+question→document attention (a SnapKV-style probe), and score the answer under the selected tokens
+alone, the selected tokens *conditioned* by the discarded question, and the full document
+conditioned by the question. `selVal` = selection − normalized full doc; `COND|sel` = conditioning
+the selected set − selection alone (machinery-matched, retained set held fixed); positive = hurts.
+We also log **answer-span survival** — the fraction of the answer's tokens kept by the top-`k`
+selection — to separate a genuine context need from mere answer-token dropout.
 
-| model | selVal (selection) | COND\|sel (conditioning, given selection) | full conditioning |
-|---|---|---|---|
-| Gemma-12B | −0.03 (n.s.) | +0.16 (n.s.) | **+0.52\* (hurts)** |
-| Gemma-4B  | −0.12 (n.s.) | **+1.03\* (hurts)** | **+1.05\* (hurts)** |
-| Qwen-7B   | **+1.00\* (hurts)** | **−0.51\* (helps)** | **−0.63\* (helps)** |
+| model | imprint. | selVal (selection) | COND\|sel (conditioning) | full conditioning | ans-span surv. |
+|---|---|---|---|---|---|
+| Qwen-1.5B | 0.20 | **+0.88\*** | −0.21 (n.s.) | **−0.27\*** | 0.43 |
+| Qwen-3B  | 0.30 | **+1.89\*** | **−0.85\*** | **−0.84\*** | 0.42 |
+| Qwen-7B  | 0.37 | **+1.00\*** | **−0.51\*** | **−0.63\*** | 0.53 |
+| Qwen-14B | 0.39 | **+0.88\*** | **+2.54\*** | **+2.37\*** | 0.55 |
+| Gemma-1B | 0.43 | **−0.33\*** | **−1.05\*** | **−1.91\*** | 0.47 |
+| Mistral-7B | 0.55 | **+0.50\*** | +0.12 (n.s.) | **+0.34\*** | 0.52 |
+| Gemma-4B | 0.60 | −0.12 (n.s.) | **+1.03\*** | **+1.05\*** | 0.70 |
+| Gemma-12B | 0.84 | −0.03 (n.s.) | +0.16 (n.s.) | **+0.52\*** | 0.66 |
 
 ![Figure 8](figures/fig13_select_vs_condition.png)
-*Figure 8: Task-aware extraction — select vs. condition is mode-dependent. selVal = aggressive
-top-k=32 selection vs. the full (normalized) document; COND|sel = conditioning the selected set vs.
-selection alone (retained set held fixed); positive = hurts. On Gemma, conditioning hurts and
-selection is neutral; on Qwen-7B selection hurts while conditioning helps — opposite prescriptions.
-Bars are bootstrap 95% CIs.*
+*Figure 8: Task-aware extraction across eight models. selVal = top-k=32 selection vs. the full
+(normalized) document; conditioning = discarded-question prime; positive = hurts. Selection
+systematically hurts the Qwen family (orange, +0.9 to +1.9) but is neutral/helpful for Gemma;
+conditioning helps a subset (smaller Qwens, Gemma-1B) and hurts others (Qwen-14B, Gemma-4B/12B),
+and does not track imprintability. Bars are bootstrap 95% CIs.*
 
-The best build operation is **mode-dependent, and the two modes want opposite things**:
+Three honest readings:
 
-- On the **token-presence imprinters (Gemma)**, conditioning *hurts* extraction (full-doc priming
-  +0.5 to +1.0 nats) and selection is neutral → the right move is to **select / not prime**.
-- On **Qwen-7B**, this aggressive *selection hurts* by a full nat while *conditioning helps*
-  (−0.5 to −0.6) → the right move is to **prime, not prune**.
+- **Neither operation universally dominates.** Conditioning *helps* on four models (Qwen-1.5B/3B/7B,
+  Gemma-1B; −0.3 to −1.9 nats) and *hurts* on four (Qwen-14B +2.4, Gemma-4B +1.1, Gemma-12B +0.5,
+  Mistral +0.3). So "always select" (the implicit assumption of query-aware pruning) is wrong for
+  half of these models, and "always prime" is wrong for the other half.
+- **But the choice does *not* reduce to a single trait.** Against our prior hypothesis, conditioning
+  value barely correlates with imprintability (`r=0.29`) or size — Gemma-1B (the strongest *help*,
+  −1.9) and Qwen-14B (the strongest *hurt*, +2.4) sit at nearly the same imprintability. We
+  therefore **withdraw** the earlier "decision rule indexed by imprinting character"; the deployable
+  prescription is the weaker but honest *cheaply probe both operations per model* (one N≈300 sweep),
+  not a trait shortcut.
+- **The one systematic, confound-controlled effect is on the selection side.** Aggressive query-aware
+  selection *hurts the entire Qwen family* (+0.9 to +1.9 nats) but never Gemma, and this is **not**
+  explained by answer-token dropout: Gemma-1B keeps the same fraction of answer tokens as the Qwens
+  (survival 0.47 vs. 0.42–0.55) yet is *unharmed* by selection. So SnapKV-style pruning [@snapkv]
+  carries a real, family-specific risk for Qwen that discarded-prefix conditioning sidesteps — though
+  we do not extend this to query-agnostic compression like Beyond RAG [@beyondrag], which prunes at
+  larger budgets and reports gains.
 
-So an aggressive query-aware **selection** of the kind SnapKV [@snapkv] computes (here a top-`k`=32
-attention probe) *hurts* Qwen-7B by ≈1 nat, where our discarded-prefix conditioning recovers ≈0.6;
-conversely conditioning is the wrong tool on Gemma. We do not claim this of every selection method:
-task-aware *compression* like Beyond RAG [@beyondrag] operates query-agnostically at larger budgets
-and reports gains, so the contrast is specifically with *aggressive query-conditioned pruning*. The
-deployable corollary is a **decision rule indexed by imprinting character**: *measure
-imprintability/banking once per model; for extraction, prime weak/surface imprinters and select (or
-leave) high-imprintability ones.* (We demonstrate the rule on the Qwen-7B vs. Gemma pair; §10 notes
-that the surface side rests on Qwen-7B — the larger Qwen-14B behaves like the token-presence
-imprinters — so the rule is mode-indexed, not family-indexed, and part of Qwen's `selVal` may be
-differential answer-span survival under pruning rather than a pure context-length need.)
-
-Value comes from **matching the construction operation to the model's imprinting character**, not
-from priming per se.
+The practical message is therefore narrower than "prime the cache," and narrower than a mode rule:
+**when you know the task, do not assume the operation — conditioning is a real alternative that beats
+aggressive selection on a substantial minority of models, but which wins is model-specific and must
+be measured.**
 
 ---
 
@@ -560,13 +572,14 @@ from priming per se.
 - The token-presence-vs-structure split (§6.5) is shown with two shuffle probes on five models; the
   "Gemma = token presence, Mistral = structure" reading rests on one non-Gemma structure imprinter
   (Mistral) and would be strengthened by more model families.
-- The task-aware select-vs-condition rule (§7.1) is demonstrated on three models; its surface side
-  rests on **Qwen-7B specifically** — the larger Qwen-14B behaves like the token-presence imprinters
-  in QA (§7), so the rule is **mode-indexed, not family-indexed**, and the surface→condition cell
-  needs more weak/surface imprinters to generalize. The selection baseline is a single SnapKV-style
-  attention probe at k=32; other budgets/selectors may shift the crossover, and we did not log
-  whether the answer span survived selection, so part of Qwen's selection penalty (`selVal`) may be
-  differential answer-token dropout rather than a pure need for the full document.
+- The task-aware select-vs-condition comparison (§7.1) spans eight models but **does not yield a
+  predictive rule**: which operation wins is model-specific and correlates only weakly with
+  imprintability (r=0.29) or size, so deployment requires an empirical per-model probe. The selection
+  baseline is a single SnapKV-style attention probe at k=32; other budgets/selectors may shift the
+  crossover. The systematic Qwen-vs-Gemma selection asymmetry is controlled for answer-span survival
+  (Gemma-1B matches the Qwens' survival yet is unharmed), but a fuller selector/budget sweep and
+  non-extractive tasks would strengthen it. The Qwen-14B conditioning penalty (+2.4) is unusually
+  large and co-occurs with a high prime+strip machinery cost (§7), which we do not fully explain.
 - Downstream value is shown on reranking and extractive QA; broader task coverage is future work.
 - Banking probes use controlled synthetic facts (decisive content in filler) at N=150; behavioral
   results use N=300–900. The synthetic design maximizes cleanliness at some cost to ecological
@@ -588,12 +601,15 @@ extreme, even competes with literal structure. The honest verdict is that direct
 construction is not a free-lunch accelerator but a *typed*, bounded mechanism whose character is
 model-specific, **trainable** (five architectural accounts fail; a base-vs-instruct comparison
 localizes the content type to instruction-tuning, which for Qwen 2.5 flips it), and whose
-*deployment* must be matched to that character: when the task is known, the better build operation —
-keep-the-relevant-tokens **selection** vs. discarded-prime **conditioning** — depends on the model's
-imprinting character, and using the wrong one *hurts*. Its durable contributions are the
-content-imprint characterization (and the token-presence/structure correction), the evaluation
-methodology that exposes the entropy and machinery confounds, and a mode-indexed rule — survivors
-and casualties alike — for what zero-retention cache construction can and cannot do.
+*deployment* resists a tidy rule: across eight models, neither keep-the-relevant-tokens **selection**
+nor discarded-prime **conditioning** dominates — conditioning beats aggressive selection on a
+substantial minority, but which wins is model-specific and does not reduce to imprintability or
+size, so the honest prescription is to *probe both per model*. The one systematic effect is that
+aggressive query-aware selection carries a Qwen-specific penalty (controlled for answer-span
+survival) that conditioning avoids. Its durable contributions are the content-imprint
+characterization (and the token-presence/structure correction), the evaluation methodology that
+exposes the entropy and machinery confounds, and an honest map — survivors and casualties alike —
+of what zero-retention cache construction can and cannot do.
 
 ---
 

@@ -1,0 +1,171 @@
+CONDITIONING vs SELECTION (exp31b)  SMOKE=False  N=300  k=32
+  300 squad items
+
+# qwen25_1_5b
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]Loading weights:   3%|▎         | 9/338 [00:00<00:03, 89.49it/s]Loading weights:  16%|█▌        | 53/338 [00:00<00:00, 286.51it/s]Loading weights:  29%|██▉       | 99/338 [00:00<00:00, 362.17it/s]Loading weights:  43%|████▎     | 147/338 [00:00<00:00, 406.65it/s]Loading weights:  56%|█████▌    | 190/338 [00:00<00:00, 414.63it/s]Loading weights:  69%|██████▉   | 233/338 [00:00<00:00, 413.94it/s]Loading weights:  83%|████████▎ | 280/338 [00:00<00:00, 430.79it/s]Loading weights:  96%|█████████▋| 326/338 [00:00<00:00, 439.36it/s]Loading weights: 100%|██████████| 338/338 [00:00<00:00, 405.80it/s]
+  loaded 3s  full_attn_layers=28/28
+    [20/300] primeFull=3.109 selPlain=3.548 selPrimed=3.773 | selVal=+0.551 COND|sel=+0.225 primeVal=+0.111 | ans-span-survival=0.52
+    [40/300] primeFull=3.517 selPlain=3.820 selPrimed=3.987 | selVal=+0.368 COND|sel=+0.167 primeVal=+0.065 | ans-span-survival=0.60
+    [60/300] primeFull=4.002 selPlain=4.578 selPrimed=4.695 | selVal=+0.428 COND|sel=+0.117 primeVal=-0.148 | ans-span-survival=0.56
+    [80/300] primeFull=5.038 selPlain=5.897 selPrimed=5.765 | selVal=+0.382 COND|sel=-0.133 primeVal=-0.477 | ans-span-survival=0.59
+    [100/300] primeFull=5.107 selPlain=6.106 selPrimed=5.898 | selVal=+0.549 COND|sel=-0.208 primeVal=-0.450 | ans-span-survival=0.59
+    [120/300] primeFull=4.971 selPlain=5.930 selPrimed=5.678 | selVal=+0.543 COND|sel=-0.252 primeVal=-0.416 | ans-span-survival=0.57
+    [140/300] primeFull=4.887 selPlain=5.871 selPrimed=5.606 | selVal=+0.630 COND|sel=-0.265 primeVal=-0.354 | ans-span-survival=0.50
+    [160/300] primeFull=4.615 selPlain=5.542 selPrimed=5.313 | selVal=+0.637 COND|sel=-0.229 primeVal=-0.290 | ans-span-survival=0.47
+    [180/300] primeFull=4.779 selPlain=5.787 selPrimed=5.680 | selVal=+0.765 COND|sel=-0.107 primeVal=-0.244 | ans-span-survival=0.46
+    [200/300] primeFull=4.686 selPlain=5.578 selPrimed=5.516 | selVal=+0.695 COND|sel=-0.062 primeVal=-0.197 | ans-span-survival=0.46
+    [220/300] primeFull=4.646 selPlain=5.658 selPrimed=5.572 | selVal=+0.842 COND|sel=-0.087 primeVal=-0.171 | ans-span-survival=0.43
+    [240/300] primeFull=4.672 selPlain=5.793 selPrimed=5.682 | selVal=+0.877 COND|sel=-0.111 primeVal=-0.243 | ans-span-survival=0.42
+    [260/300] primeFull=4.668 selPlain=5.869 selPrimed=5.668 | selVal=+0.889 COND|sel=-0.201 primeVal=-0.313 | ans-span-survival=0.42
+    [280/300] primeFull=4.749 selPlain=5.943 selPrimed=5.727 | selVal=+0.880 COND|sel=-0.216 primeVal=-0.314 | ans-span-survival=0.42
+    [300/300] primeFull=4.813 selPlain=5.969 selPrimed=5.762 | selVal=+0.883 COND|sel=-0.206 primeVal=-0.273 | ans-span-survival=0.43
+  done 300
+
+# qwen25_3b
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Fetching 2 files:  50%|█████     | 1/2 [00:21<00:21, 21.53s/it]Fetching 2 files: 100%|██████████| 2/2 [00:21<00:00, 10.77s/it]
+Loading weights:   0%|          | 0/434 [00:00<?, ?it/s]Loading weights:   0%|          | 1/434 [00:00<01:09,  6.22it/s]Loading weights:   6%|▋         | 28/434 [00:00<00:03, 130.06it/s]Loading weights:  12%|█▏        | 53/434 [00:00<00:02, 177.80it/s]Loading weights:  20%|██        | 87/434 [00:00<00:01, 232.51it/s]Loading weights:  26%|██▌       | 112/434 [00:00<00:01, 236.40it/s]Loading weights:  32%|███▏      | 137/434 [00:00<00:01, 240.60it/s]Loading weights:  39%|███▉      | 171/434 [00:00<00:00, 268.08it/s]Loading weights:  46%|████▌     | 199/434 [00:00<00:00, 262.01it/s]Loading weights:  53%|█████▎    | 231/434 [00:00<00:00, 275.85it/s]Loading weights:  60%|█████▉    | 259/434 [00:01<00:00, 268.79it/s]Loading weights:  67%|██████▋   | 290/434 [00:01<00:00, 272.49it/s]Loading weights:  73%|███████▎  | 318/434 [00:01<00:00, 266.13it/s]Loading weights:  81%|████████  | 351/434 [00:01<00:00, 281.44it/s]Loading weights:  88%|████████▊ | 380/434 [00:01<00:00, 272.85it/s]Loading weights:  95%|█████████▍| 411/434 [00:01<00:00, 280.71it/s]Loading weights: 100%|██████████| 434/434 [00:01<00:00, 252.55it/s]
+  loaded 27s  full_attn_layers=36/36
+    [20/300] primeFull=5.295 selPlain=6.827 selPrimed=6.696 | selVal=+2.142 COND|sel=-0.131 primeVal=+0.610 | ans-span-survival=0.49
+    [40/300] primeFull=6.362 selPlain=8.002 selPrimed=7.722 | selVal=+1.696 COND|sel=-0.279 primeVal=+0.056 | ans-span-survival=0.49
+    [60/300] primeFull=6.898 selPlain=9.121 selPrimed=8.273 | selVal=+1.672 COND|sel=-0.849 primeVal=-0.551 | ans-span-survival=0.45
+    [80/300] primeFull=7.980 selPlain=10.600 selPrimed=9.316 | selVal=+1.949 COND|sel=-1.284 primeVal=-0.671 | ans-span-survival=0.51
+    [100/300] primeFull=7.724 selPlain=10.969 selPrimed=9.506 | selVal=+2.176 COND|sel=-1.463 primeVal=-1.068 | ans-span-survival=0.48
+    [120/300] primeFull=7.369 selPlain=10.288 selPrimed=9.130 | selVal=+2.020 COND|sel=-1.158 primeVal=-0.898 | ans-span-survival=0.49
+    [140/300] primeFull=7.212 selPlain=9.983 selPrimed=8.857 | selVal=+1.944 COND|sel=-1.127 primeVal=-0.827 | ans-span-survival=0.45
+    [160/300] primeFull=6.893 selPlain=9.500 selPrimed=8.489 | selVal=+1.887 COND|sel=-1.011 primeVal=-0.719 | ans-span-survival=0.43
+    [180/300] primeFull=7.285 selPlain=9.766 selPrimed=8.889 | selVal=+1.908 COND|sel=-0.877 primeVal=-0.573 | ans-span-survival=0.42
+    [200/300] primeFull=7.228 selPlain=9.559 selPrimed=8.882 | selVal=+1.836 COND|sel=-0.678 primeVal=-0.495 | ans-span-survival=0.44
+    [220/300] primeFull=7.165 selPlain=9.669 selPrimed=8.940 | selVal=+1.965 COND|sel=-0.729 primeVal=-0.539 | ans-span-survival=0.41
+    [240/300] primeFull=7.198 selPlain=9.801 selPrimed=9.101 | selVal=+1.977 COND|sel=-0.700 primeVal=-0.626 | ans-span-survival=0.40
+    [260/300] primeFull=7.265 selPlain=9.855 selPrimed=9.135 | selVal=+1.977 COND|sel=-0.720 primeVal=-0.613 | ans-span-survival=0.41
+    [280/300] primeFull=7.311 selPlain=10.117 selPrimed=9.184 | selVal=+1.951 COND|sel=-0.933 primeVal=-0.854 | ans-span-survival=0.41
+    [300/300] primeFull=7.395 selPlain=10.121 selPrimed=9.266 | selVal=+1.888 COND|sel=-0.855 primeVal=-0.837 | ans-span-survival=0.42
+  done 300
+
+# qwen25_7b
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:   0%|          | 1/339 [00:00<03:32,  1.59it/s]Loading weights:   4%|▍         | 15/339 [00:00<00:12, 25.90it/s]Loading weights:   8%|▊         | 28/339 [00:00<00:07, 44.25it/s]Loading weights:  12%|█▏        | 40/339 [00:01<00:05, 52.62it/s]Loading weights:  15%|█▌        | 52/339 [00:01<00:04, 62.75it/s]Loading weights:  19%|█▉        | 65/339 [00:01<00:03, 72.88it/s]Loading weights:  23%|██▎       | 77/339 [00:01<00:03, 77.83it/s]Loading weights:  26%|██▋       | 89/339 [00:01<00:03, 82.06it/s]Loading weights:  29%|██▉       | 100/339 [00:01<00:02, 82.90it/s]Loading weights:  33%|███▎      | 113/339 [00:01<00:02, 87.52it/s]Loading weights:  37%|███▋      | 125/339 [00:01<00:02, 88.24it/s]Loading weights:  40%|████      | 137/339 [00:02<00:02, 89.29it/s]Loading weights:  44%|████▍     | 149/339 [00:02<00:02, 90.02it/s]Loading weights:  47%|████▋     | 161/339 [00:02<00:01, 91.19it/s]Loading weights:  51%|█████     | 172/339 [00:02<00:01, 89.54it/s]Loading weights:  55%|█████▍    | 185/339 [00:02<00:01, 93.09it/s]Loading weights:  58%|█████▊    | 197/339 [00:02<00:01, 92.99it/s]Loading weights:  62%|██████▏   | 209/339 [00:02<00:01, 92.61it/s]Loading weights:  65%|██████▌   | 221/339 [00:03<00:01, 93.08it/s]Loading weights:  68%|██████▊   | 232/339 [00:03<00:01, 91.33it/s]Loading weights:  72%|███████▏  | 245/339 [00:03<00:00, 94.55it/s]Loading weights:  75%|███████▌  | 255/339 [00:03<00:00, 89.47it/s]Loading weights:  79%|███████▉  | 269/339 [00:03<00:00, 95.42it/s]Loading weights:  83%|████████▎ | 281/339 [00:03<00:00, 94.21it/s]Loading weights:  86%|████████▋ | 293/339 [00:03<00:00, 93.96it/s]Loading weights:  90%|████████▉ | 304/339 [00:03<00:00, 91.76it/s]Loading weights:  94%|█████████▎| 317/339 [00:04<00:00, 86.94it/s]Loading weights:  97%|█████████▋| 330/339 [00:04<00:00, 91.03it/s]Loading weights: 100%|██████████| 339/339 [00:04<00:00, 80.48it/s]
+  loaded 6s  full_attn_layers=28/28
+    [20/300] primeFull=4.028 selPlain=5.332 selPrimed=5.065 | selVal=+1.301 COND|sel=-0.267 primeVal=-0.003 | ans-span-survival=0.54
+    [40/300] primeFull=4.465 selPlain=5.423 selPrimed=5.316 | selVal=+0.965 COND|sel=-0.107 primeVal=+0.007 | ans-span-survival=0.61
+    [60/300] primeFull=5.103 selPlain=6.149 selPrimed=6.135 | selVal=+1.054 COND|sel=-0.014 primeVal=+0.008 | ans-span-survival=0.60
+    [80/300] primeFull=6.140 selPlain=7.238 selPrimed=7.091 | selVal=+0.859 COND|sel=-0.148 primeVal=-0.240 | ans-span-survival=0.64
+    [100/300] primeFull=6.059 selPlain=7.180 selPrimed=6.938 | selVal=+0.787 COND|sel=-0.242 primeVal=-0.334 | ans-span-survival=0.64
+    [120/300] primeFull=5.833 selPlain=6.904 selPrimed=6.687 | selVal=+0.779 COND|sel=-0.217 primeVal=-0.292 | ans-span-survival=0.61
+    [140/300] primeFull=5.712 selPlain=6.826 selPrimed=6.584 | selVal=+0.852 COND|sel=-0.242 primeVal=-0.262 | ans-span-survival=0.57
+    [160/300] primeFull=5.390 selPlain=6.540 selPrimed=6.199 | selVal=+0.862 COND|sel=-0.341 primeVal=-0.289 | ans-span-survival=0.55
+    [180/300] primeFull=5.450 selPlain=6.800 selPrimed=6.423 | selVal=+0.945 COND|sel=-0.377 primeVal=-0.405 | ans-span-survival=0.54
+    [200/300] primeFull=5.484 selPlain=6.758 selPrimed=6.382 | selVal=+0.851 COND|sel=-0.376 primeVal=-0.423 | ans-span-survival=0.55
+    [220/300] primeFull=5.585 selPlain=6.999 selPrimed=6.593 | selVal=+0.947 COND|sel=-0.406 primeVal=-0.467 | ans-span-survival=0.52
+    [240/300] primeFull=5.633 selPlain=7.123 selPrimed=6.695 | selVal=+0.979 COND|sel=-0.428 primeVal=-0.511 | ans-span-survival=0.52
+    [260/300] primeFull=5.697 selPlain=7.240 selPrimed=6.752 | selVal=+1.020 COND|sel=-0.488 primeVal=-0.522 | ans-span-survival=0.51
+    [280/300] primeFull=5.805 selPlain=7.474 selPrimed=6.969 | selVal=+1.045 COND|sel=-0.506 primeVal=-0.624 | ans-span-survival=0.52
+    [300/300] primeFull=5.861 selPlain=7.497 selPrimed=6.987 | selVal=+1.004 COND|sel=-0.509 primeVal=-0.632 | ans-span-survival=0.53
+  done 300
+
+# qwen25_14b
+Fetching 8 files:   0%|          | 0/8 [00:00<?, ?it/s]Fetching 8 files:  12%|█▎        | 1/8 [01:20<09:22, 80.40s/it]Fetching 8 files:  25%|██▌       | 2/8 [01:22<03:26, 34.48s/it]Fetching 8 files:  50%|█████     | 4/8 [01:23<00:52, 13.18s/it]Fetching 8 files: 100%|██████████| 8/8 [01:23<00:00, 10.47s/it]
+Loading weights:   0%|          | 0/579 [00:00<?, ?it/s]Loading weights:   0%|          | 1/579 [00:00<03:49,  2.52it/s]Loading weights:   0%|          | 2/579 [00:00<04:01,  2.39it/s]Loading weights:   1%|          | 6/579 [00:00<01:07,  8.45it/s]Loading weights:   3%|▎         | 17/579 [00:01<00:20, 27.06it/s]Loading weights:   5%|▍         | 28/579 [00:01<00:13, 39.88it/s]Loading weights:   7%|▋         | 40/579 [00:01<00:09, 55.41it/s]Loading weights:   8%|▊         | 48/579 [00:01<00:08, 59.38it/s]Loading weights:  10%|▉         | 56/579 [00:01<00:08, 60.59it/s]Loading weights:  11%|█         | 65/579 [00:01<00:07, 65.91it/s]Loading weights:  13%|█▎        | 75/579 [00:01<00:07, 64.27it/s]Loading weights:  15%|█▌        | 88/579 [00:01<00:06, 77.28it/s]Loading weights:  17%|█▋        | 97/579 [00:02<00:06, 78.01it/s]Loading weights:  18%|█▊        | 106/579 [00:02<00:06, 74.03it/s]Loading weights:  20%|█▉        | 114/579 [00:02<00:06, 69.25it/s]Loading weights:  21%|██        | 123/579 [00:02<00:06, 71.70it/s]Loading weights:  23%|██▎       | 136/579 [00:02<00:05, 82.51it/s]Loading weights:  25%|██▌       | 145/579 [00:02<00:05, 81.49it/s]Loading weights:  27%|██▋       | 154/579 [00:02<00:05, 74.21it/s]Loading weights:  28%|██▊       | 162/579 [00:02<00:05, 71.08it/s]Loading weights:  30%|██▉       | 173/579 [00:03<00:05, 78.20it/s]Loading weights:  32%|███▏      | 184/579 [00:03<00:05, 69.42it/s]Loading weights:  34%|███▍      | 197/579 [00:03<00:04, 81.18it/s]Loading weights:  36%|███▌      | 208/579 [00:03<00:04, 84.97it/s]Loading weights:  37%|███▋      | 217/579 [00:03<00:04, 84.15it/s]Loading weights:  39%|███▉      | 226/579 [00:03<00:04, 77.34it/s]Loading weights:  40%|████      | 234/579 [00:03<00:04, 71.27it/s]Loading weights:  42%|████▏     | 245/579 [00:03<00:04, 78.08it/s]Loading weights:  44%|████▍     | 256/579 [00:04<00:03, 82.99it/s]Loading weights:  46%|████▌     | 265/579 [00:04<00:03, 82.62it/s]Loading weights:  47%|████▋     | 274/579 [00:04<00:04, 75.89it/s]Loading weights:  49%|████▊     | 282/579 [00:04<00:04, 70.23it/s]Loading weights:  51%|█████     | 293/579 [00:04<00:03, 77.20it/s]Loading weights:  52%|█████▏    | 303/579 [00:04<00:03, 80.39it/s]Loading weights:  54%|█████▍    | 312/579 [00:04<00:03, 79.72it/s]Loading weights:  55%|█████▌    | 321/579 [00:04<00:03, 77.24it/s]Loading weights:  57%|█████▋    | 329/579 [00:05<00:03, 75.81it/s]Loading weights:  59%|█████▊    | 340/579 [00:05<00:02, 81.89it/s]Loading weights:  60%|██████    | 349/579 [00:05<00:02, 82.03it/s]Loading weights:  62%|██████▏   | 358/579 [00:05<00:03, 73.00it/s]Loading weights:  63%|██████▎   | 366/579 [00:05<00:03, 70.90it/s]Loading weights:  65%|██████▌   | 377/579 [00:05<00:02, 78.81it/s]Loading weights:  67%|██████▋   | 388/579 [00:05<00:02, 84.00it/s]Loading weights:  69%|██████▊   | 397/579 [00:05<00:02, 82.89it/s]Loading weights:  70%|███████   | 406/579 [00:06<00:02, 77.10it/s]Loading weights:  72%|███████▏  | 414/579 [00:06<00:02, 71.46it/s]Loading weights:  73%|███████▎  | 424/579 [00:06<00:02, 76.39it/s]Loading weights:  75%|███████▌  | 436/579 [00:06<00:02, 70.86it/s]Loading weights:  77%|███████▋  | 448/579 [00:06<00:01, 80.46it/s]Loading weights:  79%|███████▉  | 460/579 [00:06<00:01, 88.16it/s]Loading weights:  81%|████████  | 470/579 [00:06<00:01, 88.68it/s]Loading weights:  83%|████████▎ | 480/579 [00:06<00:01, 80.51it/s]Loading weights:  84%|████████▍ | 489/579 [00:07<00:01, 77.65it/s]Loading weights:  86%|████████▌ | 497/579 [00:07<00:01, 69.84it/s]Loading weights:  88%|████████▊ | 509/579 [00:07<00:00, 79.89it/s]Loading weights:  90%|████████▉ | 519/579 [00:07<00:00, 75.59it/s]Loading weights:  92%|█████████▏| 531/579 [00:07<00:00, 83.77it/s]Loading weights:  93%|█████████▎| 540/579 [00:07<00:00, 83.48it/s]Loading weights:  95%|█████████▍| 549/579 [00:07<00:00, 80.51it/s]Loading weights:  96%|█████████▋| 558/579 [00:08<00:00, 73.08it/s]Loading weights:  98%|█████████▊| 569/579 [00:08<00:00, 79.83it/s]Loading weights: 100%|██████████| 579/579 [00:08<00:00, 70.64it/s]
+  loaded 95s  full_attn_layers=48/48
+    [20/300] primeFull=6.532 selPlain=4.991 selPrimed=7.132 | selVal=+0.659 COND|sel=+2.141 primeVal=+2.200 | ans-span-survival=0.69
+    [40/300] primeFull=6.721 selPlain=5.375 selPrimed=7.640 | selVal=+0.891 COND|sel=+2.265 primeVal=+2.237 | ans-span-survival=0.70
+    [60/300] primeFull=7.120 selPlain=5.634 selPrimed=8.221 | selVal=+0.842 COND|sel=+2.587 primeVal=+2.328 | ans-span-survival=0.67
+    [80/300] primeFull=9.297 selPlain=7.167 selPrimed=10.582 | selVal=+0.838 COND|sel=+3.416 primeVal=+2.969 | ans-span-survival=0.69
+    [100/300] primeFull=8.901 selPlain=7.078 selPrimed=9.982 | selVal=+0.720 COND|sel=+2.904 primeVal=+2.543 | ans-span-survival=0.69
+    [120/300] primeFull=8.384 selPlain=6.794 selPrimed=9.368 | selVal=+0.698 COND|sel=+2.574 primeVal=+2.288 | ans-span-survival=0.67
+    [140/300] primeFull=8.210 selPlain=6.586 selPrimed=9.240 | selVal=+0.776 COND|sel=+2.654 primeVal=+2.400 | ans-span-survival=0.60
+    [160/300] primeFull=7.843 selPlain=6.255 selPrimed=8.819 | selVal=+0.768 COND|sel=+2.563 primeVal=+2.356 | ans-span-survival=0.57
+    [180/300] primeFull=8.196 selPlain=6.793 selPrimed=9.288 | selVal=+0.880 COND|sel=+2.495 primeVal=+2.283 | ans-span-survival=0.56
+    [200/300] primeFull=8.236 selPlain=6.690 selPrimed=9.168 | selVal=+0.756 COND|sel=+2.478 primeVal=+2.302 | ans-span-survival=0.58
+    [220/300] primeFull=8.500 selPlain=6.985 selPrimed=9.432 | selVal=+0.891 COND|sel=+2.447 primeVal=+2.406 | ans-span-survival=0.56
+    [240/300] primeFull=8.605 selPlain=7.009 selPrimed=9.612 | selVal=+0.890 COND|sel=+2.603 primeVal=+2.486 | ans-span-survival=0.55
+    [260/300] primeFull=8.621 selPlain=7.085 selPrimed=9.744 | selVal=+0.926 COND|sel=+2.659 primeVal=+2.462 | ans-span-survival=0.54
+    [280/300] primeFull=8.890 selPlain=7.363 selPrimed=10.038 | selVal=+0.928 COND|sel=+2.674 primeVal=+2.454 | ans-span-survival=0.54
+    [300/300] primeFull=8.841 selPlain=7.355 selPrimed=9.895 | selVal=+0.882 COND|sel=+2.540 primeVal=+2.369 | ans-span-survival=0.55
+  done 300
+
+# gemma3_1b
+Loading weights:   0%|          | 0/340 [00:00<?, ?it/s]Loading weights:   0%|          | 1/340 [00:00<00:36,  9.34it/s]Loading weights:  22%|██▏       | 76/340 [00:00<00:00, 432.54it/s]Loading weights:  45%|████▌     | 154/340 [00:00<00:00, 586.96it/s]Loading weights:  66%|██████▋   | 226/340 [00:00<00:00, 637.17it/s]Loading weights:  89%|████████▉ | 304/340 [00:00<00:00, 678.22it/s]Loading weights: 100%|██████████| 340/340 [00:00<00:00, 616.37it/s]
+  loaded 14s  full_attn_layers=4/26
+    [20/300] primeFull=3.986 selPlain=5.005 selPrimed=3.835 | selVal=-0.423 COND|sel=-1.170 primeVal=-1.442 | ans-span-survival=0.49
+    [40/300] primeFull=4.310 selPlain=5.252 selPrimed=4.334 | selVal=-0.419 COND|sel=-0.918 primeVal=-1.361 | ans-span-survival=0.54
+    [60/300] primeFull=4.800 selPlain=5.655 selPrimed=4.951 | selVal=-0.647 COND|sel=-0.704 primeVal=-1.502 | ans-span-survival=0.56
+    [80/300] primeFull=6.614 selPlain=7.546 selPrimed=6.839 | selVal=-0.807 COND|sel=-0.707 primeVal=-1.739 | ans-span-survival=0.60
+    [100/300] primeFull=6.380 selPlain=7.704 selPrimed=6.681 | selVal=-0.788 COND|sel=-1.024 primeVal=-2.113 | ans-span-survival=0.61
+    [120/300] primeFull=6.146 selPlain=7.331 selPrimed=6.479 | selVal=-0.651 COND|sel=-0.852 primeVal=-1.835 | ans-span-survival=0.61
+    [140/300] primeFull=6.014 selPlain=7.286 selPrimed=6.400 | selVal=-0.584 COND|sel=-0.886 primeVal=-1.856 | ans-span-survival=0.55
+    [160/300] primeFull=5.659 selPlain=7.098 selPrimed=6.089 | selVal=-0.440 COND|sel=-1.009 primeVal=-1.879 | ans-span-survival=0.52
+    [180/300] primeFull=6.177 selPlain=7.667 selPrimed=6.561 | selVal=-0.438 COND|sel=-1.106 primeVal=-1.927 | ans-span-survival=0.50
+    [200/300] primeFull=6.255 selPlain=7.613 selPrimed=6.643 | selVal=-0.527 COND|sel=-0.970 primeVal=-1.885 | ans-span-survival=0.50
+    [220/300] primeFull=6.166 selPlain=7.632 selPrimed=6.659 | selVal=-0.380 COND|sel=-0.973 primeVal=-1.846 | ans-span-survival=0.47
+    [240/300] primeFull=6.194 selPlain=7.767 selPrimed=6.773 | selVal=-0.305 COND|sel=-0.994 primeVal=-1.878 | ans-span-survival=0.46
+    [260/300] primeFull=6.094 selPlain=7.671 selPrimed=6.655 | selVal=-0.316 COND|sel=-1.016 primeVal=-1.892 | ans-span-survival=0.46
+    [280/300] primeFull=6.200 selPlain=7.843 selPrimed=6.737 | selVal=-0.322 COND|sel=-1.105 primeVal=-1.965 | ans-span-survival=0.47
+    [300/300] primeFull=6.205 selPlain=7.781 selPrimed=6.736 | selVal=-0.332 COND|sel=-1.045 primeVal=-1.908 | ans-span-survival=0.47
+  done 300
+
+# mistral_7b
+Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files:  33%|███▎      | 1/3 [00:45<01:31, 45.86s/it]Fetching 3 files:  67%|██████▋   | 2/3 [00:46<00:19, 19.14s/it]Fetching 3 files: 100%|██████████| 3/3 [00:46<00:00, 15.43s/it]
+Loading weights:   0%|          | 0/291 [00:00<?, ?it/s]Loading weights:   0%|          | 1/291 [00:00<00:50,  5.70it/s]Loading weights:   4%|▍         | 13/291 [00:00<00:05, 52.18it/s]Loading weights:   8%|▊         | 22/291 [00:00<00:04, 61.67it/s]Loading weights:  11%|█         | 31/291 [00:00<00:03, 66.67it/s]Loading weights:  14%|█▎        | 40/291 [00:00<00:03, 69.56it/s]Loading weights:  17%|█▋        | 49/291 [00:00<00:03, 71.58it/s]Loading weights:  20%|█▉        | 58/291 [00:00<00:03, 73.06it/s]Loading weights:  23%|██▎       | 67/291 [00:01<00:03, 73.97it/s]Loading weights:  26%|██▌       | 76/291 [00:01<00:02, 74.22it/s]Loading weights:  29%|██▉       | 85/291 [00:01<00:02, 74.71it/s]Loading weights:  32%|███▏      | 94/291 [00:01<00:02, 74.55it/s]Loading weights:  35%|███▌      | 103/291 [00:01<00:02, 74.58it/s]Loading weights:  38%|███▊      | 112/291 [00:01<00:02, 74.23it/s]Loading weights:  42%|████▏     | 121/291 [00:01<00:02, 74.42it/s]Loading weights:  45%|████▍     | 130/291 [00:01<00:02, 74.47it/s]Loading weights:  48%|████▊     | 139/291 [00:01<00:02, 74.72it/s]Loading weights:  51%|█████     | 148/291 [00:02<00:01, 75.04it/s]Loading weights:  54%|█████▍    | 157/291 [00:02<00:01, 75.00it/s]Loading weights:  57%|█████▋    | 166/291 [00:02<00:01, 75.60it/s]Loading weights:  60%|██████    | 175/291 [00:02<00:01, 75.67it/s]Loading weights:  63%|██████▎   | 184/291 [00:02<00:01, 75.60it/s]Loading weights:  66%|██████▋   | 193/291 [00:02<00:01, 75.42it/s]Loading weights:  69%|██████▉   | 202/291 [00:02<00:01, 74.81it/s]Loading weights:  73%|███████▎  | 211/291 [00:02<00:01, 74.82it/s]Loading weights:  76%|███████▌  | 220/291 [00:03<00:00, 74.82it/s]Loading weights:  79%|███████▊  | 229/291 [00:03<00:00, 74.72it/s]Loading weights:  82%|████████▏ | 238/291 [00:03<00:00, 75.01it/s]Loading weights:  85%|████████▍ | 247/291 [00:03<00:00, 75.13it/s]Loading weights:  88%|████████▊ | 256/291 [00:03<00:00, 75.34it/s]Loading weights:  91%|█████████ | 265/291 [00:03<00:00, 75.70it/s]Loading weights:  94%|█████████▍| 274/291 [00:03<00:00, 75.37it/s]Loading weights:  97%|█████████▋| 283/291 [00:03<00:00, 75.59it/s]Loading weights: 100%|██████████| 291/291 [00:03<00:00, 73.21it/s]
+  loaded 53s  full_attn_layers=0/32
+    [20/300] primeFull=1.649 selPlain=1.801 selPrimed=1.967 | selVal=+0.555 COND|sel=+0.165 primeVal=+0.403 | ans-span-survival=0.70
+    [40/300] primeFull=1.741 selPlain=1.689 selPrimed=1.930 | selVal=+0.404 COND|sel=+0.241 primeVal=+0.456 | ans-span-survival=0.71
+    [60/300] primeFull=1.787 selPlain=1.752 selPrimed=1.914 | selVal=+0.313 COND|sel=+0.162 primeVal=+0.348 | ans-span-survival=0.67
+    [80/300] primeFull=2.636 selPlain=2.531 selPrimed=2.727 | selVal=+0.367 COND|sel=+0.197 primeVal=+0.472 | ans-span-survival=0.70
+    [100/300] primeFull=2.261 selPlain=2.319 selPrimed=2.383 | selVal=+0.373 COND|sel=+0.064 primeVal=+0.314 | ans-span-survival=0.70
+    [120/300] primeFull=2.072 selPlain=2.237 selPrimed=2.174 | selVal=+0.333 COND|sel=-0.063 primeVal=+0.169 | ans-span-survival=0.66
+    [140/300] primeFull=2.084 selPlain=2.314 selPrimed=2.248 | selVal=+0.367 COND|sel=-0.066 primeVal=+0.137 | ans-span-survival=0.59
+    [160/300] primeFull=1.965 selPlain=2.210 selPrimed=2.147 | selVal=+0.353 COND|sel=-0.063 primeVal=+0.108 | ans-span-survival=0.56
+    [180/300] primeFull=2.306 selPlain=2.661 selPrimed=2.624 | selVal=+0.511 COND|sel=-0.037 primeVal=+0.156 | ans-span-survival=0.55
+    [200/300] primeFull=2.210 selPlain=2.594 selPrimed=2.529 | selVal=+0.532 COND|sel=-0.065 primeVal=+0.149 | ans-span-survival=0.56
+    [220/300] primeFull=2.339 selPlain=2.671 selPrimed=2.663 | selVal=+0.558 COND|sel=-0.008 primeVal=+0.227 | ans-span-survival=0.54
+    [240/300] primeFull=2.421 selPlain=2.673 selPrimed=2.750 | selVal=+0.563 COND|sel=+0.077 primeVal=+0.311 | ans-span-survival=0.52
+    [260/300] primeFull=2.401 selPlain=2.663 selPrimed=2.742 | selVal=+0.596 COND|sel=+0.079 primeVal=+0.335 | ans-span-survival=0.51
+    [280/300] primeFull=2.504 selPlain=2.686 selPrimed=2.800 | selVal=+0.546 COND|sel=+0.114 primeVal=+0.365 | ans-span-survival=0.52
+    [300/300] primeFull=2.517 selPlain=2.676 selPrimed=2.792 | selVal=+0.502 COND|sel=+0.115 primeVal=+0.343 | ans-span-survival=0.52
+  done 300
+
+# gemma3_4b
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Fetching 2 files:  50%|█████     | 1/2 [00:28<00:28, 28.27s/it]Fetching 2 files: 100%|██████████| 2/2 [00:28<00:00, 14.14s/it]
+Loading weights:   0%|          | 0/883 [00:00<?, ?it/s]Loading weights:   0%|          | 1/883 [00:00<03:26,  4.26it/s]Loading weights:   3%|▎         | 27/883 [00:00<00:08, 98.42it/s]Loading weights:   6%|▌         | 55/883 [00:00<00:05, 158.55it/s]Loading weights:   9%|▉         | 81/883 [00:00<00:04, 188.13it/s]Loading weights:  12%|█▏        | 107/883 [00:00<00:03, 206.95it/s]Loading weights:  15%|█▌        | 133/883 [00:00<00:03, 218.55it/s]Loading weights:  18%|█▊        | 159/883 [00:00<00:03, 226.50it/s]Loading weights:  21%|██        | 185/883 [00:00<00:03, 231.85it/s]Loading weights:  24%|██▍       | 211/883 [00:01<00:02, 234.04it/s]Loading weights:  27%|██▋       | 237/883 [00:01<00:02, 236.40it/s]Loading weights:  30%|██▉       | 263/883 [00:01<00:02, 238.35it/s]Loading weights:  33%|███▎      | 289/883 [00:01<00:02, 239.96it/s]Loading weights:  36%|███▌      | 315/883 [00:01<00:02, 241.16it/s]Loading weights:  39%|███▊      | 341/883 [00:01<00:02, 241.58it/s]Loading weights:  42%|████▏     | 367/883 [00:01<00:02, 242.38it/s]Loading weights:  45%|████▍     | 393/883 [00:01<00:02, 244.06it/s]Loading weights:  47%|████▋     | 419/883 [00:01<00:01, 244.63it/s]Loading weights:  51%|█████▏    | 454/883 [00:02<00:01, 274.79it/s]Loading weights:  68%|██████▊   | 601/883 [00:02<00:00, 620.34it/s]Loading weights:  86%|████████▌ | 760/883 [00:02<00:00, 900.73it/s]Loading weights: 100%|██████████| 883/883 [00:02<00:00, 380.52it/s]
+  loaded 36s  full_attn_layers=5/34
+    [20/300] primeFull=4.591 selPlain=3.693 selPrimed=4.482 | selVal=-1.055 COND|sel=+0.790 primeVal=-0.156 | ans-span-survival=0.75
+    [40/300] primeFull=5.164 selPlain=3.925 selPrimed=4.674 | selVal=-0.878 COND|sel=+0.748 primeVal=+0.360 | ans-span-survival=0.80
+    [60/300] primeFull=5.275 selPlain=4.009 selPrimed=4.894 | selVal=-0.684 COND|sel=+0.885 primeVal=+0.583 | ans-span-survival=0.82
+    [80/300] primeFull=6.211 selPlain=4.991 selPrimed=5.953 | selVal=-0.464 COND|sel=+0.962 primeVal=+0.756 | ans-span-survival=0.84
+    [100/300] primeFull=6.513 selPlain=5.289 selPrimed=6.403 | selVal=-0.300 COND|sel=+1.114 primeVal=+0.924 | ans-span-survival=0.84
+    [120/300] primeFull=6.162 selPlain=5.075 selPrimed=6.074 | selVal=-0.217 COND|sel=+0.999 primeVal=+0.870 | ans-span-survival=0.81
+    [140/300] primeFull=6.068 selPlain=4.933 selPrimed=5.937 | selVal=-0.207 COND|sel=+1.004 primeVal=+0.928 | ans-span-survival=0.76
+    [160/300] primeFull=5.855 selPlain=4.725 selPrimed=5.756 | selVal=-0.212 COND|sel=+1.031 primeVal=+0.918 | ans-span-survival=0.73
+    [180/300] primeFull=6.362 selPlain=5.164 selPrimed=6.107 | selVal=-0.277 COND|sel=+0.943 primeVal=+0.921 | ans-span-survival=0.73
+    [200/300] primeFull=6.323 selPlain=5.113 selPrimed=6.031 | selVal=-0.313 COND|sel=+0.918 primeVal=+0.897 | ans-span-survival=0.73
+    [220/300] primeFull=6.201 selPlain=5.026 selPrimed=5.985 | selVal=-0.251 COND|sel=+0.959 primeVal=+0.924 | ans-span-survival=0.71
+    [240/300] primeFull=6.229 selPlain=5.127 selPrimed=6.076 | selVal=-0.143 COND|sel=+0.949 primeVal=+0.959 | ans-span-survival=0.70
+    [260/300] primeFull=6.241 selPlain=5.095 selPrimed=6.084 | selVal=-0.130 COND|sel=+0.989 primeVal=+1.016 | ans-span-survival=0.70
+    [280/300] primeFull=6.277 selPlain=5.115 selPrimed=6.119 | selVal=-0.164 COND|sel=+1.004 primeVal=+0.999 | ans-span-survival=0.71
+    [300/300] primeFull=6.360 selPlain=5.195 selPrimed=6.227 | selVal=-0.119 COND|sel=+1.032 primeVal=+1.046 | ans-span-survival=0.70
+  done 300
+
+# gemma3_12b
+Fetching 5 files:   0%|          | 0/5 [00:00<?, ?it/s]Fetching 5 files: 100%|██████████| 5/5 [00:00<00:00, 69672.82it/s]
+Loading weights:   0%|          | 0/1065 [00:00<?, ?it/s]Loading weights:   0%|          | 1/1065 [00:00<06:55,  2.56it/s]Loading weights:   2%|▏         | 16/1065 [00:00<00:26, 39.62it/s]Loading weights:   3%|▎         | 29/1065 [00:00<00:17, 60.01it/s]Loading weights:   4%|▍         | 42/1065 [00:00<00:13, 74.04it/s]Loading weights:   5%|▌         | 55/1065 [00:00<00:12, 83.23it/s]Loading weights:   6%|▋         | 67/1065 [00:01<00:11, 87.31it/s]Loading weights:   8%|▊         | 81/1065 [00:01<00:10, 95.03it/s]Loading weights:   9%|▊         | 93/1065 [00:01<00:10, 95.66it/s]Loading weights:  10%|█         | 107/1065 [00:01<00:09, 100.85it/s]Loading weights:  11%|█▏        | 120/1065 [00:01<00:09, 100.94it/s]Loading weights:  12%|█▏        | 133/1065 [00:01<00:09, 101.41it/s]Loading weights:  14%|█▎        | 146/1065 [00:01<00:08, 102.19it/s]Loading weights:  15%|█▍        | 159/1065 [00:01<00:08, 103.58it/s]Loading weights:  16%|█▌        | 170/1065 [00:02<00:09, 98.92it/s] Loading weights:  17%|█▋        | 185/1065 [00:02<00:08, 105.89it/s]Loading weights:  19%|█▊        | 198/1065 [00:02<00:08, 105.95it/s]Loading weights:  20%|█▉        | 211/1065 [00:02<00:08, 106.15it/s]Loading weights:  21%|██        | 224/1065 [00:02<00:07, 105.65it/s]Loading weights:  22%|██▏       | 237/1065 [00:02<00:07, 105.93it/s]Loading weights:  23%|██▎       | 250/1065 [00:02<00:07, 106.32it/s]Loading weights:  25%|██▍       | 263/1065 [00:02<00:07, 106.10it/s]Loading weights:  26%|██▌       | 276/1065 [00:02<00:07, 105.81it/s]Loading weights:  27%|██▋       | 288/1065 [00:03<00:07, 103.32it/s]Loading weights:  28%|██▊       | 302/1065 [00:03<00:07, 105.81it/s]Loading weights:  30%|██▉       | 315/1065 [00:03<00:07, 106.02it/s]Loading weights:  31%|███       | 327/1065 [00:03<00:07, 103.40it/s]Loading weights:  32%|███▏      | 341/1065 [00:03<00:06, 106.81it/s]Loading weights:  33%|███▎      | 354/1065 [00:03<00:06, 106.36it/s]Loading weights:  34%|███▍      | 367/1065 [00:03<00:06, 106.51it/s]Loading weights:  36%|███▌      | 380/1065 [00:03<00:06, 106.74it/s]Loading weights:  37%|███▋      | 393/1065 [00:04<00:06, 105.93it/s]Loading weights:  38%|███▊      | 406/1065 [00:04<00:06, 97.38it/s] Loading weights:  39%|███▉      | 420/1065 [00:04<00:06, 101.89it/s]Loading weights:  41%|████      | 433/1065 [00:04<00:06, 103.15it/s]Loading weights:  42%|████▏     | 445/1065 [00:04<00:06, 101.67it/s]Loading weights:  43%|████▎     | 459/1065 [00:04<00:05, 104.36it/s]Loading weights:  44%|████▍     | 472/1065 [00:04<00:05, 104.78it/s]Loading weights:  46%|████▌     | 485/1065 [00:04<00:05, 105.69it/s]Loading weights:  47%|████▋     | 498/1065 [00:05<00:05, 106.24it/s]Loading weights:  48%|████▊     | 511/1065 [00:05<00:05, 106.41it/s]Loading weights:  49%|████▉     | 524/1065 [00:05<00:05, 106.02it/s]Loading weights:  50%|█████     | 537/1065 [00:05<00:04, 105.77it/s]Loading weights:  52%|█████▏    | 550/1065 [00:05<00:04, 105.89it/s]Loading weights:  53%|█████▎    | 563/1065 [00:05<00:04, 106.35it/s]Loading weights:  54%|█████▍    | 576/1065 [00:05<00:04, 106.39it/s]Loading weights:  55%|█████▌    | 589/1065 [00:05<00:04, 106.11it/s]Loading weights:  57%|█████▋    | 602/1065 [00:06<00:04, 106.28it/s]Loading weights:  58%|█████▊    | 615/1065 [00:06<00:04, 106.31it/s]Loading weights:  65%|██████▍   | 691/1065 [00:06<00:01, 275.69it/s]Loading weights:  80%|███████▉  | 851/1065 [00:06<00:00, 632.62it/s]Loading weights:  95%|█████████▍| 1007/1065 [00:06<00:00, 890.47it/s]Loading weights: 100%|██████████| 1065/1065 [00:06<00:00, 162.60it/s]
+  loaded 12s  full_attn_layers=8/48
+    [20/300] primeFull=4.164 selPlain=3.167 selPrimed=3.729 | selVal=-0.258 COND|sel=+0.562 primeVal=+0.739 | ans-span-survival=0.75
+    [40/300] primeFull=4.369 selPlain=3.666 selPrimed=4.057 | selVal=-0.228 COND|sel=+0.391 primeVal=+0.475 | ans-span-survival=0.78
+    [60/300] primeFull=4.477 selPlain=3.901 selPrimed=4.279 | selVal=-0.153 COND|sel=+0.378 primeVal=+0.423 | ans-span-survival=0.79
+    [80/300] primeFull=5.390 selPlain=4.815 selPrimed=5.112 | selVal=-0.131 COND|sel=+0.297 primeVal=+0.445 | ans-span-survival=0.81
+    [100/300] primeFull=5.631 selPlain=5.099 selPrimed=5.311 | selVal=-0.063 COND|sel=+0.213 primeVal=+0.469 | ans-span-survival=0.83
+    [120/300] primeFull=5.276 selPlain=4.771 selPrimed=4.978 | selVal=-0.055 COND|sel=+0.208 primeVal=+0.450 | ans-span-survival=0.79
+    [140/300] primeFull=5.189 selPlain=4.708 selPrimed=4.885 | selVal=-0.052 COND|sel=+0.177 primeVal=+0.429 | ans-span-survival=0.72
+    [160/300] primeFull=4.891 selPlain=4.506 selPrimed=4.657 | selVal=-0.026 COND|sel=+0.151 primeVal=+0.359 | ans-span-survival=0.68
+    [180/300] primeFull=5.353 selPlain=4.699 selPrimed=4.960 | selVal=-0.122 COND|sel=+0.261 primeVal=+0.533 | ans-span-survival=0.68
+    [200/300] primeFull=5.391 selPlain=4.667 selPrimed=4.890 | selVal=-0.132 COND|sel=+0.223 primeVal=+0.592 | ans-span-survival=0.68
+    [220/300] primeFull=5.354 selPlain=4.707 selPrimed=4.886 | selVal=-0.089 COND|sel=+0.180 primeVal=+0.558 | ans-span-survival=0.66
+    [240/300] primeFull=5.355 selPlain=4.766 selPrimed=4.903 | selVal=-0.044 COND|sel=+0.137 primeVal=+0.545 | ans-span-survival=0.65
+    [260/300] primeFull=5.343 selPlain=4.736 selPrimed=4.918 | selVal=-0.056 COND|sel=+0.182 primeVal=+0.551 | ans-span-survival=0.65
+    [280/300] primeFull=5.345 selPlain=4.761 selPrimed=4.918 | selVal=-0.044 COND|sel=+0.157 primeVal=+0.539 | ans-span-survival=0.66
+    [300/300] primeFull=5.370 selPlain=4.819 selPrimed=4.978 | selVal=-0.032 COND|sel=+0.160 primeVal=+0.520 | ans-span-survival=0.66
+  done 300
+
+========================================================
+DONE
+========================================================

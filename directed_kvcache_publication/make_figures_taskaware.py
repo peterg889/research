@@ -59,32 +59,33 @@ def fig_shuffle():
     fig.savefig(FIG / "fig12_shuffle_controls.png"); plt.close(fig)
     print("wrote fig12_shuffle_controls.png")
 
-# Fig 7c: select vs condition (exp31b) — selVal and COND|sel per model.
+# Fig 7c: select vs condition (exp31b) — selVal and full-conditioning per model, 8 models by imprintability.
 def fig_selcond():
-    models = ["gemma3_4b", "gemma3_12b", "qwen25_7b"]
-    sv, cs = {}, {}
+    SH = {"qwen25_1_5b": "Q-1.5B", "qwen25_3b": "Q-3B", "qwen25_7b": "Q-7B", "qwen25_14b": "Q-14B",
+          "gemma3_1b": "G-1B", "mistral_7b": "Mistral-7B", "gemma3_4b": "G-4B", "gemma3_12b": "G-12B"}
+    models = ["qwen25_1_5b", "qwen25_3b", "qwen25_7b", "qwen25_14b", "gemma3_1b", "mistral_7b", "gemma3_4b", "gemma3_12b"]
+    sv, pv = {}, {}
     for m in models:
         s = load(f"exp31_taskaware_select/{m}")
         if not s: continue
         sv[m] = boot([x["sel_k_plain"] - x["bare_norm"] for x in s])
-        cs[m] = boot([x["sel_k_primed"] - x["sel_k_plain"] for x in s])
-    fig, ax = plt.subplots(figsize=(7.6, 5.0))
-    x = np.arange(len(models)); w = 0.38
-    for d, off, lab, col in [(sv, -w/2, "selection vs full doc (selVal)", "#6c757d"),
-                             (cs, +w/2, "conditioning | selection (COND|sel)", "#e09f3e")]:
+        pv[m] = boot([x["prime_full"] - x["bare_norm"] for x in s])
+    models = [m for m in models if m in sv]
+    fig, ax = plt.subplots(figsize=(9.2, 5.2))
+    x = np.arange(len(models)); w = 0.40
+    for d, off, lab, col in [(sv, -w/2, "selection (top-k=32) vs full doc", "#6c757d"),
+                             (pv, +w/2, "conditioning (discarded prime)", "#e09f3e")]:
         vals = [d[m][0] for m in models]
         los = [d[m][0]-d[m][1] for m in models]; his = [d[m][2]-d[m][0] for m in models]
         ax.bar(x+off, vals, w, yerr=[los, his], capsize=3, color=col, edgecolor="k", lw=0.6, label=lab)
     ax.axhline(0, color="k", lw=0.8)
-    ax.set_xticks(x); ax.set_xticklabels([SHORT[m] for m in models])
+    ax.set_xticks(x); ax.set_xticklabels([SH[m] for m in models], rotation=20, ha="right")
+    ax.set_xlabel("models ordered by imprintability  (0.20 → 0.84)")
     ax.set_ylabel("Δ answer-NLL [nats]   (positive = HURTS)")
-    ax.set_title("Task-aware extraction: select vs. condition is mode-dependent")
-    ax.set_ylim(-0.85, 1.55)
-    ax.legend(loc="upper center", frameon=True, framealpha=0.9)
-    ax.annotate("Qwen-7B: selection HURTS,\nconditioning HELPS", xy=(2, -0.72), ha="center",
-                fontsize=9, color=QWEN)
-    ax.annotate("Gemma: conditioning\nHURTS, selection neutral", xy=(0.5, 0.55), ha="center",
-                fontsize=9, color=GEMMA)
+    ax.set_title("Task-aware extraction: neither selection nor conditioning dominates (r=0.29 with imprintability)")
+    ax.legend(loc="upper left", frameon=True, framealpha=0.9)
+    ax.annotate("selection (gray) HURTS the whole Qwen family;\nconditioning (orange) helps a subset, hurts others — no clean trait",
+                xy=(0.5, 0.97), xycoords="axes fraction", ha="left", va="top", fontsize=8.5, color="#333")
     fig.savefig(FIG / "fig13_select_vs_condition.png"); plt.close(fig)
     print("wrote fig13_select_vs_condition.png")
 
