@@ -28,7 +28,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../directed_kvcache_v4"))
 
-import json, gc, shutil, time
+import json, gc, shutil, time, random
 from pathlib import Path
 import numpy as np
 import torch
@@ -52,7 +52,9 @@ N_EVAL = 10 if SMOKE else int(os.environ.get("N_EVAL", "300"))
 L_MATCH = 16
 TOPK = 10
 EXTRACT = "Extract the key facts from this text."
-ALL_CONDS = ["bare", "generic", "tfidf_plain", "dist_corpus", "dist_clean", "hybrid"]
+# tfidf_shuffled: the passage's own tfidf keywords with TOKEN ORDER shuffled (deterministic).
+# Tests whether the reranking benefit is TOKEN PRESENCE (survives shuffle, per §6.5) or word order.
+ALL_CONDS = ["bare", "generic", "tfidf_plain", "tfidf_shuffled", "dist_corpus", "dist_clean", "hybrid"]
 CONDS = [c for c in os.environ.get("CONDS", ",".join(ALL_CONDS)).split(",") if c in ALL_CONDS]
 RESULTS = Path(__file__).resolve().parent.parent.parent / "results" / os.environ.get("RESULTS_NAME", "exp14b_ablations")
 RESULTS.mkdir(parents=True, exist_ok=True, mode=0o777)
@@ -193,6 +195,14 @@ def main():
                     if not doc_ids: nlls.append(float("inf")); continue
                     if cond == "bare": pfx = None
                     elif cond == "generic": pfx = ext
+                    elif cond == "tfidf_shuffled":
+                        txt = P[(qi, ci)]["tfidf_plain"]
+                        ids = tok.encode(txt, add_special_tokens=False)
+                        if ids:
+                            ids = list(ids); random.Random(qi * 10000 + ci).shuffle(ids)
+                            pfx = make_prefix(ids, L_MATCH)
+                        else:
+                            pfx = ext
                     else:
                         txt = P[(qi, ci)][cond]
                         ids = tok.encode(txt, add_special_tokens=False)

@@ -52,6 +52,11 @@ N = 6 if SMOKE else 150
 RESULTS = Path(__file__).resolve().parent.parent.parent / "results" / "exp32_binding_shuffle"
 RESULTS.mkdir(parents=True, exist_ok=True, mode=0o777)
 MODELS = {
+    # NEW families (2026-07) to test whether STRUCTURE imprinting generalizes beyond Mistral.
+    # All RoPE-adapter-validated (validate_rope_adapters.py: rel-err 0.0).
+    "olmo2_7b":     {"name": "allenai/OLMo-2-1124-7B-Instruct", "loader": "AutoModelForCausalLM"},        # distinct family
+    "ministral_8b": {"name": "mistralai/Ministral-8B-Instruct-2410", "loader": "AutoModelForCausalLM"},   # Mistral lineage, hybrid attn
+    "deepseek_r1_qwen7b": {"name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", "loader": "AutoModelForCausalLM"},  # Qwen backbone, reasoning tuning
     "gemma3_12b": {"name": "google/gemma-3-12b-it", "loader": "Gemma3ForConditionalGeneration"},
     "qwen25_7b":  {"name": "Qwen/Qwen2.5-7B-Instruct", "loader": "AutoModelForCausalLM"},
     "mistral_7b": {"name": "mistralai/Mistral-7B-Instruct-v0.3", "loader": "AutoModelForCausalLM"},
