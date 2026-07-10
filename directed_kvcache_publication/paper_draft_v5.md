@@ -24,11 +24,15 @@ stripped cache (−3.8 nats on Gemma 27B), rising monotonically in nats across t
 in Mistral and weak in instruct-tuned Qwen 2.5, with imprintability predicting banking magnitude at
 r=0.94 across eight models. But **what** is banked is *not* a clean "semantic vs. surface" mode, as
 we and others might assume. A word-order **shuffle control** (prime with the same tokens, ordered
-vs. scrambled) shows the high-imprintability **Gemma family banks token presence** — its banking is
-order-invariant (at 27B the *shuffled* prime banks *more*), so its "semantic banking" is lexical,
-not relational meaning — while only **Mistral banks genuine structure** (shuffling destroys its
-banking, −1.55 nats) and **Qwen banks little**. Imprintability thus measures the strength of a
-content-*token* imprint that, at the extreme, trades off against literal structure. This content
+vs. scrambled), run across eight models in five families, reveals a **three-way** split: the
+high-imprintability **Gemma family banks token presence** — its banking is order-invariant (at 27B
+the *shuffled* prime banks *more*), so its "semantic banking" is lexical, not relational meaning —
+whereas **three independent families bank genuine structure** (Mistral, Ministral, and AI2's OLMo-2;
+shuffling destroys their banking, up to −1.55 nats), and **the Qwen family banks little** (including
+a DeepSeek reasoning-distilled Qwen, showing the backbone bounds imprinting). Magnitude and *kind*
+are separable — OLMo-2 banks weakly but structurally; Gemma banks strongly but lexically —
+so imprintability measures the strength of a content-*token* imprint that can trade off against
+literal structure. This content
 imprint (token presence for Gemma) is distributed and read out in late layers, and is set by
 **instruction-tuning, not architecture** (five architectural accounts fail): every pretrained
 *base* model imprints content,
@@ -75,9 +79,10 @@ this paper.** We make four contributions:
    our own.
 2. **A content-imprint axis, and what it banks (§6).** Priming banks context with a *magnitude*
    governed by a single trait (**imprintability**, r=0.94) that scales with model size. A word-order
-   shuffle control (§6.5) corrects the "semantic" framing: the high-imprintability Gemma family banks
-   **token presence** (order-invariant), only Mistral banks genuine **structure**, and Qwen banks
-   little — there is no clean two-way semantic/surface *mode*. The banked content type is *set by
+   shuffle control (§6.5) over eight models corrects the "semantic" framing: the high-imprintability
+   Gemma family banks **token presence** (order-invariant), three independent families (Mistral,
+   Ministral, OLMo-2) bank genuine **structure**, and the Qwen family banks little — there is no
+   clean two-way semantic/surface *mode*, and magnitude and kind are separable. The banked content type is *set by
    instruction-tuning, not architecture* (§6.4), with a controlled base→instruct flip in Qwen.
 3. **Task-aware construction (§7).** The mode–task "match" is weaker than earlier claimed (the QA
    effect is token presence, and its sign is model/scale-specific, not a family law). Comparing
@@ -385,45 +390,63 @@ load-bearing. We run two independent versions: the single-fact measure of §6.1 
 and a harder **two-fact binding** measure (prime two `city→topic` facts, ask about one — recalling
 the right topic *requires* the city→topic binding, not just token presence).
 
-| model | single-fact ORDER (exp33) | two-fact binding ORDER (exp32) | what is banked |
-|---|---|---|---|
-| Gemma-4B  | −0.20 (n.s.) | −0.51\* | token presence (small structure at 4B) |
-| Gemma-12B | −0.28 (n.s.) | **+1.43\*** (shuffle *better*) | **token presence** |
-| Gemma-27B | +0.47\* (shuffle better) | +0.23 (n.s.) | **token presence** |
-| Mistral-7B | **−1.55\*** (shuffle kills it) | **−1.07\*** | **genuine structure/meaning** |
-| Qwen-7B   | −0.16 (n.s.) | +0.12 (n.s.) | banks little of either |
+We run this on **eight models across five families** (three of them — OLMo-2, Ministral, and a
+DeepSeek reasoning-distilled Qwen — added specifically to test whether the structure pattern is
+one-model-deep; all RoPE-reposition adapters were validated against each model's own rotary
+embedding, rel-err < 1e-4, before use).
 
-The two probes converge on the same three-way ranking, and they overturn the binary "semantic
-(Gemma, Mistral) vs. surface (Qwen)" mode of earlier drafts:
+| model | family | single-fact ORDER (exp33) | two-fact binding ORDER (exp32) | what is banked |
+|---|---|---|---|---|
+| Gemma-4B  | Gemma | −0.20 (n.s.) | −0.51\* | token presence (small structure at 4B) |
+| Gemma-12B | Gemma | −0.28 (n.s.) | **+1.43\*** (shuffle *better*) | **token presence** |
+| Gemma-27B | Gemma | +0.47\* (shuffle better) | +0.23 (n.s.) | **token presence** |
+| Mistral-7B | Mistral | **−1.55\*** (shuffle kills it) | **−1.07\*** | **structure** |
+| Ministral-8B | Mistral | **−0.80\*** | **−0.24\*** | **structure** |
+| OLMo-2-7B | OLMo | **−0.38\*** | −0.10 (n.s.) | **structure** (single-fact) |
+| Qwen-7B   | Qwen | −0.16 (n.s.) | +0.12 (n.s.) | banks little |
+| DeepSeek-R1-Qwen-7B | Qwen | 0.00 (n.s.) | +0.04 (n.s.) | banks little |
 
-- **The Gemma family is predominantly a token-presence imprinter** (clearest at 12B/27B). Its large,
-  scaling "semantic banking" (§6.2) is **order-invariant at 12B/27B** — shuffling the fact's tokens
-  barely changes it, and at 27B the *shuffled* prime banks *more*. So Gemma's headline banking is
-  **lexical/token-type** (a meaningful word imprints more than a digit code because it is a more
-  imprintable *token*), not relational meaning. (Gemma-4B is a partial exception — it shows a small
-  but significant structure component in the binding probe, −0.51\*, that vanishes by 12B.)
-- **Mistral is a genuine structure imprinter.** Its banking is strongly order-dependent — shuffling
-  destroys it (single-fact −1.55\*; it even *anti-banks* shuffled facts), and the same holds for
-  codes (CODE ORDER −0.74\*). Only here does zero-retention priming bank *meaning*.
-- **Qwen-7B banks little** of either, single- or two-fact: consistent with a weak imprinter.
+The two probes converge on a **three-way** taxonomy — *by family, not by a single axis* — that
+overturns the binary "semantic (Gemma, Mistral) vs. surface (Qwen)" mode of earlier drafts:
+
+- **Token-presence imprinters — the Gemma family.** Its large, scaling "semantic banking" (§6.2) is
+  **order-invariant at 12B/27B** — shuffling the fact's tokens barely changes it, and at 27B the
+  *shuffled* prime banks *more*. So Gemma's headline banking is **lexical/token-type** (a meaningful
+  word imprints more than a digit code because it is a more imprintable *token*), not relational
+  meaning. (Gemma-4B shows a small significant structure component in the binding probe, −0.51\*,
+  that vanishes by 12B.)
+- **Structure imprinters — Mistral, Ministral, and OLMo-2 (three independent families).** Their
+  banking is order-dependent: shuffling destroys it (single-fact −1.55\* / −0.80\* / −0.38\*, all
+  CIs excluding 0), and for Mistral it even *anti-banks* shuffled facts and shuffled codes (CODE
+  ORDER −0.74\*). Ministral confirms structure on *both* probes (binding −0.24\*); OLMo-2 shows it
+  clearly on the single-fact probe but is too weak to bind two facts (binding ORDER −0.10, n.s., and
+  it net-anti-banks the two-fact task). This is the key robustness result: **genuine structure
+  imprinting is not a Mistral quirk** — it recurs in a Mistral sibling and in an unrelated open
+  family (AI2's OLMo-2).
+- **Weak imprinters — the Qwen family, including the DeepSeek reasoning-distilled Qwen.** Both bank
+  little of either kind. Notably, DeepSeek-R1-Distill-Qwen — the same Qwen backbone under radically
+  different (reasoning-distillation) tuning — remains a null imprinter (SEM banking +0.07, ORDER
+  0.00), suggesting the pretrained backbone, not just the instruction objective, bounds imprinting.
 
 ![Figure 7](figures/fig12_shuffle_controls.png)
-*Figure 7: What is banked — a word-order shuffle control. ORDER = banking(ordered) −
-banking(shuffled); ≈0 means token presence (order-invariant), <0 means structure (order matters).
-Two probes (single-fact exp33, two-fact binding exp32) agree: the Gemma family is order-invariant
-(token presence; at 12B the shuffled prime even banks more), Mistral is strongly order-dependent
-(genuine structure), Qwen banks little. Bars are bootstrap 95% CIs.*
+*Figure 7: What is banked — a word-order shuffle control across eight models / five families. ORDER
+= banking(ordered) − banking(shuffled); ≈0 = token presence (order-invariant), <0 = structure
+(order matters). The Gemma family is order-invariant (token presence); Mistral, Ministral, and
+OLMo-2 are order-dependent (genuine structure, three independent families); Qwen and DeepSeek-Qwen
+bank little. Bars are bootstrap 95% CIs.*
 
-There is, in short, **no clean two-way semantic/surface mode**: the families differ in *what* they
-bank, not on a single axis. A coherent reading is that **imprintability measures the strength of a
-model's content-token imprint (≈ how aggressively it abstracts a prefix into the kept
-representation), and this token-level imprint trades off against literal structure** — which is why
-the most imprintable model (Gemma-12B) banks a *shuffled* two-fact prime *better* than an ordered
-one (the ordered version is abstracted away from the literal answer token). The robust, defensible
-claims are therefore: (i) a content-imprint axis whose **magnitude** scales with imprintability
-(r=0.94); (ii) the imprint is predominantly **token presence** for the high-imprintability Gemma
-family and genuine **structure** only for Mistral; (iii) the base→instruct flip (§6.4) is real at
-the level of *what content type* is banked. We retract the stronger "Gemma banks meaning" reading.
+There is, in short, **no clean two-way semantic/surface mode**: families differ in *what* they bank
+along a token-presence↔structure axis that is **separate from banking magnitude**. Magnitude and
+kind are not the same trait — OLMo-2 banks *weakly but structurally* (−0.32 nats, order-dependent),
+whereas Gemma-27B banks *strongly but lexically* (−3.8 nats, order-invariant). A coherent reading is
+that **imprintability (§6.2) measures the strength of a model's content-token imprint — how
+aggressively it abstracts a prefix into the kept representation — and this token-level imprint can
+trade off against literal structure**, which is why the most imprintable model (Gemma-12B) banks a
+*shuffled* two-fact prime *better* than an ordered one. The robust, defensible claims are: (i) a
+content-imprint axis whose **magnitude** scales with imprintability (r=0.94); (ii) a separate
+**kind** axis — predominantly **token presence** for the Gemma family and genuine **structure** for
+Mistral/Ministral/OLMo-2; (iii) the base→instruct flip (§6.4) is real at the level of *what content
+type* is banked. We retract the stronger "Gemma banks meaning" reading.
 
 ---
 
@@ -569,9 +592,12 @@ be measured.**
 - We localize the cause of the banked content type to instruction-tuning (§6.4) but do not identify
   *which* alignment objective changes it; a causal training study (controlled fine-tunes) is future
   work.
-- The token-presence-vs-structure split (§6.5) is shown with two shuffle probes on five models; the
-  "Gemma = token presence, Mistral = structure" reading rests on one non-Gemma structure imprinter
-  (Mistral) and would be strengthened by more model families.
+- The token-presence-vs-structure split (§6.5) is shown with two shuffle probes on eight models
+  across five families; structure imprinting replicates in three independent families (Mistral,
+  Ministral, OLMo-2) and token presence across the Gemma family, but the token-presence side is still
+  a single family (Gemma) and would be strengthened by a non-Gemma token-presence imprinter. OLMo-2's
+  structure signature is clear on the single-fact probe but non-significant on two-fact binding (it is
+  too weak an imprinter to bind), so its classification rests on the single-fact result.
 - The task-aware select-vs-condition comparison (§7.1) spans eight models but **does not yield a
   predictive rule**: which operation wins is model-specific and correlates only weakly with
   imprintability (r=0.29) or size, so deployment requires an empirical per-model probe. The selection
@@ -595,8 +621,9 @@ we had was an artifact of how we measured it. Measured correctly, zero-retention
 bank context — with a **magnitude** governed by a single trait (imprintability, r=0.94) that scales
 with model size. But a word-order shuffle control corrected our own next mistake: the banking is not
 a clean "semantic vs. surface" mode. The high-imprintability Gemma family banks **token presence**
-(its "semantic" banking is order-invariant), only Mistral banks genuine **structure**, and Qwen
-banks little — so imprintability measures the strength of a content-*token* imprint that, at the
+(its "semantic" banking is order-invariant), three independent families (Mistral, Ministral, OLMo-2)
+bank genuine **structure**, and the Qwen family banks little — so imprintability measures the
+strength of a content-*token* imprint (a magnitude, separable from kind) that, at the
 extreme, even competes with literal structure. The honest verdict is that directed cache
 construction is not a free-lunch accelerator but a *typed*, bounded mechanism whose character is
 model-specific, **trainable** (five architectural accounts fail; a base-vs-instruct comparison
@@ -631,9 +658,11 @@ resamples); fixed seeds; 20-sample checkpoints.
 content-type dissociation (exp27, N=150); localization (exp28); base→instruct content-type flip
 (§6.4) exp26: Qwen semantic −0.72→+0.14, code +0.17→−0.37; architecture probe (5th falsification)
 exp30; bankability ceiling (exp24/25): retained −2.8 nats, content-bankable ≈0, machinery ~0.3–0.6.
-*Shuffle controls (§6.5), N=150:* single-fact SEM order-effect (exp33) Gemma-4B/12B n.s.
-(−0.20/−0.28), Gemma-27B +0.47\*, Mistral −1.55\*, Qwen-7B n.s.; two-fact binding order-effect
-(exp32) Gemma-12B +1.43\*, Mistral −1.07\*, Qwen-7B n.s. *QA prime (§7), N=300, machinery-controlled
+*Shuffle controls (§6.5), N=150, 8 models / 5 families (RoPE adapters validated, rel-err<1e-4):*
+single-fact SEM order-effect (exp33) Gemma-4B/12B n.s. (−0.20/−0.28), Gemma-27B +0.47\* (token
+presence); Mistral −1.55\*, Ministral −0.80\*, OLMo-2 −0.38\* (structure); Qwen-7B n.s., DeepSeek-Qwen
+0.00 (weak). Two-fact binding order-effect (exp32) Gemma-12B +1.43\*, Mistral −1.07\*, Ministral
+−0.24\*, OLMo-2 −0.10 n.s., Qwen-7B n.s. *QA prime (§7), N=300, machinery-controlled
 (pos=hurts):* ordered/shuffled question Gemma-12B +0.36\*/+0.32\*, Qwen-7B −0.80\*/−0.73\*, Qwen-14B
 +0.44\*/+0.28\*. *Select-vs-condition (§7.1), N=300, k=32:* selVal Qwen-7B +1.00\* (else n.s.);
 conditioning-given-selection Qwen-7B −0.51\*, Gemma-4B +1.03\*, Gemma-12B +0.16 n.s.; full

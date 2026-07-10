@@ -41,7 +41,7 @@ if len(_imp) >= 4:
     print(f"  -> r(imprintability,primeVal)={_np.corrcoef(_imp,_pv)[0,1]:.3f}  r(imprintability,COND|sel)={_np.corrcoef(_imp,_cs)[0,1]:.3f}  (NO clean trait law)")
 
 print("\n## exp32 binding (2-fact): ORDER=strip_ord-strip_shuf. neg=ordered banks more (structure); pos=shuffled (tokens)")
-for m in ["gemma3_4b","gemma3_12b","gemma3_27b","mistral_7b","qwen25_7b"]:
+for m in ["gemma3_4b","gemma3_12b","gemma3_27b","mistral_7b","ministral_8b","olmo2_7b","deepseek_r1_qwen7b","qwen25_7b"]:
     s = S(f"exp32_binding_shuffle/{m}")
     if not s: continue
     print(f"  {m:11s} n={len(s)} bankOrd={f(boot([x['strip_ord']-x['neutral'] for x in s]))} "
@@ -49,7 +49,7 @@ for m in ["gemma3_4b","gemma3_12b","gemma3_27b","mistral_7b","qwen25_7b"]:
           f"ORDER={f(boot([x['strip_ord']-x['strip_shuf'] for x in s]))}")
 
 print("\n## exp33 single-fact: SEM & CODE banking, ORDER=ord-shuf. neg=meaning/structure; ~0=token presence")
-for m in ["gemma3_4b","gemma3_12b","gemma3_27b","mistral_7b","qwen25_7b"]:
+for m in ["gemma3_4b","gemma3_12b","gemma3_27b","mistral_7b","ministral_8b","olmo2_7b","deepseek_r1_qwen7b","qwen25_7b"]:
     s = S(f"exp33_singlefact_shuffle/{m}")
     if not s: continue
     semO = boot([x['sem_ord']-x['sem_shuf'] for x in s]); codO = boot([x['code_ord']-x['code_shuf'] for x in s])
