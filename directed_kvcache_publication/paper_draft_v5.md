@@ -19,8 +19,9 @@ prime, matched footing) overturns several further "clean" claims — including o
 
 Second, the real phenomenon. We show that zero-retention priming *does* bank context into a
 document's stored KV — substantially — and its **magnitude** is governed by a single measurable
-model trait we call **imprintability**: it recovers up to ~36% of a semantic context's value from a
-stripped cache (−3.8 nats on Gemma 27B), rising monotonically in nats across the Gemma family, present
+model trait we call **imprintability**: it recovers a large share of a semantic context's value from
+a stripped cache (up to −3.8 nats on Gemma-27B; ~36% of context value at Gemma-12B), rising
+monotonically in nats across the Gemma family, present
 in Mistral and weak in instruct-tuned Qwen 2.5, with imprintability predicting banking magnitude at
 r=0.94 across eight models. But **what** is banked is *not* a clean "semantic vs. surface" mode, as
 we and others might assume. A word-order **shuffle control** (prime with the same tokens, ordered
@@ -40,10 +41,10 @@ and Qwen 2.5's alignment uniquely *suppresses* it while strengthening surface/co
 (sem −0.72→+0.14, code +0.17→−0.37) — a controlled demonstration that the banked content type is a
 *trainable* property.
 
-Third, downstream value and the limits of a **task-aware** construction rule. The mode–task "match"
-of earlier drafts is weaker than claimed: the QA effect of priming is **token presence** (shuffling
+Third, downstream value and the limits of a **task-aware** construction rule. The task-dependence
+"match" of earlier drafts is weaker than claimed: the QA effect of priming is **token presence** (shuffling
 the question barely changes it) with a sign that does not track family — priming helps Qwen-7B
-(−0.80 nats) but *hurts* the larger Qwen-14B (+0.44) and the Gemmas. Comparing our discarded-prefix
+(−0.80 nats) but *hurts* the larger Qwen-14B (+0.44) and Gemma-12B (+0.36). Comparing our discarded-prefix
 **conditioning** to a SnapKV-style task-aware **selection** baseline across eight models, neither
 operation dominates: conditioning *helps* four (Qwen-1.5B/3B/7B, Gemma-1B; up to −1.9 nats) and
 *hurts* four, and — against our hypothesis — which wins does **not** reduce to imprintability
@@ -134,9 +135,12 @@ the memory. All three change *which tokens (or trained slots) are retained*. We 
 mechanism: we *retain nothing* and instead ask whether construction-time *conditioning* — a
 discarded natural-language prefix that reshapes the kept document keys/values — adds usable signal,
 and we make the selection methods a first-class baseline (does conditioning beat task-aware
-*selection* of the same budget?). Our contribution to this thread is the *mode* account: which
-conditioning content a given model can bank is governed by a measurable trait (§6.2), so the right
-task-aware prime is *model-specific* — a prescription these retention-based methods do not provide.
+*selection* of the same budget?). Our contribution to this thread is empirical and cautionary: we
+characterize *what* a discarded prefix can bank (a magnitude set by a measurable trait, §6.2, and a
+model-specific token-presence-vs-structure *character*, §6.5), and we show that across eight models
+*neither* conditioning nor task-aware selection dominates for extraction — which operation wins is
+model-specific and must be measured, not read off a trait (§7.1) — a caveat these retention-based
+methods do not surface.
 
 **KV-cache compression and prompt/context compression.** A large literature compresses the cache
 post-hoc by evicting or summarizing tokens [@h2o; @snapkv], or compresses context into a *few
@@ -145,8 +149,9 @@ distillation into cache vectors [@kvdistill]. A complementary strand probes the 
 compression [@gistsilverbullet; @cramming]. Our zero-retention priming is the degenerate extreme
 (zero retained tokens), and our bankability ceiling is a *training-free* measurement of that limit
 (§5). Critically, this literature measures *how much* compresses; we introduce a *what-kind* axis —
-a content-type dissociation (meaning vs. surface form) that is model-specific and, we show,
-*trainable* (§6.4). This predicts what a compression method can preserve on a given model and warns
+a token-presence-vs-structure distinction (§6.5) that is model-specific and, at the level of the
+banked content type, *trainable* (§6.4). This bears on what a compression method can preserve on a
+given model and warns
 that methods validated on one model family may not transfer.
 
 **Continuous-prompt and steering methods.** Prefix- and prompt-tuning learn continuous prefixes
@@ -203,9 +208,14 @@ document keys to positions `1..D` (float32 RoPE delta); per-tensor normalize. **
   query-agnostic and that representation comparisons are not positional artifacts.
 
 ### 3.3 Models and data
-Eight instruction-tuned models spanning imprintability: Qwen 2.5 (1.5/7/14B), Mistral 7B, Gemma 3
-(1/4/12/27B); plus three pretrained **base** models (Gemma-4B-pt, Qwen-7B, Mistral-7B-v0.3) for
-the training analysis (§6.4). Datasets: SQuAD, HotpotQA, GSM8K, DROP, MS MARCO (BM25 hard
+Instruction-tuned models spanning **imprintability** (a model trait we define and motivate in §6.2 —
+the mean |Δ query-NLL| a generic prefix induces). The core panel is eight models: Qwen 2.5
+(1.5/7/14B), Mistral 7B, Gemma 3 (1/4/12/27B). Individual analyses widen this as needed and *the
+panels differ, so we state the roster per result*: the shuffle controls (§6.5) add Ministral-8B,
+OLMo-2-7B, and a DeepSeek-R1-distilled Qwen-7B (five families); the select-vs-condition study (§7.1)
+uses Qwen 2.5 (1.5/3/7/14B), Gemma 3 (1/4/12B), and Mistral 7B. For the training analysis (§6.4) we
+add three pretrained **base** models (Gemma-3-4B-pt, Qwen2.5-7B-base, Mistral-7B-v0.3). Datasets:
+SQuAD, HotpotQA, GSM8K, DROP, MS MARCO (BM25 hard
 negatives); plus controlled synthetic probes (a decisive fact in filler) for banking. Bootstrap
 95% CIs; `*` excludes 0.
 
@@ -237,10 +247,11 @@ averaging to zero across models. So the honest statement is not "keyword priming
 foreshadows the imprinting-mode thesis (§6). The robust pooled positive is the generic
 *extract*-style instruction (+0.270), whose lockstep signature is genuine (the correct answer's
 NLL falls while distractors' rise). On BoolQ, our earlier "label-prior shift only" reading does
-**not** survive the full data: extract priming produces a *real* discrimination gain on the larger
-instruct models (gemma-12B gold=yes +0.916\* / gold=no +0.782\*, balanced accuracy 0.875→0.883;
-qwen-7B +0.390\*/+0.489\*; ministral-8B +0.450\*/+0.001) and improves accuracy, ECE, and Brier;
-only qwen-1.5B shows the pure prior shift (+0.40/−0.33). The lesson stands — perplexity/NLL gains
+**not** survive the full data: extract priming produces a *real* two-way discrimination gain
+(both gold classes' margins rise) on the larger instruct models (gemma-12B gold=yes +0.916\* /
+gold=no +0.782\*, balanced accuracy 0.875→0.883; qwen-7B +0.390\*/+0.489\*) and improves accuracy,
+ECE, and Brier; Ministral-8B is intermediate — one class rises (+0.450\*) while the other is flat
+(+0.001, n.s.) — and only qwen-1.5B shows the pure prior shift (+0.40\*/−0.33\*). The lesson stands — perplexity/NLL gains
 are presumptively inflated — but the corrected control is the per-model gold-aligned margin, and
 priming does sharpen discrimination, not merely shift the prior, on capable models.
 
@@ -272,13 +283,13 @@ document's KV. The surprise is that the imprint is not nothing — it is *typed*
 
 ## 6. Imprinting: a Content-Imprint Axis, and What It Actually Banks (the central result)
 
-> **Reading guide / correction.** An earlier framing of this section called the headline axis
-> "semantic imprinting" and split models into "semantic vs. surface" *modes*. Word-order shuffle
-> controls (§6.5) show that label is too strong: the dominant, scaling axis is a **content-imprint**
-> axis whose *magnitude* a single trait predicts (r=0.94, §6.2), but **what** is imprinted is
-> model-specific — for the Gemma family it is **token presence** (order-invariant), and only for
-> Mistral is it genuine **structure/meaning** (order-dependent). We keep the magnitude results,
-> which are robust, and reinterpret the mechanism in §6.5.
+Zero-retention priming banks context along a **content-imprint axis** with two separable
+properties: a *magnitude* that a single trait predicts (imprintability, r=0.94; §6.2), and a
+model-specific *kind* — **token presence** for the Gemma family versus genuine **structure** for
+Mistral, Ministral, and OLMo-2 — that a word-order shuffle control isolates (§6.5). We build this up
+from the content-type probe (§6.1), quantify the magnitude and its predictor (§6.2–6.3), trace the
+cause to instruction-tuning (§6.4), and resolve *what is actually banked* with the shuffle control
+(§6.5).
 
 ### 6.1 What is banked: a content-imprint axis (magnitude) with a model-specific character
 We prime a filler document with a fact whose answer ranges from meaningless to meaningful, strip
@@ -317,7 +328,9 @@ imprintable token), not meaning-banking. The robust, scaling result is the conte
 ### 6.2 One trait predicts the magnitude: imprintability (r=0.94)
 Define **imprintability** as the mean |Δ query-NLL| a generic prefix induces (what we earlier
 called "primability"). Across eight models it predicts the *magnitude* of content banking almost
-perfectly (the *kind* of banking — token presence vs. structure — is resolved in §6.5):
+perfectly (the *kind* of banking — token presence vs. structure — is resolved in §6.5). Here
+`sem-bank` is the banking magnitude in nats, reported as a **positive** number (= how much the
+stripped cache lowers answer-NLL; it is the sign-flipped `strip − neutral` used elsewhere):
 
 ```
             imprint.  sem-bank          imprint.  sem-bank
@@ -330,16 +343,17 @@ mistral7b   0.55      1.36       gemma27b 0.84     3.77
 
 ![Figure 3](figures/fig7_imprintability_unification.png)
 *Figure 3: A single trait — imprintability (|Δ query-NLL| from a generic prefix) — predicts how
-much semantic context a model banks into a stripped cache (Pearson r=0.94, 8 models). It is the
-trait, not the family: Mistral (purple) sits on the line.*
+much content a model banks (in nats) into a stripped cache (Pearson r=0.94, 8 models). It is the
+trait, not the family: Mistral (purple) sits on the line. This is a magnitude; §6.5 shows the
+*kind* of banking (token presence for Gemma; structure for Mistral, Ministral, OLMo-2).*
 
 It is the *trait*, not the brand: Mistral (non-Gemma, imprintability 0.55) banks content
 (−1.36). Banking magnitude (in nats) also **rises monotonically with Gemma size**; as a fraction of
 a semantic context's value it is 6% → 23% → 36% → 35% (1B→4B→12B→27B), peaking at 12B. (§6.5 shows
-that for Gemma this banking is *token-presence* imprint; for Mistral it is genuine structure.)
+that for Gemma this banking is *token-presence* imprint; for Mistral/Ministral/OLMo-2 it is genuine structure.)
 
 ![Figure 4](figures/fig9_semantic_scaling.png)
-*Figure 4: Content-imprint banking magnitude scales with model size — fraction of a semantic
+*Figure 4: Content-imprint banking magnitude scales with model size — fraction of a meaningful
 context's value recoverable from the stripped cache, Gemma 1B→27B (for Gemma this is token-presence
 imprint; §6.5).*
 
@@ -357,12 +371,15 @@ Comparing pretrained **base** models to their instruction-tuned versions on the 
 
 | | code bank | semantic bank |
 |---|---|---|
-| Gemma-4B base | +0.31 (no) | **−1.11\*** |
-| Gemma-4B instruct | +0.15 (no) | **−2.46\*** |
-| Qwen-7B base | +0.17 (no) | **−0.72\*** |
+| Gemma-4B base | +0.31\* (anti) | **−1.11\*** |
+| Gemma-4B instruct | +0.15\* (anti) | **−2.46\*** |
+| Qwen-7B base | +0.17\* (anti) | **−0.72\*** |
 | Qwen-7B instruct | **−0.37\* (code!)** | +0.14 (none) |
-| Mistral-7B base | −0.16 (code) | **−1.08\*** |
+| Mistral-7B base | −0.16\* (code) | **−1.08\*** |
 | Mistral-7B instruct | −0.56\* (code) | **−1.36\*** |
+
+(All entries have CIs excluding 0; positive code-bank = *anti*-banked, i.e. priming raises the
+answer's NLL. "no/none" would mean n.s.; here the small positive code values are significant.)
 
 Two facts: (i) **every pretrained base model banks the semantic-content target** (−0.7 to −1.1) —
 content imprinting is a *universal* property of pretrained LMs, not a Gemma quirk; (ii) **instruction-
@@ -428,8 +445,8 @@ overturns the binary "semantic (Gemma, Mistral) vs. surface (Qwen)" mode of earl
   different (reasoning-distillation) tuning — remains a null imprinter (SEM banking +0.07, ORDER
   0.00), suggesting the pretrained backbone, not just the instruction objective, bounds imprinting.
 
-![Figure 7](figures/fig12_shuffle_controls.png)
-*Figure 7: What is banked — a word-order shuffle control across eight models / five families. ORDER
+![Figure 6](figures/fig12_shuffle_controls.png)
+*Figure 6: What is banked — a word-order shuffle control across eight models / five families. ORDER
 = banking(ordered) − banking(shuffled); ≈0 = token presence (order-invariant), <0 = structure
 (order matters). The Gemma family is order-invariant (token presence); Mistral, Ministral, and
 OLMo-2 are order-dependent (genuine structure, three independent families); Qwen and DeepSeek-Qwen
@@ -450,9 +467,11 @@ type* is banked. We retract the stronger "Gemma banks meaning" reading.
 
 ---
 
-## 7. Mode–Task Match: When Imprinting Helps
+## 7. When Imprinting Helps: Downstream Value and Task-Aware Construction
 
-Content imprinting is not uniformly good — its value depends on the task.
+Content imprinting is not uniformly good — its value depends on the task and, as we show, on the
+model. We first give an illustrative task-dependence result, then the eight-model comparison (§7.1)
+that shows the deployable rule is *measure per model*, not a mode shortcut.
 
 **Relevance (reranking).** Priming each MS MARCO passage with its own keywords significantly
 improves query-likelihood reranking over generic priming on Gemma, and beats *no* priming on the
@@ -470,26 +489,27 @@ the mechanism):
 | shuffled-question prime | **+0.32\*** | −0.04 (n.s.) | **−0.73\*** | **+0.28\*** |
 | order contribution | +0.04 (n.s.) | +0.16 (n.s.) | −0.07 (n.s.) | +0.16\* |
 
-The mechanism is **not** semantic blurring. Shuffling the question's tokens barely changes the
-effect (order contributes ≤0.16 nats, mostly n.s.): what moves the answer is the **token presence**
-of the question in the cached representation, with a **sign that is model-and-scale-specific**.
+The mechanism is **predominantly not** semantic blurring. Shuffling the question's tokens barely
+changes the effect: the order contribution is ≤0.16 nats and n.s. for three of four models (a small
+but significant +0.16 for Qwen-14B), so what mostly moves the answer is the **token presence** of
+the question in the cached representation, with a **sign that is model-and-scale-specific**.
 Crucially the sign does *not* track family — Qwen-7B is *helped* (−0.80) but the larger Qwen-14B is
 *hurt* (+0.44), like the Gemmas. So the earlier clean story ("surface imprinters help extraction,
 semantic imprinters hurt it") is **not a law**: it is a property of the specific Qwen-7B vs.
-Gemma-12B pair. We therefore demote the mode–task "2×2" below to an *illustrative* worked pair,
-and replace the prescription with the eight-model select-vs-condition comparison of §7.1 (which
+Gemma-12B pair. We therefore treat the task-dependence "2×2" below as an *illustrative* worked pair,
+and replace any prescription with the eight-model select-vs-condition comparison of §7.1 (which
 construction operation to use when you know the task — and why it must be measured per model).
 
-**The 2×2** (one worked pair — Gemma-12B and Qwen-7B — *not* a family law; see the per-model
-caveats above and the shuffle controls in §6.5):
+**The task-dependence 2×2** (one worked pair — Gemma-12B and Qwen-7B — *not* a family law; see the
+per-model caveats above and the shuffle controls in §6.5):
 
 | | Gemma-12B | Qwen-7B |
 |---|---|---|
 | reranking (relevance) | **helps** (+0.036\* MRR) | no |
 | QA (precise extraction) | **hurts** (+0.36\* NLL) | **helps** (−0.80\* NLL) |
 
-![Figure 6](figures/fig10_mode_task.png)
-*Figure 6: Mode–task match for one worked pair (Gemma-12B, Qwen-7B). Left: keyword priming helps
+![Figure 7](figures/fig10_mode_task.png)
+*Figure 7: Task-dependence for one worked pair (Gemma-12B, Qwen-7B). Left: keyword priming helps
 Gemma's relevance reranking. Right: question priming helps Qwen-7B's QA extraction but hurts
 Gemma-12B's. This is illustrative, not a family law — Qwen-14B reverses Qwen-7B's QA sign (above),
 and the QA effect is token-presence, not meaning (§6.5).*
@@ -577,11 +597,15 @@ be measured.**
 2. **Measure imprintability first** (mean |Δ query-NLL| from a generic prefix). It predicts how
    *much* a model banks (r=0.94); a quick shuffle probe (ordered vs. scrambled prime) tells you
    *what* it banks — token presence (Gemma) vs. structure (Mistral) vs. little (Qwen).
-3. **Choose the construction operation by imprinting character, not by default-priming.** For
-   extraction with a known task: on a high-imprintability token-presence model (Gemma), conditioning
-   *hurts* — prefer task-aware **selection** (keep relevant tokens) or no priming; on a weak/surface
-   imprinter where selection *hurts* (Qwen-7B), **condition** instead. Do not deploy a single
-   operation blind — a selection-only method damages Qwen-7B, and conditioning damages Gemma.
+3. **When you know the task, probe both construction operations per model — do not pick by a trait
+   shortcut.** Across eight models, neither discarded-prefix **conditioning** nor aggressive
+   task-aware **selection** dominates for extraction, and which wins does *not* reduce to
+   imprintability or size (§7.1; conditioning helps most on Gemma-1B yet hurts on Qwen-14B, at nearly
+   equal imprintability). The one systematic, confound-controlled effect is a risk, not a rule:
+   aggressive query-aware **selection** (SnapKV-style top-k) hurts the *entire Qwen family* by ~1 nat
+   (not via answer-token dropout) while never hurting Gemma — so a selection-only pipeline is unsafe
+   on Qwen, and conditioning is the safer default there. Otherwise, run one cheap N≈300 sweep and
+   keep the winner.
 4. **Do not expect a free lunch.** ~65%+ of context value is un-bankable; the construction step is
    mildly lossy. The gains are real but bounded, model-specific, and task-specific.
 
@@ -664,6 +688,9 @@ presence); Mistral −1.55\*, Ministral −0.80\*, OLMo-2 −0.38\* (structure);
 0.00 (weak). Two-fact binding order-effect (exp32) Gemma-12B +1.43\*, Mistral −1.07\*, Ministral
 −0.24\*, OLMo-2 −0.10 n.s., Qwen-7B n.s. *QA prime (§7), N=300, machinery-controlled
 (pos=hurts):* ordered/shuffled question Gemma-12B +0.36\*/+0.32\*, Qwen-7B −0.80\*/−0.73\*, Qwen-14B
-+0.44\*/+0.28\*. *Select-vs-condition (§7.1), N=300, k=32:* selVal Qwen-7B +1.00\* (else n.s.);
-conditioning-given-selection Qwen-7B −0.51\*, Gemma-4B +1.03\*, Gemma-12B +0.16 n.s.; full
-conditioning Gemma-12B/4B +0.52\*/+1.05\*, Qwen-7B −0.63\*.
++0.44\*/+0.28\*. *Select-vs-condition (§7.1), N=300, k=32, 8 models:* selVal (selection cost, pos=hurts)
+Qwen-1.5B/3B/7B/14B +0.88\*/+1.89\*/+1.00\*/+0.88\*, Mistral +0.50\*, Gemma-1B −0.33\*, Gemma-4B/12B
+−0.12/−0.03 (n.s.) — selection hurts the whole Qwen family, never Gemma. Full conditioning (pos=hurts)
+Qwen-1.5B/3B/7B −0.27\*/−0.84\*/−0.63\* (helps), Qwen-14B +2.37\* / Gemma-4B/12B +1.05\*/+0.52\* /
+Mistral +0.34\* (hurts), Gemma-1B −1.91\* (helps). r(imprintability, conditioning)=0.29 → no trait law.
+Answer-span survival under top-k selection 0.42–0.70 across models (Gemma-1B 0.47 ≈ Qwens).
