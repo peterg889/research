@@ -476,8 +476,11 @@ that shows the deployable rule is *measure per model*, not a mode shortcut.
 **Relevance (reranking).** Priming each MS MARCO passage with its own keywords significantly
 improves query-likelihood reranking over generic priming on Gemma, and beats *no* priming on the
 larger, higher-imprintability models: **+0.036 MRR on Gemma 12B and 27B** (CIs exclude 0), null
-on Gemma 4B and on Qwen/Mistral. Keyword imprinting re-weights the passage's own salient content,
-which is exactly what relevance scoring rewards (for Gemma this is a token-presence re-weighting; §6.5).
+on Gemma 4B and on Qwen/Mistral. This benefit is **token presence**, consistent with §6.5: shuffling
+the keyword tokens before priming leaves it intact — on Gemma-12B (N=900, sample-paired) the keyword
+benefit over bare is +0.036\* ordered and +0.039\* shuffled, and shuffled−ordered is +0.003 (n.s.).
+So keyword imprinting re-weights *which of the passage's own tokens are salient*, which is exactly
+what relevance scoring rewards, and it does so without needing the keywords in any particular order.
 
 **Extraction (QA).** Priming a passage with the *question*, then stripping it, and answering
 (machinery-controlled content effect, pos = hurts; we also shuffle the question's tokens to test
