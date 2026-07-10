@@ -520,8 +520,8 @@ and the QA effect is token-presence, not meaning (§6.5).*
 ### 7.1 Task-aware construction: *select* vs. *condition*, and why you must probe per model
 The motivating practical question is: if we know the task at cache-build time, how should we build
 the cache? Two families of operation are available — **selection** (keep the task-relevant tokens,
-drop the rest: the SnapKV/Beyond-RAG move) and **conditioning** (keep the document but reshape its
-kept keys/values with a discarded task prime: our move). We compare them iso-budget on extraction
+drop the rest: the SnapKV-style, query-aware move) and **conditioning** (keep the document but
+reshape its kept keys/values with a discarded task prime: our move). We compare them iso-budget on extraction
 across **eight models** (N=300 SQuAD): per passage we pick the top-`k`=32 document tokens by
 question→document attention (a SnapKV-style probe), and score the answer under the selected tokens
 alone, the selected tokens *conditioned* by the discarded question, and the full document
