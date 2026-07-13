@@ -220,9 +220,10 @@ document keys to positions `1..D` (float32 RoPE delta); per-tensor normalize. **
 Instruction-tuned models spanning **imprintability** (a model trait we define and motivate in §6.2 —
 the mean |Δ query-NLL| a generic prefix induces). The core panel is eight models: Qwen 2.5
 (1.5/7/14B), Mistral 7B, Gemma 3 (1/4/12/27B). Individual analyses widen this as needed and *the
-panels differ, so we state the roster per result*: the shuffle controls (§6.5) add Ministral-8B,
-OLMo-2-7B, and a DeepSeek-R1-distilled Qwen-7B (five families); the select-vs-condition study (§7.1)
-uses Qwen 2.5 (1.5/3/7/14B), Gemma 3 (1/4/12B), and Mistral 7B. For the training analysis (§6.4) we
+panels differ, so we state the roster per result*: the shuffle controls (§6.5) expand to eleven
+models across seven families, adding Ministral-8B, Llama-3-8B, Yi-1.5-9B, Falcon3-7B, OLMo-2-7B, and
+a DeepSeek-R1-distilled Qwen-7B; the select-vs-condition study (§7.1) uses Qwen 2.5 (1.5/3/7/14B),
+Gemma 3 (1/4/12B), and Mistral 7B. For the training analysis (§6.4) we
 add three pretrained **base** models (Gemma-3-4B-pt, Qwen2.5-7B-base, Mistral-7B-v0.3). Datasets:
 SQuAD, HotpotQA, GSM8K, DROP, MS MARCO (BM25 hard
 negatives); plus controlled synthetic probes (a decisive fact in filler) for banking. Bootstrap
