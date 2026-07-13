@@ -24,9 +24,12 @@ TASK-AWARE + SHUFFLE-CONTROL NUMBERS — source of truth
   gemma3_4b   n=150 bankOrd=-1.920[-2.330,-1.516]* bankShuf=-1.407[-1.784,-1.055]* ORDER=-0.513[-0.795,-0.244]*
   gemma3_12b  n=150 bankOrd=-0.392[-0.869,+0.074]  bankShuf=-1.818[-2.319,-1.330]* ORDER=+1.426[+0.905,+1.947]*
   gemma3_27b  n=150 bankOrd=-1.717[-2.134,-1.311]* bankShuf=-1.945[-2.401,-1.495]* ORDER=+0.228[-0.230,+0.690] 
+  falcon3_7b  n=150 bankOrd=-2.722[-3.432,-2.056]* bankShuf=-2.824[-3.481,-2.200]* ORDER=+0.103[-0.336,+0.541] 
+  yi15_9b     n=150 bankOrd=-0.664[-0.931,-0.410]* bankShuf=-1.577[-1.855,-1.321]* ORDER=+0.913[+0.634,+1.213]*
   mistral_7b  n=150 bankOrd=-0.705[-0.846,-0.569]* bankShuf=+0.364[+0.250,+0.474]* ORDER=-1.070[-1.221,-0.919]*
   ministral_8b n=150 bankOrd=-0.320[-0.405,-0.238]* bankShuf=-0.085[-0.126,-0.048]* ORDER=-0.236[-0.314,-0.161]*
   olmo2_7b    n=150 bankOrd=+0.237[+0.064,+0.424]* bankShuf=+0.336[+0.171,+0.507]* ORDER=-0.099[-0.213,+0.020] 
+  llama3_8b   n=150 bankOrd=-0.083[-0.160,-0.005]* bankShuf=+0.086[+0.023,+0.149]* ORDER=-0.169[-0.220,-0.116]*
   deepseek_r1_qwen7b n=150 bankOrd=+0.153[+0.036,+0.287]* bankShuf=+0.116[+0.000,+0.237]* ORDER=+0.037[-0.026,+0.100] 
   qwen25_7b   n=150 bankOrd=+0.069[-0.197,+0.342]  bankShuf=-0.045[-0.305,+0.210]  ORDER=+0.115[-0.021,+0.242] 
 
@@ -34,9 +37,12 @@ TASK-AWARE + SHUFFLE-CONTROL NUMBERS — source of truth
   gemma3_4b   n=150 SEMbank=-2.456[-2.899,-2.032]* SEM_ORDER=-0.201[-0.577,+0.184]  CODE_ORDER=+0.160[+0.053,+0.269]*
   gemma3_12b  n=150 SEMbank=-3.622[-4.220,-3.016]* SEM_ORDER=-0.280[-0.825,+0.268]  CODE_ORDER=-0.029[-0.128,+0.065] 
   gemma3_27b  n=150 SEMbank=-3.770[-4.272,-3.286]* SEM_ORDER=+0.465[+0.008,+0.937]* CODE_ORDER=-0.032[-0.168,+0.103] 
+  falcon3_7b  n=150 SEMbank=-2.801[-3.325,-2.271]* SEM_ORDER=-0.006[-0.420,+0.429]  CODE_ORDER=-0.087[-0.241,+0.065] 
+  yi15_9b     n=150 SEMbank=-0.748[-0.957,-0.528]* SEM_ORDER=+0.352[+0.148,+0.558]* CODE_ORDER=+0.395[+0.298,+0.498]*
   mistral_7b  n=150 SEMbank=-1.361[-1.553,-1.182]* SEM_ORDER=-1.553[-1.743,-1.364]* CODE_ORDER=-0.739[-0.824,-0.654]*
   ministral_8b n=150 SEMbank=-0.885[-1.024,-0.741]* SEM_ORDER=-0.805[-0.941,-0.661]* CODE_ORDER=+0.033[+0.007,+0.058]*
   olmo2_7b    n=150 SEMbank=-0.322[-0.483,-0.163]* SEM_ORDER=-0.381[-0.494,-0.269]* CODE_ORDER=-0.235[-0.338,-0.132]*
+  llama3_8b   n=150 SEMbank=-0.586[-0.729,-0.459]* SEM_ORDER=-0.486[-0.587,-0.389]* CODE_ORDER=+0.154[+0.094,+0.215]*
   deepseek_r1_qwen7b n=150 SEMbank=+0.074[-0.023,+0.178]  SEM_ORDER=+0.002[-0.071,+0.071]  CODE_ORDER=+0.012[-0.036,+0.061] 
   qwen25_7b   n=150 SEMbank=+0.142[-0.052,+0.324]  SEM_ORDER=-0.159[-0.326,+0.016]  CODE_ORDER=+0.011[-0.115,+0.136] 
 

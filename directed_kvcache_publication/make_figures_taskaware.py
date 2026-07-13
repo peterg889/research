@@ -15,14 +15,21 @@ plt.rcParams.update({"font.size": 11, "axes.spines.top": False, "axes.spines.rig
                      "figure.dpi": 160, "savefig.bbox": "tight", "axes.grid": True,
                      "grid.alpha": 0.25, "grid.linestyle": "--"})
 GEMMA = "#0b7a75"; QWEN = "#d1495b"; MISTRAL = "#8338ec"; OLMO = "#e07a00"
+# color by KIND category (token-presence teal, structure purple, weak red) for the shuffle fig
+TOKENPRES = "#0b7a75"; STRUCT = "#8338ec"; WEAK = "#d1495b"
+KIND = {"gemma3_4b": TOKENPRES, "gemma3_12b": TOKENPRES, "gemma3_27b": TOKENPRES,
+        "falcon3_7b": TOKENPRES, "yi15_9b": TOKENPRES,
+        "mistral_7b": STRUCT, "ministral_8b": STRUCT, "llama3_8b": STRUCT, "olmo2_7b": STRUCT,
+        "qwen25_7b": WEAK, "deepseek_r1_qwen7b": WEAK}
 def famc(m):
     if m.startswith("gemma"): return GEMMA
-    if m.startswith("qwen") or m.startswith("deepseek"): return QWEN   # deepseek = Qwen backbone
+    if m.startswith("qwen") or m.startswith("deepseek"): return QWEN
     if m.startswith("olmo"): return OLMO
-    return MISTRAL  # mistral, ministral
+    return MISTRAL
 SHORT = {"gemma3_4b": "G-4B", "gemma3_12b": "G-12B", "gemma3_27b": "G-27B",
-         "mistral_7b": "Mistral-7B", "ministral_8b": "Ministral-8B", "olmo2_7b": "OLMo-2-7B",
-         "deepseek_r1_qwen7b": "DeepSeek-Q7B", "qwen25_7b": "Q-7B"}
+         "falcon3_7b": "Falcon3-7B", "yi15_9b": "Yi-1.5-9B",
+         "mistral_7b": "Mistral-7B", "ministral_8b": "Ministral-8B", "llama3_8b": "Llama-3-8B",
+         "olmo2_7b": "OLMo-2-7B", "deepseek_r1_qwen7b": "DeepSeek-Q7B", "qwen25_7b": "Q-7B"}
 
 def boot(d, n=4000, seed=0):
     rng = np.random.RandomState(seed); d = np.asarray(d, float)
@@ -36,15 +43,17 @@ def load(p):
 # Fig 7b: shuffle controls — ORDER (ordered - shuffled) per model, two probes.
 # neg = structure (order matters); ~0 = token presence.
 def fig_shuffle():
-    models = ["gemma3_4b", "gemma3_12b", "gemma3_27b", "mistral_7b", "ministral_8b",
-              "olmo2_7b", "deepseek_r1_qwen7b", "qwen25_7b"]
+    # grouped: token-presence | structure | weak
+    models = ["gemma3_4b", "gemma3_12b", "gemma3_27b", "falcon3_7b", "yi15_9b",
+              "mistral_7b", "ministral_8b", "llama3_8b", "olmo2_7b",
+              "qwen25_7b", "deepseek_r1_qwen7b"]
     sf, bd = {}, {}
     for m in models:
         s = load(f"exp33_singlefact_shuffle/{m}")
         if s: sf[m] = boot([x["sem_ord"] - x["sem_shuf"] for x in s])
         b = load(f"exp32_binding_shuffle/{m}")
         if b: bd[m] = boot([x["strip_ord"] - x["strip_shuf"] for x in b])
-    fig, ax = plt.subplots(figsize=(10.5, 5.4))
+    fig, ax = plt.subplots(figsize=(12.5, 5.6))
     x = np.arange(len(models)); w = 0.38
     for i, (d, off, lab, hatch) in enumerate([(sf, -w/2, "single-fact (exp33)", None),
                                               (bd, +w/2, "two-fact binding (exp32)", "//")]):
@@ -52,18 +61,18 @@ def fig_shuffle():
         los = [d[m][0]-d[m][1] if m in d else 0 for m in models]
         his = [d[m][2]-d[m][0] if m in d else 0 for m in models]
         ax.bar(x+off, vals, w, yerr=[los, his], capsize=3, hatch=hatch,
-               color=[famc(m) for m in models], edgecolor="k", lw=0.6,
+               color=[KIND[m] for m in models], edgecolor="k", lw=0.6,
                alpha=0.95 if hatch is None else 0.6, label=lab)
     ax.axhline(0, color="k", lw=0.8)
-    ax.axvline(2.5, color="#bbb", lw=1, ls=":"); ax.axvline(5.5, color="#bbb", lw=1, ls=":")
-    ax.set_xticks(x); ax.set_xticklabels([SHORT[m] for m in models], rotation=18, ha="right")
+    ax.axvline(4.5, color="#bbb", lw=1, ls=":"); ax.axvline(8.5, color="#bbb", lw=1, ls=":")
+    ax.set_xticks(x); ax.set_xticklabels([SHORT[m] for m in models], rotation=22, ha="right")
     ax.set_ylabel("ORDER  =  banking(ordered) − banking(shuffled)  [nats]")
-    ax.set_title("What is banked: token presence (ORDER≈0, Gemma) vs. structure (ORDER<0, Mistral/Ministral/OLMo)")
+    ax.set_title("What is banked: token presence (ORDER≈0) vs. structure (ORDER<0) — multiple families each")
     ax.legend(loc="lower left", frameon=True, framealpha=0.9)
-    ax.annotate("token presence\n(order-invariant)", xy=(1.0, 1.7), ha="center", fontsize=9, color=GEMMA)
-    ax.annotate("structure (order matters)\n— 3 independent families", xy=(4.0, -1.35), ha="center", fontsize=9, color=MISTRAL)
-    ax.annotate("weak", xy=(6.5, 0.35), ha="center", fontsize=9, color=QWEN)
-    ax.set_ylim(-1.95, 2.25)
+    ax.annotate("TOKEN PRESENCE\n(order-invariant)\nGemma, Falcon-3, Yi", xy=(2.0, 1.75), ha="center", fontsize=9, color=TOKENPRES)
+    ax.annotate("STRUCTURE (order matters)\nMistral, Ministral, Llama-3, OLMo-2", xy=(6.5, -1.4), ha="center", fontsize=9, color=STRUCT)
+    ax.annotate("weak", xy=(9.5, 0.4), ha="center", fontsize=9, color=WEAK)
+    ax.set_ylim(-1.95, 2.3)
     fig.savefig(FIG / "fig12_shuffle_controls.png"); plt.close(fig)
     print("wrote fig12_shuffle_controls.png")
 

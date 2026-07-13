@@ -1,0 +1,112 @@
+=== R2 exp33 single-fact (llama3/yi/falcon) Mon Jul 13 15:14:45 UTC 2026 ===
+SINGLE-FACT SHUFFLE (semantic = meaning or tokens?)  SMOKE=False  N=150
+
+# llama3_8b
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files:  25%|██▌       | 1/4 [00:49<02:29, 49.72s/it]Fetching 4 files:  50%|█████     | 2/4 [00:51<00:43, 21.67s/it]Fetching 4 files:  75%|███████▌  | 3/4 [00:51<00:11, 11.87s/it]Fetching 4 files: 100%|██████████| 4/4 [00:51<00:00, 12.99s/it]
+Loading weights:   0%|          | 0/291 [00:00<?, ?it/s]Loading weights:   0%|          | 1/291 [00:00<02:35,  1.87it/s]Loading weights:   3%|▎         | 8/291 [00:00<00:17, 16.20it/s]Loading weights:   5%|▌         | 15/291 [00:00<00:09, 27.61it/s]Loading weights:   8%|▊         | 24/291 [00:00<00:06, 40.54it/s]Loading weights:  11%|█▏        | 33/291 [00:00<00:05, 50.13it/s]Loading weights:  14%|█▍        | 42/291 [00:01<00:04, 56.95it/s]Loading weights:  18%|█▊        | 51/291 [00:01<00:03, 62.33it/s]Loading weights:  21%|██        | 60/291 [00:01<00:03, 66.05it/s]Loading weights:  24%|██▎       | 69/291 [00:01<00:03, 68.43it/s]Loading weights:  27%|██▋       | 78/291 [00:01<00:03, 70.50it/s]Loading weights:  30%|██▉       | 87/291 [00:01<00:02, 71.38it/s]Loading weights:  33%|███▎      | 96/291 [00:01<00:02, 71.96it/s]Loading weights:  36%|███▌      | 105/291 [00:01<00:02, 72.82it/s]Loading weights:  39%|███▉      | 114/291 [00:02<00:02, 73.05it/s]Loading weights:  42%|████▏     | 123/291 [00:02<00:02, 73.33it/s]Loading weights:  45%|████▌     | 132/291 [00:02<00:02, 73.60it/s]Loading weights:  48%|████▊     | 141/291 [00:02<00:02, 73.79it/s]Loading weights:  52%|█████▏    | 150/291 [00:02<00:01, 72.97it/s]Loading weights:  55%|█████▍    | 159/291 [00:02<00:01, 73.44it/s]Loading weights:  58%|█████▊    | 168/291 [00:02<00:01, 73.80it/s]Loading weights:  61%|██████    | 177/291 [00:02<00:01, 73.96it/s]Loading weights:  64%|██████▍   | 186/291 [00:03<00:01, 73.42it/s]Loading weights:  67%|██████▋   | 195/291 [00:03<00:01, 73.67it/s]Loading weights:  70%|███████   | 204/291 [00:03<00:01, 73.99it/s]Loading weights:  73%|███████▎  | 213/291 [00:03<00:01, 74.38it/s]Loading weights:  76%|███████▋  | 222/291 [00:03<00:00, 74.81it/s]Loading weights:  79%|███████▉  | 231/291 [00:03<00:00, 74.75it/s]Loading weights:  82%|████████▏ | 240/291 [00:03<00:00, 75.04it/s]Loading weights:  86%|████████▌ | 249/291 [00:03<00:00, 75.01it/s]Loading weights:  89%|████████▊ | 258/291 [00:04<00:00, 75.43it/s]Loading weights:  92%|█████████▏| 267/291 [00:04<00:00, 75.72it/s]Loading weights:  95%|█████████▍| 276/291 [00:04<00:00, 75.60it/s]Loading weights:  98%|█████████▊| 285/291 [00:04<00:00, 75.75it/s]Loading weights: 100%|██████████| 291/291 [00:04<00:00, 66.15it/s]
+  loaded 61s
+    [20/150] sem: bankOrd=-0.85 bankShuf=-0.19 ORDER(ord-shuf)=-0.66
+    [20/150] code: bankOrd=+0.29 bankShuf=+0.13 ORDER(ord-shuf)=+0.16
+    [40/150] sem: bankOrd=-0.72 bankShuf=-0.11 ORDER(ord-shuf)=-0.61
+    [40/150] code: bankOrd=+0.22 bankShuf=+0.04 ORDER(ord-shuf)=+0.18
+    [60/150] sem: bankOrd=-0.63 bankShuf=-0.10 ORDER(ord-shuf)=-0.53
+    [60/150] code: bankOrd=+0.32 bankShuf=+0.09 ORDER(ord-shuf)=+0.23
+    [80/150] sem: bankOrd=-0.67 bankShuf=-0.12 ORDER(ord-shuf)=-0.55
+    [80/150] code: bankOrd=+0.33 bankShuf=+0.10 ORDER(ord-shuf)=+0.23
+    [100/150] sem: bankOrd=-0.64 bankShuf=-0.09 ORDER(ord-shuf)=-0.55
+    [100/150] code: bankOrd=+0.27 bankShuf=+0.08 ORDER(ord-shuf)=+0.19
+    [120/150] sem: bankOrd=-0.59 bankShuf=-0.08 ORDER(ord-shuf)=-0.51
+    [120/150] code: bankOrd=+0.25 bankShuf=+0.10 ORDER(ord-shuf)=+0.15
+    [140/150] sem: bankOrd=-0.59 bankShuf=-0.09 ORDER(ord-shuf)=-0.49
+    [140/150] code: bankOrd=+0.23 bankShuf=+0.08 ORDER(ord-shuf)=+0.15
+  done 150
+
+# yi15_9b
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files:  25%|██▌       | 1/4 [01:07<03:21, 67.15s/it]Fetching 4 files:  50%|█████     | 2/4 [01:07<00:56, 28.07s/it]Fetching 4 files: 100%|██████████| 4/4 [01:07<00:00, 16.97s/it]
+Loading weights:   0%|          | 0/435 [00:00<?, ?it/s]Loading weights:   0%|          | 1/435 [00:00<00:53,  8.07it/s]Loading weights:   0%|          | 2/435 [00:00<00:59,  7.22it/s]Loading weights:   3%|▎         | 13/435 [00:00<00:09, 42.30it/s]Loading weights:   5%|▌         | 23/435 [00:00<00:07, 57.15it/s]Loading weights:   8%|▊         | 33/435 [00:00<00:06, 66.11it/s]Loading weights:  10%|█         | 45/435 [00:00<00:04, 78.52it/s]Loading weights:  13%|█▎        | 58/435 [00:00<00:04, 87.81it/s]Loading weights:  16%|█▌        | 68/435 [00:00<00:04, 86.11it/s]Loading weights:  18%|█▊        | 78/435 [00:01<00:04, 85.07it/s]Loading weights:  21%|██        | 90/435 [00:01<00:03, 92.97it/s]Loading weights:  23%|██▎       | 100/435 [00:01<00:03, 93.08it/s]Loading weights:  26%|██▌       | 112/435 [00:01<00:03, 93.96it/s]Loading weights:  28%|██▊       | 122/435 [00:01<00:03, 90.20it/s]Loading weights:  30%|███       | 132/435 [00:01<00:03, 87.14it/s]Loading weights:  32%|███▏      | 141/435 [00:01<00:03, 87.60it/s]Loading weights:  34%|███▍      | 150/435 [00:01<00:03, 88.18it/s]Loading weights:  37%|███▋      | 162/435 [00:02<00:02, 92.71it/s]Loading weights:  40%|████      | 175/435 [00:02<00:02, 96.93it/s]Loading weights:  43%|████▎     | 185/435 [00:02<00:02, 92.39it/s]Loading weights:  45%|████▍     | 195/435 [00:02<00:02, 89.22it/s]Loading weights:  47%|████▋     | 204/435 [00:02<00:02, 89.36it/s]Loading weights:  49%|████▉     | 215/435 [00:02<00:02, 94.85it/s]Loading weights:  52%|█████▏    | 225/435 [00:02<00:02, 94.77it/s]Loading weights:  54%|█████▍    | 235/435 [00:02<00:02, 94.16it/s]Loading weights:  57%|█████▋    | 247/435 [00:02<00:01, 94.71it/s]Loading weights:  59%|█████▉    | 257/435 [00:03<00:01, 89.62it/s]Loading weights:  61%|██████▏   | 267/435 [00:03<00:01, 87.31it/s]Loading weights:  64%|██████▍   | 279/435 [00:03<00:01, 93.81it/s]Loading weights:  66%|██████▋   | 289/435 [00:03<00:01, 93.75it/s]Loading weights:  69%|██████▉   | 301/435 [00:03<00:01, 95.11it/s]Loading weights:  71%|███████▏  | 311/435 [00:03<00:01, 91.38it/s]Loading weights:  74%|███████▍  | 321/435 [00:03<00:01, 88.73it/s]Loading weights:  77%|███████▋  | 333/435 [00:03<00:01, 93.26it/s]Loading weights:  80%|███████▉  | 346/435 [00:03<00:00, 97.62it/s]Loading weights:  82%|████████▏ | 356/435 [00:04<00:00, 92.47it/s]Loading weights:  84%|████████▍ | 366/435 [00:04<00:00, 89.81it/s]Loading weights:  87%|████████▋ | 378/435 [00:04<00:00, 95.95it/s]Loading weights:  89%|████████▉ | 388/435 [00:04<00:00, 95.37it/s]Loading weights:  91%|█████████▏| 398/435 [00:04<00:00, 96.39it/s]Loading weights:  94%|█████████▍| 409/435 [00:04<00:00, 93.98it/s]Loading weights:  96%|█████████▋| 419/435 [00:04<00:00, 88.89it/s]Loading weights:  99%|█████████▊| 429/435 [00:04<00:00, 86.12it/s]Loading weights: 100%|██████████| 435/435 [00:04<00:00, 87.95it/s]
+  loaded 75s
+    [20/150] sem: bankOrd=-0.59 bankShuf=-1.15 ORDER(ord-shuf)=+0.56
+    [20/150] code: bankOrd=+0.30 bankShuf=-0.08 ORDER(ord-shuf)=+0.39
+    [40/150] sem: bankOrd=-0.88 bankShuf=-1.16 ORDER(ord-shuf)=+0.28
+    [40/150] code: bankOrd=+0.11 bankShuf=-0.32 ORDER(ord-shuf)=+0.42
+    [60/150] sem: bankOrd=-0.68 bankShuf=-1.02 ORDER(ord-shuf)=+0.33
+    [60/150] code: bankOrd=+0.10 bankShuf=-0.35 ORDER(ord-shuf)=+0.45
+    [80/150] sem: bankOrd=-0.65 bankShuf=-1.04 ORDER(ord-shuf)=+0.39
+    [80/150] code: bankOrd=+0.10 bankShuf=-0.38 ORDER(ord-shuf)=+0.48
+    [100/150] sem: bankOrd=-0.62 bankShuf=-1.05 ORDER(ord-shuf)=+0.43
+    [100/150] code: bankOrd=+0.09 bankShuf=-0.41 ORDER(ord-shuf)=+0.50
+    [120/150] sem: bankOrd=-0.73 bankShuf=-1.07 ORDER(ord-shuf)=+0.35
+    [120/150] code: bankOrd=+0.05 bankShuf=-0.40 ORDER(ord-shuf)=+0.45
+    [140/150] sem: bankOrd=-0.74 bankShuf=-1.10 ORDER(ord-shuf)=+0.36
+    [140/150] code: bankOrd=+0.02 bankShuf=-0.39 ORDER(ord-shuf)=+0.41
+  done 150
+
+# falcon3_7b
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files:  25%|██▌       | 1/4 [00:47<02:22, 47.52s/it]Fetching 4 files:  50%|█████     | 2/4 [00:49<00:41, 20.76s/it]Fetching 4 files: 100%|██████████| 4/4 [00:49<00:00, 12.39s/it]
+Loading weights:   0%|          | 0/255 [00:00<?, ?it/s]Loading weights:   0%|          | 1/255 [00:00<00:53,  4.75it/s]Loading weights:   1%|          | 2/255 [00:00<00:54,  4.64it/s]Loading weights:   2%|▏         | 6/255 [00:00<00:17, 13.91it/s]Loading weights:   6%|▌         | 15/255 [00:00<00:07, 32.30it/s]Loading weights:   9%|▉         | 24/255 [00:00<00:05, 43.79it/s]Loading weights:  13%|█▎        | 33/255 [00:00<00:04, 51.94it/s]Loading weights:  16%|█▋        | 42/255 [00:01<00:03, 57.70it/s]Loading weights:  20%|██        | 51/255 [00:01<00:03, 61.52it/s]Loading weights:  24%|██▎       | 60/255 [00:01<00:03, 63.84it/s]Loading weights:  27%|██▋       | 69/255 [00:01<00:02, 65.70it/s]Loading weights:  31%|███       | 78/255 [00:01<00:02, 67.43it/s]Loading weights:  34%|███▍      | 87/255 [00:01<00:02, 68.13it/s]Loading weights:  38%|███▊      | 96/255 [00:01<00:02, 68.23it/s]Loading weights:  41%|████      | 105/255 [00:01<00:02, 68.37it/s]Loading weights:  45%|████▍     | 114/255 [00:02<00:02, 68.68it/s]Loading weights:  48%|████▊     | 123/255 [00:02<00:01, 69.25it/s]Loading weights:  52%|█████▏    | 132/255 [00:02<00:01, 68.89it/s]Loading weights:  55%|█████▌    | 141/255 [00:02<00:01, 69.22it/s]Loading weights:  59%|█████▉    | 150/255 [00:02<00:01, 69.31it/s]Loading weights:  62%|██████▏   | 159/255 [00:02<00:01, 69.72it/s]Loading weights:  66%|██████▌   | 168/255 [00:02<00:01, 69.42it/s]Loading weights:  69%|██████▉   | 177/255 [00:03<00:01, 69.09it/s]Loading weights:  73%|███████▎  | 186/255 [00:03<00:01, 68.91it/s]Loading weights:  76%|███████▋  | 195/255 [00:03<00:00, 68.07it/s]Loading weights:  80%|████████  | 204/255 [00:03<00:00, 67.68it/s]Loading weights:  84%|████████▎ | 213/255 [00:03<00:00, 68.16it/s]Loading weights:  87%|████████▋ | 222/255 [00:03<00:00, 68.24it/s]Loading weights:  91%|█████████ | 231/255 [00:03<00:00, 68.29it/s]Loading weights:  94%|█████████▍| 240/255 [00:03<00:00, 68.43it/s]Loading weights:  98%|█████████▊| 249/255 [00:04<00:00, 68.86it/s]Loading weights: 100%|██████████| 255/255 [00:04<00:00, 62.56it/s]
+  loaded 57s
+    [20/150] sem: bankOrd=-2.67 bankShuf=-3.40 ORDER(ord-shuf)=+0.72
+    [20/150] code: bankOrd=+0.05 bankShuf=-0.31 ORDER(ord-shuf)=+0.36
+    [40/150] sem: bankOrd=-2.67 bankShuf=-2.86 ORDER(ord-shuf)=+0.19
+    [40/150] code: bankOrd=+0.00 bankShuf=-0.11 ORDER(ord-shuf)=+0.12
+    [60/150] sem: bankOrd=-3.06 bankShuf=-3.10 ORDER(ord-shuf)=+0.04
+    [60/150] code: bankOrd=-0.32 bankShuf=-0.37 ORDER(ord-shuf)=+0.05
+    [80/150] sem: bankOrd=-2.93 bankShuf=-2.84 ORDER(ord-shuf)=-0.09
+    [80/150] code: bankOrd=-0.26 bankShuf=-0.30 ORDER(ord-shuf)=+0.04
+    [100/150] sem: bankOrd=-2.96 bankShuf=-2.97 ORDER(ord-shuf)=+0.02
+    [100/150] code: bankOrd=-0.16 bankShuf=-0.12 ORDER(ord-shuf)=-0.04
+    [120/150] sem: bankOrd=-2.85 bankShuf=-2.76 ORDER(ord-shuf)=-0.09
+    [120/150] code: bankOrd=-0.16 bankShuf=-0.10 ORDER(ord-shuf)=-0.07
+    [140/150] sem: bankOrd=-2.93 bankShuf=-2.94 ORDER(ord-shuf)=+0.01
+    [140/150] code: bankOrd=-0.13 bankShuf=-0.02 ORDER(ord-shuf)=-0.11
+  done 150
+
+========================================================
+DONE
+========================================================
+=== R2 exp32 binding Mon Jul 13 15:26:42 UTC 2026 ===
+BINDING SHUFFLE (meaning vs token-presence)  SMOKE=False  N=150
+
+# llama3_8b
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files:  25%|██▌       | 1/4 [00:44<02:13, 44.54s/it]Fetching 4 files:  50%|█████     | 2/4 [00:49<00:43, 21.53s/it]Fetching 4 files:  75%|███████▌  | 3/4 [00:54<00:13, 13.71s/it]Fetching 4 files: 100%|██████████| 4/4 [00:54<00:00, 13.59s/it]
+Loading weights:   0%|          | 0/291 [00:00<?, ?it/s]Loading weights:   0%|          | 1/291 [00:00<02:40,  1.81it/s]Loading weights:   3%|▎         | 8/291 [00:00<00:17, 15.78it/s]Loading weights:   5%|▌         | 15/291 [00:00<00:10, 26.90it/s]Loading weights:   8%|▊         | 24/291 [00:00<00:06, 39.72it/s]Loading weights:  11%|█▏        | 33/291 [00:01<00:05, 49.45it/s]Loading weights:  14%|█▍        | 42/291 [00:01<00:04, 56.81it/s]Loading weights:  18%|█▊        | 51/291 [00:01<00:03, 61.64it/s]Loading weights:  21%|██        | 60/291 [00:01<00:03, 64.54it/s]Loading weights:  24%|██▎       | 69/291 [00:01<00:03, 67.36it/s]Loading weights:  27%|██▋       | 78/291 [00:01<00:03, 68.70it/s]Loading weights:  30%|██▉       | 87/291 [00:01<00:02, 69.95it/s]Loading weights:  33%|███▎      | 96/291 [00:01<00:02, 70.13it/s]Loading weights:  36%|███▌      | 105/291 [00:02<00:02, 70.48it/s]Loading weights:  39%|███▉      | 114/291 [00:02<00:02, 70.99it/s]Loading weights:  42%|████▏     | 123/291 [00:02<00:02, 70.92it/s]Loading weights:  45%|████▌     | 132/291 [00:02<00:02, 69.93it/s]Loading weights:  48%|████▊     | 141/291 [00:02<00:02, 70.87it/s]Loading weights:  52%|█████▏    | 150/291 [00:02<00:01, 71.81it/s]Loading weights:  55%|█████▍    | 159/291 [00:02<00:01, 71.99it/s]Loading weights:  58%|█████▊    | 168/291 [00:02<00:01, 72.42it/s]Loading weights:  61%|██████    | 177/291 [00:03<00:01, 73.11it/s]Loading weights:  64%|██████▍   | 186/291 [00:03<00:01, 72.70it/s]Loading weights:  67%|██████▋   | 195/291 [00:03<00:01, 72.96it/s]Loading weights:  70%|███████   | 204/291 [00:03<00:01, 73.28it/s]Loading weights:  73%|███████▎  | 213/291 [00:03<00:01, 73.29it/s]Loading weights:  76%|███████▋  | 222/291 [00:03<00:00, 73.61it/s]Loading weights:  79%|███████▉  | 231/291 [00:03<00:00, 73.90it/s]Loading weights:  82%|████████▏ | 240/291 [00:03<00:00, 73.72it/s]Loading weights:  86%|████████▌ | 249/291 [00:03<00:00, 74.05it/s]Loading weights:  89%|████████▊ | 258/291 [00:04<00:00, 73.90it/s]Loading weights:  92%|█████████▏| 267/291 [00:04<00:00, 73.06it/s]Loading weights:  95%|█████████▍| 276/291 [00:04<00:00, 73.57it/s]Loading weights:  98%|█████████▊| 285/291 [00:04<00:00, 74.16it/s]Loading weights: 100%|██████████| 291/291 [00:04<00:00, 64.76it/s]
+  loaded 63s
+    [20/150] bare=12.47 retain=5.04 | bankOrd=-0.09 bankShuf=+0.20 BINDING(ord-shuf)=-0.29
+    [40/150] bare=11.73 retain=4.78 | bankOrd=-0.04 bankShuf=+0.21 BINDING(ord-shuf)=-0.25
+    [60/150] bare=11.59 retain=4.71 | bankOrd=-0.09 bankShuf=+0.12 BINDING(ord-shuf)=-0.21
+    [80/150] bare=11.56 retain=4.75 | bankOrd=-0.09 bankShuf=+0.10 BINDING(ord-shuf)=-0.19
+    [100/150] bare=11.61 retain=4.78 | bankOrd=-0.07 bankShuf=+0.11 BINDING(ord-shuf)=-0.19
+    [120/150] bare=11.43 retain=4.72 | bankOrd=-0.04 bankShuf=+0.12 BINDING(ord-shuf)=-0.16
+    [140/150] bare=11.35 retain=4.68 | bankOrd=-0.08 bankShuf=+0.09 BINDING(ord-shuf)=-0.17
+  done 150
+
+# yi15_9b
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files:  25%|██▌       | 1/4 [00:52<02:36, 52.11s/it]Fetching 4 files:  50%|█████     | 2/4 [00:55<00:47, 23.68s/it]Fetching 4 files:  75%|███████▌  | 3/4 [00:56<00:12, 12.97s/it]Fetching 4 files: 100%|██████████| 4/4 [00:56<00:00, 14.03s/it]
+Loading weights:   0%|          | 0/435 [00:00<?, ?it/s]Loading weights:   0%|          | 1/435 [00:00<02:10,  3.34it/s]Loading weights:   3%|▎         | 14/435 [00:00<00:10, 41.46it/s]Loading weights:   6%|▌         | 24/435 [00:00<00:07, 56.25it/s]Loading weights:   8%|▊         | 36/435 [00:00<00:05, 73.69it/s]Loading weights:  11%|█         | 46/435 [00:00<00:04, 80.42it/s]Loading weights:  13%|█▎        | 58/435 [00:00<00:04, 87.24it/s]Loading weights:  16%|█▌        | 68/435 [00:00<00:04, 85.51it/s]Loading weights:  18%|█▊        | 78/435 [00:01<00:04, 85.65it/s]Loading weights:  21%|██        | 90/435 [00:01<00:03, 93.68it/s]Loading weights:  23%|██▎       | 100/435 [00:01<00:03, 94.21it/s]Loading weights:  26%|██▌       | 112/435 [00:01<00:03, 95.43it/s]Loading weights:  28%|██▊       | 122/435 [00:01<00:03, 91.24it/s]Loading weights:  30%|███       | 132/435 [00:01<00:03, 88.32it/s]Loading weights:  33%|███▎      | 144/435 [00:01<00:03, 92.78it/s]Loading weights:  36%|███▌      | 157/435 [00:01<00:02, 97.40it/s]Loading weights:  38%|███▊      | 167/435 [00:02<00:02, 93.21it/s]Loading weights:  41%|████      | 177/435 [00:02<00:02, 90.46it/s]Loading weights:  43%|████▎     | 189/435 [00:02<00:02, 97.13it/s]Loading weights:  46%|████▌     | 199/435 [00:02<00:02, 97.32it/s]Loading weights:  48%|████▊     | 209/435 [00:02<00:02, 97.65it/s]Loading weights:  51%|█████     | 220/435 [00:02<00:02, 96.22it/s]Loading weights:  53%|█████▎    | 230/435 [00:02<00:02, 91.92it/s]Loading weights:  55%|█████▌    | 240/435 [00:02<00:02, 88.93it/s]Loading weights:  58%|█████▊    | 252/435 [00:02<00:01, 95.57it/s]Loading weights:  60%|██████    | 262/435 [00:03<00:01, 95.01it/s]Loading weights:  63%|██████▎   | 274/435 [00:03<00:01, 96.11it/s]Loading weights:  65%|██████▌   | 284/435 [00:03<00:01, 92.27it/s]Loading weights:  68%|██████▊   | 294/435 [00:03<00:01, 89.11it/s]Loading weights:  70%|███████   | 305/435 [00:03<00:01, 94.54it/s]Loading weights:  72%|███████▏  | 315/435 [00:03<00:01, 95.34it/s]Loading weights:  75%|███████▍  | 325/435 [00:03<00:01, 95.92it/s]Loading weights:  77%|███████▋  | 337/435 [00:03<00:01, 97.96it/s]Loading weights:  80%|███████▉  | 347/435 [00:03<00:00, 92.47it/s]Loading weights:  82%|████████▏ | 357/435 [00:04<00:00, 89.25it/s]Loading weights:  85%|████████▍ | 369/435 [00:04<00:00, 95.66it/s]Loading weights:  87%|████████▋ | 379/435 [00:04<00:00, 94.45it/s]Loading weights:  90%|████████▉ | 391/435 [00:04<00:00, 95.84it/s]Loading weights:  92%|█████████▏| 401/435 [00:04<00:00, 90.84it/s]Loading weights:  94%|█████████▍| 411/435 [00:04<00:00, 87.72it/s]Loading weights:  97%|█████████▋| 423/435 [00:04<00:00, 94.63it/s]Loading weights: 100%|█████████▉| 433/435 [00:04<00:00, 94.76it/s]Loading weights: 100%|██████████| 435/435 [00:04<00:00, 89.35it/s]
+  loaded 64s
+    [20/150] bare=12.85 retain=11.07 | bankOrd=-0.47 bankShuf=-1.64 BINDING(ord-shuf)=+1.16
+    [40/150] bare=11.12 retain=10.50 | bankOrd=-0.76 bankShuf=-1.50 BINDING(ord-shuf)=+0.74
+    [60/150] bare=11.18 retain=10.35 | bankOrd=-0.42 bankShuf=-1.55 BINDING(ord-shuf)=+1.13
+    [80/150] bare=11.30 retain=10.53 | bankOrd=-0.39 bankShuf=-1.71 BINDING(ord-shuf)=+1.32
+    [100/150] bare=11.77 retain=10.96 | bankOrd=-0.52 bankShuf=-1.69 BINDING(ord-shuf)=+1.17
+    [120/150] bare=11.48 retain=10.61 | bankOrd=-0.56 bankShuf=-1.59 BINDING(ord-shuf)=+1.03
+    [140/150] bare=11.50 retain=10.49 | bankOrd=-0.59 bankShuf=-1.55 BINDING(ord-shuf)=+0.96
+  done 150
+
+# falcon3_7b
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files:  25%|██▌       | 1/4 [00:49<02:27, 49.32s/it]Fetching 4 files:  50%|█████     | 2/4 [00:52<00:43, 21.96s/it]Fetching 4 files: 100%|██████████| 4/4 [00:52<00:00, 13.03s/it]
+Loading weights:   0%|          | 0/255 [00:00<?, ?it/s]Loading weights:   0%|          | 1/255 [00:00<01:52,  2.25it/s]Loading weights:   2%|▏         | 6/255 [00:00<00:18, 13.32it/s]Loading weights:   6%|▌         | 15/255 [00:00<00:08, 29.98it/s]Loading weights:   9%|▉         | 24/255 [00:00<00:05, 41.36it/s]Loading weights:  13%|█▎        | 33/255 [00:00<00:04, 49.78it/s]Loading weights:  16%|█▋        | 42/255 [00:01<00:03, 55.10it/s]Loading weights:  20%|██        | 51/255 [00:01<00:03, 59.23it/s]Loading weights:  24%|██▎       | 60/255 [00:01<00:03, 62.06it/s]Loading weights:  27%|██▋       | 69/255 [00:01<00:02, 64.44it/s]Loading weights:  31%|███       | 78/255 [00:01<00:02, 65.85it/s]Loading weights:  34%|███▍      | 87/255 [00:01<00:02, 66.94it/s]Loading weights:  38%|███▊      | 96/255 [00:01<00:02, 66.32it/s]Loading weights:  41%|████      | 105/255 [00:02<00:02, 66.56it/s]Loading weights:  45%|████▍     | 114/255 [00:02<00:02, 66.72it/s]Loading weights:  48%|████▊     | 123/255 [00:02<00:01, 67.12it/s]Loading weights:  52%|█████▏    | 132/255 [00:02<00:01, 67.12it/s]Loading weights:  55%|█████▌    | 141/255 [00:02<00:01, 67.68it/s]Loading weights:  59%|█████▉    | 150/255 [00:02<00:01, 67.41it/s]Loading weights:  62%|██████▏   | 159/255 [00:02<00:01, 67.12it/s]Loading weights:  66%|██████▌   | 168/255 [00:02<00:01, 67.30it/s]Loading weights:  69%|██████▉   | 177/255 [00:03<00:01, 67.35it/s]Loading weights:  73%|███████▎  | 186/255 [00:03<00:01, 67.69it/s]Loading weights:  76%|███████▋  | 195/255 [00:03<00:00, 67.56it/s]Loading weights:  80%|████████  | 204/255 [00:03<00:00, 67.92it/s]Loading weights:  84%|████████▎ | 213/255 [00:03<00:00, 68.27it/s]Loading weights:  87%|████████▋ | 222/255 [00:03<00:00, 68.42it/s]Loading weights:  91%|█████████ | 231/255 [00:03<00:00, 68.27it/s]Loading weights:  94%|█████████▍| 240/255 [00:04<00:00, 68.23it/s]Loading weights:  98%|█████████▊| 249/255 [00:04<00:00, 68.61it/s]Loading weights: 100%|██████████| 255/255 [00:04<00:00, 61.50it/s]
+  loaded 59s
+    [20/150] bare=15.51 retain=13.95 | bankOrd=-1.55 bankShuf=-1.95 BINDING(ord-shuf)=+0.40
+    [40/150] bare=14.91 retain=13.86 | bankOrd=-2.21 bankShuf=-2.56 BINDING(ord-shuf)=+0.35
+    [60/150] bare=14.52 retain=13.29 | bankOrd=-3.28 bankShuf=-3.41 BINDING(ord-shuf)=+0.13
+    [80/150] bare=14.36 retain=12.77 | bankOrd=-2.96 bankShuf=-3.35 BINDING(ord-shuf)=+0.39
+    [100/150] bare=14.23 retain=12.66 | bankOrd=-2.72 bankShuf=-2.96 BINDING(ord-shuf)=+0.25
+    [120/150] bare=13.95 retain=12.66 | bankOrd=-2.68 bankShuf=-2.85 BINDING(ord-shuf)=+0.17
+    [140/150] bare=13.71 retain=12.58 | bankOrd=-2.81 bankShuf=-2.89 BINDING(ord-shuf)=+0.08
+  done 150
+
+========================================================
+DONE
+========================================================
+=== ROUND-2 SHUFFLE DONE Mon Jul 13 15:34:20 UTC 2026 ===
