@@ -64,3 +64,108 @@ CONTRASTIVE ABLATIONS (exp14b)  SMOKE=False N=900 conds=['tfidf_shuffled']
 ############################################################
 Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 30393.51it/s]
 Loading weights:   0%|          | 0/883 [00:00<?, ?it/s]Loading weights:   0%|          | 1/883 [00:00<03:15,  4.51it/s]Loading weights:   2%|▏         | 22/883 [00:00<00:10, 83.67it/s]Loading weights:   5%|▍         | 44/883 [00:00<00:06, 131.03it/s]Loading weights:   8%|▊         | 70/883 [00:00<00:04, 170.07it/s]Loading weights:  11%|█         | 96/883 [00:00<00:04, 192.57it/s]Loading weights:  14%|█▍        | 122/883 [00:00<00:03, 207.75it/s]Loading weights:  17%|█▋        | 147/883 [00:00<00:03, 214.99it/s]Loading weights:  20%|█▉        | 174/883 [00:00<00:03, 225.49it/s]Loading weights:  23%|██▎       | 200/883 [00:01<00:02, 230.34it/s]Loading weights:  26%|██▌       | 226/883 [00:01<00:02, 233.80it/s]Loading weights:  29%|██▊       | 252/883 [00:01<00:02, 236.14it/s]Loading weights:  31%|███▏      | 278/883 [00:01<00:02, 237.35it/s]Loading weights:  34%|███▍      | 304/883 [00:01<00:02, 239.89it/s]Loading weights:  37%|███▋      | 330/883 [00:01<00:02, 240.17it/s]Loading weights:  40%|████      | 356/883 [00:01<00:02, 241.24it/s]Loading weights:  43%|████▎     | 382/883 [00:01<00:02, 242.24it/s]Loading weights:  46%|████▌     | 408/883 [00:01<00:01, 242.55it/s]Loading weights:  49%|████▉     | 434/883 [00:02<00:01, 241.37it/s]Loading weights:  65%|██████▍   | 570/883 [00:02<00:00, 559.03it/s]Loading weights:  82%|████████▏ | 723/883 [00:02<00:00, 838.93it/s]Loading weights:  99%|█████████▉| 873/883 [00:02<00:00, 1031.06it/s]Loading weights: 100%|██████████| 883/883 [00:02<00:00, 375.82it/s] 
+  loaded in 7s
+    [20/900] MRR tfidf_shuffled=0.435
+    [40/900] MRR tfidf_shuffled=0.388
+    [60/900] MRR tfidf_shuffled=0.426
+    [80/900] MRR tfidf_shuffled=0.399
+    [100/900] MRR tfidf_shuffled=0.399
+    [120/900] MRR tfidf_shuffled=0.414
+    [140/900] MRR tfidf_shuffled=0.411
+    [160/900] MRR tfidf_shuffled=0.427
+    [180/900] MRR tfidf_shuffled=0.426
+    [200/900] MRR tfidf_shuffled=0.438
+    [220/900] MRR tfidf_shuffled=0.445
+    [240/900] MRR tfidf_shuffled=0.453
+    [260/900] MRR tfidf_shuffled=0.465
+    [280/900] MRR tfidf_shuffled=0.459
+    [300/900] MRR tfidf_shuffled=0.460
+    [320/900] MRR tfidf_shuffled=0.454
+    [340/900] MRR tfidf_shuffled=0.448
+    [360/900] MRR tfidf_shuffled=0.450
+    [380/900] MRR tfidf_shuffled=0.455
+    [400/900] MRR tfidf_shuffled=0.460
+    [420/900] MRR tfidf_shuffled=0.458
+    [440/900] MRR tfidf_shuffled=0.458
+    [460/900] MRR tfidf_shuffled=0.459
+    [480/900] MRR tfidf_shuffled=0.461
+    [500/900] MRR tfidf_shuffled=0.468
+    [520/900] MRR tfidf_shuffled=0.466
+    [540/900] MRR tfidf_shuffled=0.464
+    [560/900] MRR tfidf_shuffled=0.466
+    [580/900] MRR tfidf_shuffled=0.468
+    [600/900] MRR tfidf_shuffled=0.465
+    [620/900] MRR tfidf_shuffled=0.469
+    [640/900] MRR tfidf_shuffled=0.470
+    [660/900] MRR tfidf_shuffled=0.474
+    [680/900] MRR tfidf_shuffled=0.476
+    [700/900] MRR tfidf_shuffled=0.480
+    [720/900] MRR tfidf_shuffled=0.477
+    [740/900] MRR tfidf_shuffled=0.476
+    [760/900] MRR tfidf_shuffled=0.477
+    [780/900] MRR tfidf_shuffled=0.479
+    [800/900] MRR tfidf_shuffled=0.480
+    [820/900] MRR tfidf_shuffled=0.480
+    [840/900] MRR tfidf_shuffled=0.480
+    [860/900] MRR tfidf_shuffled=0.479
+    [880/900] MRR tfidf_shuffled=0.479
+    [900/900] MRR tfidf_shuffled=0.480
+  done 900
+
+############################################################
+# gemma3_27b
+############################################################
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files:   8%|▊         | 1/12 [02:43<30:02, 163.87s/it]Fetching 12 files:  25%|██▌       | 3/12 [02:46<06:30, 43.39s/it] Fetching 12 files:  33%|███▎      | 4/12 [02:57<04:17, 32.25s/it]Fetching 12 files:  75%|███████▌  | 9/12 [03:24<00:39, 13.15s/it]Fetching 12 files:  83%|████████▎ | 10/12 [03:29<00:23, 11.72s/it]Fetching 12 files:  92%|█████████▏| 11/12 [03:30<00:09,  9.76s/it]Fetching 12 files: 100%|██████████| 12/12 [03:30<00:00, 17.58s/it]
+Loading weights:   0%|          | 0/1247 [00:00<?, ?it/s]Loading weights:   0%|          | 1/1247 [00:00<12:38,  1.64it/s]Loading weights:   0%|          | 4/1247 [00:00<03:04,  6.72it/s]Loading weights:   1%|▏         | 17/1247 [00:00<00:43, 28.47it/s]Loading weights:   2%|▏         | 28/1247 [00:00<00:26, 45.34it/s]Loading weights:   3%|▎         | 36/1247 [00:01<00:28, 42.64it/s]Loading weights:   3%|▎         | 43/1247 [00:01<00:27, 44.38it/s]Loading weights:   4%|▍         | 55/1247 [00:01<00:22, 53.66it/s]Loading weights:   5%|▍         | 62/1247 [00:01<00:22, 53.57it/s]Loading weights:   6%|▌         | 69/1247 [00:01<00:23, 51.00it/s]Loading weights:   6%|▋         | 79/1247 [00:01<00:18, 61.71it/s]Loading weights:   7%|▋         | 86/1247 [00:02<00:21, 52.87it/s]Loading weights:   8%|▊         | 95/1247 [00:02<00:21, 54.02it/s]Loading weights:   9%|▊         | 107/1247 [00:02<00:18, 60.24it/s]Loading weights:   9%|▉         | 114/1247 [00:02<00:19, 57.20it/s]Loading weights:  10%|▉         | 121/1247 [00:02<00:20, 55.08it/s]Loading weights:  10%|█         | 130/1247 [00:02<00:17, 62.64it/s]Loading weights:  11%|█         | 137/1247 [00:02<00:21, 52.75it/s]Loading weights:  12%|█▏        | 147/1247 [00:03<00:22, 49.82it/s]Loading weights:  13%|█▎        | 159/1247 [00:03<00:19, 56.59it/s]Loading weights:  14%|█▎        | 171/1247 [00:03<00:15, 69.34it/s]Loading weights:  14%|█▍        | 179/1247 [00:03<00:18, 59.22it/s]Loading weights:  15%|█▍        | 186/1247 [00:03<00:19, 55.19it/s]Loading weights:  16%|█▌        | 197/1247 [00:03<00:17, 59.15it/s]Loading weights:  16%|█▋        | 204/1247 [00:04<00:18, 57.36it/s]Loading weights:  17%|█▋        | 212/1247 [00:04<00:18, 55.72it/s]Loading weights:  18%|█▊        | 222/1247 [00:04<00:15, 65.14it/s]Loading weights:  18%|█▊        | 229/1247 [00:04<00:18, 54.72it/s]Loading weights:  19%|█▉        | 237/1247 [00:04<00:16, 60.10it/s]Loading weights:  20%|█▉        | 244/1247 [00:04<00:17, 56.52it/s]Loading weights:  20%|██        | 251/1247 [00:04<00:18, 53.92it/s]Loading weights:  21%|██        | 258/1247 [00:05<00:17, 57.61it/s]Loading weights:  21%|██▏       | 265/1247 [00:05<00:19, 49.97it/s]Loading weights:  22%|██▏       | 277/1247 [00:05<00:16, 57.84it/s]Loading weights:  23%|██▎       | 287/1247 [00:05<00:14, 67.14it/s]Loading weights:  24%|██▎       | 295/1247 [00:05<00:16, 57.30it/s]Loading weights:  24%|██▍       | 303/1247 [00:05<00:17, 55.51it/s]Loading weights:  25%|██▌       | 313/1247 [00:05<00:14, 65.04it/s]Loading weights:  26%|██▌       | 321/1247 [00:06<00:16, 56.64it/s]Loading weights:  26%|██▋       | 329/1247 [00:06<00:16, 54.47it/s]Loading weights:  27%|██▋       | 339/1247 [00:06<00:14, 64.18it/s]Loading weights:  28%|██▊       | 347/1247 [00:06<00:16, 55.49it/s]Loading weights:  28%|██▊       | 355/1247 [00:06<00:16, 53.77it/s]Loading weights:  29%|██▉       | 367/1247 [00:06<00:14, 60.16it/s]Loading weights:  30%|██▉       | 374/1247 [00:07<00:14, 58.21it/s]Loading weights:  31%|███       | 381/1247 [00:07<00:15, 54.25it/s]Loading weights:  32%|███▏      | 393/1247 [00:07<00:14, 60.23it/s]Loading weights:  32%|███▏      | 400/1247 [00:07<00:14, 56.95it/s]Loading weights:  33%|███▎      | 407/1247 [00:07<00:15, 54.18it/s]Loading weights:  33%|███▎      | 417/1247 [00:07<00:12, 64.29it/s]Loading weights:  34%|███▍      | 424/1247 [00:07<00:15, 54.27it/s]Loading weights:  35%|███▍      | 433/1247 [00:08<00:14, 54.84it/s]Loading weights:  36%|███▌      | 445/1247 [00:08<00:13, 61.04it/s]Loading weights:  36%|███▌      | 452/1247 [00:08<00:13, 59.19it/s]Loading weights:  37%|███▋      | 459/1247 [00:08<00:14, 55.36it/s]Loading weights:  38%|███▊      | 471/1247 [00:08<00:12, 61.61it/s]Loading weights:  38%|███▊      | 478/1247 [00:08<00:12, 59.33it/s]Loading weights:  39%|███▉      | 485/1247 [00:08<00:13, 54.97it/s]Loading weights:  40%|███▉      | 497/1247 [00:09<00:12, 61.21it/s]Loading weights:  40%|████      | 504/1247 [00:09<00:12, 57.62it/s]Loading weights:  41%|████      | 511/1247 [00:09<00:13, 55.36it/s]Loading weights:  42%|████▏     | 521/1247 [00:09<00:11, 65.25it/s]Loading weights:  42%|████▏     | 528/1247 [00:09<00:13, 54.85it/s]Loading weights:  43%|████▎     | 537/1247 [00:09<00:12, 55.24it/s]Loading weights:  44%|████▍     | 548/1247 [00:10<00:11, 59.55it/s]Loading weights:  45%|████▍     | 555/1247 [00:10<00:11, 57.89it/s]Loading weights:  45%|████▌     | 563/1247 [00:10<00:12, 55.21it/s]Loading weights:  46%|████▌     | 575/1247 [00:10<00:10, 61.26it/s]Loading weights:  47%|████▋     | 582/1247 [00:10<00:11, 57.64it/s]Loading weights:  47%|████▋     | 589/1247 [00:10<00:11, 55.35it/s]Loading weights:  48%|████▊     | 601/1247 [00:10<00:10, 61.68it/s]Loading weights:  49%|████▉     | 608/1247 [00:11<00:10, 58.13it/s]Loading weights:  49%|████▉     | 615/1247 [00:11<00:11, 55.91it/s]Loading weights:  50%|█████     | 627/1247 [00:11<00:09, 62.00it/s]Loading weights:  51%|█████     | 634/1247 [00:11<00:10, 59.70it/s]Loading weights:  51%|█████▏    | 641/1247 [00:11<00:10, 55.28it/s]Loading weights:  52%|█████▏    | 651/1247 [00:11<00:09, 64.71it/s]Loading weights:  53%|█████▎    | 658/1247 [00:11<00:10, 54.55it/s]Loading weights:  53%|█████▎    | 667/1247 [00:12<00:10, 55.06it/s]Loading weights:  54%|█████▍    | 677/1247 [00:12<00:08, 64.86it/s]Loading weights:  55%|█████▍    | 685/1247 [00:12<00:09, 56.87it/s]Loading weights:  55%|█████▌    | 692/1247 [00:12<00:10, 52.85it/s]Loading weights:  56%|█████▋    | 703/1247 [00:12<00:09, 57.65it/s]Loading weights:  57%|█████▋    | 710/1247 [00:12<00:09, 57.34it/s]Loading weights:  58%|█████▊    | 719/1247 [00:12<00:09, 57.32it/s]Loading weights:  59%|█████▊    | 731/1247 [00:13<00:09, 56.10it/s]Loading weights:  60%|█████▉    | 744/1247 [00:13<00:07, 63.29it/s]Loading weights:  60%|██████    | 751/1247 [00:13<00:08, 59.28it/s]Loading weights:  61%|██████    | 758/1247 [00:13<00:08, 56.91it/s]Loading weights:  61%|██████▏   | 765/1247 [00:13<00:08, 59.42it/s]Loading weights:  62%|██████▏   | 772/1247 [00:13<00:09, 50.36it/s]Loading weights:  63%|██████▎   | 784/1247 [00:14<00:08, 57.81it/s]Loading weights:  64%|██████▍   | 796/1247 [00:14<00:07, 62.99it/s]Loading weights:  64%|██████▍   | 803/1247 [00:14<00:07, 58.94it/s]Loading weights:  74%|███████▍  | 924/1247 [00:14<00:01, 309.38it/s]Loading weights:  86%|████████▌ | 1072/1247 [00:14<00:00, 586.89it/s]Loading weights:  98%|█████████▊| 1216/1247 [00:14<00:00, 801.52it/s]Loading weights: 100%|██████████| 1247/1247 [00:14<00:00, 84.57it/s] 
+  loaded in 232s
+    [20/900] MRR tfidf_shuffled=0.452
+    [40/900] MRR tfidf_shuffled=0.424
+    [60/900] MRR tfidf_shuffled=0.474
+    [80/900] MRR tfidf_shuffled=0.463
+    [100/900] MRR tfidf_shuffled=0.472
+    [120/900] MRR tfidf_shuffled=0.470
+    [140/900] MRR tfidf_shuffled=0.454
+    [160/900] MRR tfidf_shuffled=0.460
+    [180/900] MRR tfidf_shuffled=0.463
+    [200/900] MRR tfidf_shuffled=0.458
+    [220/900] MRR tfidf_shuffled=0.469
+    [240/900] MRR tfidf_shuffled=0.483
+    [260/900] MRR tfidf_shuffled=0.489
+    [280/900] MRR tfidf_shuffled=0.483
+    [300/900] MRR tfidf_shuffled=0.487
+    [320/900] MRR tfidf_shuffled=0.488
+    [340/900] MRR tfidf_shuffled=0.479
+    [360/900] MRR tfidf_shuffled=0.485
+    [380/900] MRR tfidf_shuffled=0.492
+    [400/900] MRR tfidf_shuffled=0.498
+    [420/900] MRR tfidf_shuffled=0.499
+    [440/900] MRR tfidf_shuffled=0.500
+    [460/900] MRR tfidf_shuffled=0.499
+    [480/900] MRR tfidf_shuffled=0.499
+    [500/900] MRR tfidf_shuffled=0.505
+    [520/900] MRR tfidf_shuffled=0.504
+    [540/900] MRR tfidf_shuffled=0.501
+    [560/900] MRR tfidf_shuffled=0.504
+    [580/900] MRR tfidf_shuffled=0.503
+    [600/900] MRR tfidf_shuffled=0.505
+    [620/900] MRR tfidf_shuffled=0.507
+    [640/900] MRR tfidf_shuffled=0.508
+    [660/900] MRR tfidf_shuffled=0.510
+    [680/900] MRR tfidf_shuffled=0.512
+    [700/900] MRR tfidf_shuffled=0.511
+    [720/900] MRR tfidf_shuffled=0.508
+    [740/900] MRR tfidf_shuffled=0.507
+    [760/900] MRR tfidf_shuffled=0.510
+    [780/900] MRR tfidf_shuffled=0.511
+    [800/900] MRR tfidf_shuffled=0.511
+    [820/900] MRR tfidf_shuffled=0.510
+    [840/900] MRR tfidf_shuffled=0.506
+    [860/900] MRR tfidf_shuffled=0.508
+    [880/900] MRR tfidf_shuffled=0.508
+    [900/900] MRR tfidf_shuffled=0.507
+  done 900
+
+============================================================
+DONE
+============================================================
+=== RERANK SHUFFLE DONE Fri Jul 10 14:56:30 UTC 2026 ===

@@ -477,10 +477,13 @@ that shows the deployable rule is *measure per model*, not a mode shortcut.
 improves query-likelihood reranking over generic priming on Gemma, and beats *no* priming on the
 larger, higher-imprintability models: **+0.036 MRR on Gemma 12B and 27B** (CIs exclude 0), null
 on Gemma 4B and on Qwen/Mistral. This benefit is **token presence**, consistent with §6.5: shuffling
-the keyword tokens before priming leaves it intact — on Gemma-12B (N=900, sample-paired) the keyword
-benefit over bare is +0.036\* ordered and +0.039\* shuffled, and shuffled−ordered is +0.003 (n.s.).
-So keyword imprinting re-weights *which of the passage's own tokens are salient*, which is exactly
-what relevance scoring rewards, and it does so without needing the keywords in any particular order.
+the keyword tokens before priming leaves it intact (N=900, sample-paired against the same passages,
+0 alignment mismatches). The keyword-over-bare benefit is preserved under shuffling for both models
+that have it — Gemma-12B +0.036\* ordered / +0.039\* shuffled (shuffled−ordered +0.003, n.s.),
+Gemma-27B +0.036\* / +0.054\* (shuffled−ordered **+0.018\***, i.e. shuffling *helps more*, echoing
+the 27B banking result of §6.5) — and Gemma-4B is null either way. So keyword imprinting re-weights
+*which of the passage's own tokens are salient*, which is exactly what relevance scoring rewards, and
+it does so without needing the keywords in any particular order.
 
 **Extraction (QA).** Priming a passage with the *question*, then stripping it, and answering
 (machinery-controlled content effect, pos = hurts; we also shuffle the question's tokens to test
@@ -681,7 +684,10 @@ from `results/*.json` by `make_numbers.py` and `make_taskaware_numbers.py`. Boot
 resamples); fixed seeds; 20-sample checkpoints.
 
 **B. Key statistics.** Entropy confound (§4) exp05; keyword-vs-bare reranking (§7) exp14b/exp14c
-(N=900): gemma12b/27b +0.036\*, others n.s.; imprintability×banking-magnitude r=0.94 (exp26);
+(N=900): gemma12b/27b +0.036\*, others n.s.; *reranking shuffle (§7) exp34, N=900 sample-paired:*
+keyword-over-bare preserved under keyword-token shuffling — Gemma-12B +0.036\*/+0.039\* (ordered/
+shuffled, diff n.s.), Gemma-27B +0.036\*/+0.054\* (diff +0.018\*, shuffle helps more), Gemma-4B null;
+imprintability×banking-magnitude r=0.94 (exp26);
 content-type dissociation (exp27, N=150); localization (exp28); base→instruct content-type flip
 (§6.4) exp26: Qwen semantic −0.72→+0.14, code +0.17→−0.37; architecture probe (5th falsification)
 exp30; bankability ceiling (exp24/25): retained −2.8 nats, content-bankable ≈0, machinery ~0.3–0.6.
