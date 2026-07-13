@@ -41,15 +41,14 @@ and Qwen 2.5's alignment uniquely *suppresses* it while strengthening surface/co
 (sem −0.72→+0.14, code +0.17→−0.37) — a controlled demonstration that the banked content type is a
 *trainable* property.
 
-Third, downstream value and the limits of a **task-aware** construction rule. The task-dependence
-"match" of earlier drafts is weaker than claimed: the QA effect of priming is **token presence** (shuffling
+Third, downstream value — and the limits of any tidy **task-aware** rule. Task-dependence is real
+but not a law: the QA effect of priming is **token presence** (shuffling
 the question barely changes it) with a sign that does not track family — priming helps Qwen-7B
 (−0.80 nats) but *hurts* the larger Qwen-14B (+0.44) and Gemma-12B (+0.36). Comparing our discarded-prefix
 **conditioning** to a SnapKV-style task-aware **selection** baseline across eight models, neither
 operation dominates: conditioning *helps* four (Qwen-1.5B/3B/7B, Gemma-1B; up to −1.9 nats) and
-*hurts* four, and — against our hypothesis — which wins does **not** reduce to imprintability
-(r=0.29) or size, so we withdraw the "rule indexed by imprinting" and conclude you must *probe both
-per model*. The one systematic, confound-controlled effect is that aggressive query-aware selection
+*hurts* four, and which wins does **not** reduce to imprintability (r=0.29) or size — there is no
+trait-indexed rule, and you must *probe both per model*. The one systematic, confound-controlled effect is that aggressive query-aware selection
 *hurts the whole Qwen family* (not Gemma) even at matched answer-span survival — a real risk of
 SnapKV-style pruning that conditioning sidesteps. We close with the bounds — most context value
 (~65%+) is structurally un-bankable — and argue the durable contributions are the content-imprint
@@ -85,8 +84,8 @@ this paper.** We make four contributions:
    Ministral, OLMo-2) bank genuine **structure**, and the Qwen family banks little — there is no
    clean two-way semantic/surface *mode*, and magnitude and kind are separable. The banked content type is *set by
    instruction-tuning, not architecture* (§6.4), with a controlled base→instruct flip in Qwen.
-3. **Task-aware construction (§7).** The mode–task "match" is weaker than earlier claimed (the QA
-   effect is token presence, and its sign is model/scale-specific, not a family law). Comparing
+3. **Task-aware construction (§7).** Task-dependence is real but not a law (the QA effect is token
+   presence, and its sign is model/scale-specific, not a family property). Comparing
    discarded-prefix **conditioning** to a SnapKV-style task-aware **selection** baseline across eight
    models, neither dominates (conditioning helps four, hurts four) and which wins does **not** reduce
    to a single trait (r=0.29 with imprintability) — so the honest prescription is *probe both per
@@ -98,9 +97,18 @@ this paper.** We make four contributions:
    architectural accounts of imprintability fail — which is itself the clue that pointed to
    training) as carefully as the ones that held.
 
-The throughline is methodological honesty: for a "free-lunch" technique, the controls *are* the
-result. Most clean stories here were dismantled by the next control; we report the survivors and
-the casualties together.
+The throughline is methodological: for a "free-lunch" technique, the controls *are* the result, and
+we report survivors and casualties with equal weight.
+
+*Relationship to earlier drafts.* This paper reaches its account by correcting two of our own
+intermediate framings, and we prefer to state that plainly once rather than re-litigate it section
+by section. We initially described the central finding as a **semantic-vs-surface imprinting mode**
+and proposed a task-aware rule **indexed by that mode**; the word-order shuffle controls (§6.5) and
+the eight-model select-vs-condition comparison (§7.1) show both are too strong. What follows is the
+corrected account — a content-imprint *magnitude* (predicted by imprintability), a *token-presence
+vs. structure* character (model-specific), and a *measure-per-model* deployment rule — stated
+directly; we note the specific supersessions only where a reader of that prior framing would expect
+them.
 
 ---
 
@@ -424,7 +432,7 @@ embedding, rel-err < 1e-4, before use).
 | DeepSeek-R1-Qwen-7B | Qwen | 0.00 (n.s.) | +0.04 (n.s.) | banks little |
 
 The two probes converge on a **three-way** taxonomy — *by family, not by a single axis* — that
-overturns the binary "semantic (Gemma, Mistral) vs. surface (Qwen)" mode of earlier drafts:
+replaces any binary "semantic (Gemma, Mistral) vs. surface (Qwen)" reading:
 
 - **Token-presence imprinters — the Gemma family.** Its large, scaling "semantic banking" (§6.2) is
   **order-invariant at 12B/27B** — shuffling the fact's tokens barely changes it, and at 27B the
@@ -463,7 +471,7 @@ trade off against literal structure**, which is why the most imprintable model (
 content-imprint axis whose **magnitude** scales with imprintability (r=0.94); (ii) a separate
 **kind** axis — predominantly **token presence** for the Gemma family and genuine **structure** for
 Mistral/Ministral/OLMo-2; (iii) the base→instruct flip (§6.4) is real at the level of *what content
-type* is banked. We retract the stronger "Gemma banks meaning" reading.
+type* is banked. For the Gemma family, then, the imprint is lexical, not relational meaning.
 
 ---
 
@@ -557,11 +565,10 @@ Three honest readings:
   Gemma-1B; −0.3 to −1.9 nats) and *hurts* on four (Qwen-14B +2.4, Gemma-4B +1.1, Gemma-12B +0.5,
   Mistral +0.3). So "always select" (the implicit assumption of query-aware pruning) is wrong for
   half of these models, and "always prime" is wrong for the other half.
-- **But the choice does *not* reduce to a single trait.** Against our prior hypothesis, conditioning
-  value barely correlates with imprintability (`r=0.29`) or size — Gemma-1B (the strongest *help*,
-  −1.9) and Qwen-14B (the strongest *hurt*, +2.4) sit at nearly the same imprintability. We
-  therefore **withdraw** the earlier "decision rule indexed by imprinting character"; the deployable
-  prescription is the weaker but honest *cheaply probe both operations per model* (one N≈300 sweep),
+- **The choice does *not* reduce to a single trait.** Conditioning value barely correlates with
+  imprintability (`r=0.29`) or size — Gemma-1B (the strongest *help*, −1.9) and Qwen-14B (the
+  strongest *hurt*, +2.4) sit at nearly the same imprintability. A trait-indexed rule is therefore
+  ruled out; the deployable prescription is *cheaply probe both operations per model* (one N≈300 sweep),
   not a trait shortcut.
 - **The one systematic, confound-controlled effect is on the selection side.** Aggressive query-aware
   selection *hurts the entire Qwen family* (+0.9 to +1.9 nats) but never Gemma, and this is **not**
@@ -649,8 +656,8 @@ be measured.**
 We set out to optimize KV-cache construction and learned, first, that the optimization we thought
 we had was an artifact of how we measured it. Measured correctly, zero-retention priming *does*
 bank context — with a **magnitude** governed by a single trait (imprintability, r=0.94) that scales
-with model size. But a word-order shuffle control corrected our own next mistake: the banking is not
-a clean "semantic vs. surface" mode. The high-imprintability Gemma family banks **token presence**
+with model size. A word-order shuffle control then pins down *what* is banked, and it is not a clean
+"semantic vs. surface" mode. The high-imprintability Gemma family banks **token presence**
 (its "semantic" banking is order-invariant), three independent families (Mistral, Ministral, OLMo-2)
 bank genuine **structure**, and the Qwen family banks little — so imprintability measures the
 strength of a content-*token* imprint (a magnitude, separable from kind) that, at the

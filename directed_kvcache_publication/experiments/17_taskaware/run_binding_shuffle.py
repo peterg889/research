@@ -57,6 +57,10 @@ MODELS = {
     "olmo2_7b":     {"name": "allenai/OLMo-2-1124-7B-Instruct", "loader": "AutoModelForCausalLM"},        # distinct family
     "ministral_8b": {"name": "mistralai/Ministral-8B-Instruct-2410", "loader": "AutoModelForCausalLM"},   # Mistral lineage, hybrid attn
     "deepseek_r1_qwen7b": {"name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B", "loader": "AutoModelForCausalLM"},  # Qwen backbone, reasoning tuning
+    # Round 2 (2026-07): hunt a NON-GEMMA TOKEN-PRESENCE imprinter. RoPE-validated.
+    "llama3_8b":    {"name": "NousResearch/Meta-Llama-3-8B-Instruct", "loader": "AutoModelForCausalLM"},
+    "yi15_9b":      {"name": "01-ai/Yi-1.5-9B-Chat", "loader": "AutoModelForCausalLM"},
+    "falcon3_7b":   {"name": "tiiuae/Falcon3-7B-Instruct", "loader": "AutoModelForCausalLM"},
     "gemma3_12b": {"name": "google/gemma-3-12b-it", "loader": "Gemma3ForConditionalGeneration"},
     "qwen25_7b":  {"name": "Qwen/Qwen2.5-7B-Instruct", "loader": "AutoModelForCausalLM"},
     "mistral_7b": {"name": "mistralai/Mistral-7B-Instruct-v0.3", "loader": "AutoModelForCausalLM"},
