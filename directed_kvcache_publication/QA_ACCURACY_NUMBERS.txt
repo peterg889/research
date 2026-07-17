@@ -1,0 +1,36 @@
+==============================================================================================
+exp35 DOWNSTREAM QA-ACCURACY (SQuAD, N=200). CONTAINS = verbosity-robust answer recall (primary).
+  conditioning = prime_full - bare ; selection = sel_plain - bare ; COND|sel = sel_primed - sel_plain
+==============================================================================================
+
+## gemma3_12b (n=200)
+  gen length (words):  bare=3.6  prime_full=7.4  sel_plain=2.7  sel_primed=4.9
+  CONTAINS  %:  bare=99.0  prime_full=97.5  sel_plain=90.5  sel_primed=88.0 <- primary (correctness)
+      conditioning=-1.5[-4.0,+1.0]   selection=-8.5[-12.5,-5.0]*  COND|sel=-2.5[-6.0,+1.0] 
+  F1        %:  bare=79.9  prime_full=58.1  sel_plain=83.6  sel_primed=65.3
+      conditioning=-21.8[-26.1,-17.7]*  selection=+3.7[+0.4,+7.1]*  COND|sel=-18.2[-22.5,-14.0]*
+  EM        %:  bare=64.5  prime_full=32.0  sel_plain=68.5  sel_primed=40.5
+      conditioning=-32.5[-39.0,-26.0]*  selection=+4.0[-1.5,+10.0]   COND|sel=-28.0[-34.5,-21.5]*
+
+## qwen25_7b (n=200)
+  gen length (words):  bare=7.3  prime_full=7.6  sel_plain=6.3  sel_primed=5.8
+  CONTAINS  %:  bare=85.5  prime_full=85.5  sel_plain=61.5  sel_primed=64.5 <- primary (correctness)
+      conditioning=+0.0[-4.0,+4.0]   selection=-24.0[-31.0,-16.5]*  COND|sel=+3.0[-1.0,+7.0] 
+  F1        %:  bare=59.8  prime_full=57.1  sel_plain=54.8  sel_primed=56.0
+      conditioning=-2.6[-6.8,+1.7]   selection=-5.0[-10.5,+0.6]   COND|sel=+1.2[-2.2,+4.6] 
+  EM        %:  bare=40.5  prime_full=37.0  sel_plain=38.0  sel_primed=37.0
+      conditioning=-3.5[-9.5,+2.5]   selection=-2.5[-9.5,+4.5]   COND|sel=-1.0[-5.5,+3.5] 
+
+## qwen25_1_5b (n=200)
+  gen length (words):  bare=5.2  prime_full=4.4  sel_plain=3.4  sel_primed=3.3
+  CONTAINS  %:  bare=89.5  prime_full=92.0  sel_plain=53.5  sel_primed=51.5 <- primary (correctness)
+      conditioning=+2.5[-1.0,+6.0]   selection=-36.0[-43.5,-29.0]*  COND|sel=-2.0[-5.0,+1.0] 
+  F1        %:  bare=68.2  prime_full=73.4  sel_plain=55.2  sel_primed=53.5
+      conditioning=+5.2[+0.9,+9.6]*  selection=-13.0[-18.8,-7.2]*  COND|sel=-1.7[-5.3,+1.9] 
+  EM        %:  bare=53.5  prime_full=59.5  sel_plain=41.0  sel_primed=39.5
+      conditioning=+6.0[+0.0,+12.0]   selection=-12.5[-20.0,-5.0]*  COND|sel=-1.5[-5.5,+2.0] 
+
+==============================================================================================
+Takeaway: SELECTION hurts answer correctness (CONTAINS) — large on Qwen (-24..-36pt), sig on Gemma
+(-8.5pt). CONDITIONING does NOT change correctness (CONTAINS n.s. all models); its EM/F1 shift is
+a verbosity/calibration effect, not whether the answer is found.
