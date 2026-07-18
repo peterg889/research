@@ -1,7 +1,11 @@
 ==============================================================================================
-exp35 DOWNSTREAM QA-ACCURACY (SQuAD, N=200). CONTAINS = verbosity-robust answer recall (primary).
+DOWNSTREAM QA-ACCURACY (N=200 each). CONTAINS = verbosity-robust answer recall (primary).
   conditioning = prime_full - bare ; selection = sel_plain - bare ; COND|sel = sel_primed - sel_plain
 ==============================================================================================
+
+##############################################################################################
+# squad (exp35, single-hop)
+##############################################################################################
 
 ## gemma3_12b (n=200)
   gen length (words):  bare=3.6  prime_full=7.4  sel_plain=2.7  sel_primed=4.9
@@ -30,7 +34,38 @@ exp35 DOWNSTREAM QA-ACCURACY (SQuAD, N=200). CONTAINS = verbosity-robust answer 
   EM        %:  bare=53.5  prime_full=59.5  sel_plain=41.0  sel_primed=39.5
       conditioning=+6.0[+0.0,+12.0]   selection=-12.5[-20.0,-5.0]*  COND|sel=-1.5[-5.5,+2.0] 
 
+##############################################################################################
+# hotpot (exp36, multi-hop 2-para gold)
+##############################################################################################
+
+## gemma3_12b (n=200)
+  gen length (words):  bare=3.9  prime_full=6.3  sel_plain=2.8  sel_primed=4.3
+  CONTAINS  %:  bare=76.0  prime_full=75.0  sel_plain=44.5  sel_primed=50.5 <- primary (correctness)
+      conditioning=-1.0[-7.0,+4.5]   selection=-31.5[-38.5,-24.0]*  COND|sel=+6.0[+0.5,+11.5]*
+  F1        %:  bare=70.4  prime_full=57.9  sel_plain=53.2  sel_primed=50.8
+      conditioning=-12.5[-17.3,-7.9]*  selection=-17.2[-22.6,-11.8]*  COND|sel=-2.4[-7.0,+2.1] 
+  EM        %:  bare=52.5  prime_full=36.5  sel_plain=31.5  sel_primed=28.0
+      conditioning=-16.0[-22.0,-10.0]*  selection=-21.0[-28.0,-14.0]*  COND|sel=-3.5[-9.0,+2.0] 
+
+## qwen25_7b (n=200)
+  gen length (words):  bare=6.9  prime_full=7.9  sel_plain=7.4  sel_primed=7.3
+  CONTAINS  %:  bare=69.0  prime_full=72.0  sel_plain=35.0  sel_primed=31.0 <- primary (correctness)
+      conditioning=+3.0[-3.0,+9.0]   selection=-34.0[-42.0,-26.0]*  COND|sel=-4.0[-8.0,+0.0] 
+  F1        %:  bare=57.0  prime_full=53.1  sel_plain=34.7  sel_primed=32.4
+      conditioning=-3.9[-8.9,+1.0]   selection=-22.2[-28.9,-15.6]*  COND|sel=-2.4[-6.1,+1.2] 
+  EM        %:  bare=38.5  prime_full=33.0  sel_plain=19.0  sel_primed=18.0
+      conditioning=-5.5[-11.5,+0.0]   selection=-19.5[-27.0,-12.0]*  COND|sel=-1.0[-5.5,+3.5] 
+
+## qwen25_1_5b (n=200)
+  gen length (words):  bare=4.5  prime_full=4.7  sel_plain=4.6  sel_primed=4.2
+  CONTAINS  %:  bare=66.5  prime_full=67.5  sel_plain=25.5  sel_primed=28.5 <- primary (correctness)
+      conditioning=+1.0[-4.0,+6.5]   selection=-41.0[-48.5,-34.0]*  COND|sel=+3.0[-0.5,+6.5] 
+  F1        %:  bare=59.7  prime_full=62.3  sel_plain=33.6  sel_primed=37.4
+      conditioning=+2.6[-1.4,+6.8]   selection=-26.1[-33.1,-19.8]*  COND|sel=+3.9[+0.2,+7.7]*
+  EM        %:  bare=41.5  prime_full=40.5  sel_plain=18.5  sel_primed=21.0
+      conditioning=-1.0[-6.0,+4.0]   selection=-23.0[-30.5,-15.5]*  COND|sel=+2.5[-1.0,+6.5] 
+
 ==============================================================================================
-Takeaway: SELECTION hurts answer correctness (CONTAINS) — large on Qwen (-24..-36pt), sig on Gemma
-(-8.5pt). CONDITIONING does NOT change correctness (CONTAINS n.s. all models); its EM/F1 shift is
-a verbosity/calibration effect, not whether the answer is found.
+SQuAD takeaway: SELECTION hurts answer correctness (CONTAINS -8.5*/-24*/-36*); CONDITIONING does
+not (n.s. all models) — its EM/F1 shift is verbosity/calibration. Hotpot section tests whether
+this generalizes to multi-hop (prediction: selection worse — k=32 must cover two paragraphs).

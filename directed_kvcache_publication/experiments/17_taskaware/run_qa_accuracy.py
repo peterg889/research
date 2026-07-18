@@ -41,7 +41,10 @@ SMOKE = os.environ.get("SMOKE", "0") == "1"
 N = 8 if SMOKE else 200
 KSEL = int(os.environ.get("KSEL", "32"))
 MAXNEW = 24
-RESULTS = Path(__file__).resolve().parent.parent.parent / "results" / "exp35_qa_accuracy"
+# DATASET=squad (exp35, single-hop) | hotpot (exp36, multi-hop 2-paragraph gold context)
+DATASET = os.environ.get("DATASET", "squad")
+RESULTS = Path(__file__).resolve().parent.parent.parent / "results" / (
+    "exp35_qa_accuracy" if DATASET == "squad" else "exp36_qa_accuracy_hotpot")
 RESULTS.mkdir(parents=True, exist_ok=True, mode=0o777)
 MODELS = {
     "qwen25_7b":  {"name": "Qwen/Qwen2.5-7B-Instruct", "loader": "AutoModelForCausalLM"},   # cond HELPS NLL
@@ -83,6 +86,30 @@ def load_squad(n):
         out.append({"q": x["question"], "golds": golds, "ctx": ctx})
         if len(out) >= n: break
     return out
+
+
+def load_hotpot(n):
+    """Multi-hop: doc = the two GOLD supporting paragraphs concatenated (order as given).
+    Extractive answers only (skip yes/no); answer must appear in the combined context."""
+    ds = load_dataset("hotpotqa/hotpot_qa", "distractor", split="validation")
+    out = []
+    for x in ds:
+        ans = x["answer"].strip()
+        if ans.lower() in ("yes", "no"): continue
+        gold_titles = set(x["supporting_facts"]["title"])
+        paras = [" ".join(sents) for t, sents in zip(x["context"]["title"], x["context"]["sentences"])
+                 if t in gold_titles]
+        if len(paras) != 2: continue
+        ctx = " ".join(paras)
+        if not (60 <= count_words(ctx) <= 300): continue
+        if ans.lower() not in ctx.lower(): continue
+        out.append({"q": x["question"], "golds": [ans], "ctx": ctx})
+        if len(out) >= n: break
+    return out
+
+
+def load_data(n):
+    return load_squad(n) if DATASET == "squad" else load_hotpot(n)
 
 
 def load_model(name, loader):
@@ -175,7 +202,7 @@ def generate(cache, clen, q_ids):
 
 def main():
     print(f"QA ACCURACY (EM/F1)  SMOKE={SMOKE}  N={N}  k={KSEL}")
-    data = load_squad(N); print(f"  {len(data)} squad items")
+    data = load_data(N); print(f"  {len(data)} {DATASET} items")
     for mk, spec in MODELS.items():
         print(f"\n# {mk}")
         t0 = time.time(); m, tok = load_model(spec["name"], spec["loader"]); dev = next(m.parameters()).device
@@ -190,7 +217,7 @@ def main():
         max_doc = (_M["slim"]-1-96-len(nl)) if _M["slim"] is not None else 700
         print(f"  loaded {time.time()-t0:.0f}s")
         ck = RESULTS / mk / "results.json"; (RESULTS / mk).mkdir(exist_ok=True, mode=0o777)
-        skey = f"qaacc_{mk}_k{KSEL}" + ("_smoke" if SMOKE else ""); scored = []
+        skey = f"qaacc_{DATASET}_{mk}_k{KSEL}" + ("_smoke" if SMOKE else ""); scored = []
         if ck.exists():
             prev = json.loads(ck.read_text())
             if prev.get("scoring_key") == skey: scored = prev["samples"]

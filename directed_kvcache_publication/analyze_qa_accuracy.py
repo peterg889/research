@@ -6,7 +6,8 @@ Correctness conclusions rest on ANSWER-CONTAINED (robust); EM/F1 are reported fo
 Run: cd <repo> && PYTHONPATH="../directed_kvcache_v4:." python3 analyze_qa_accuracy.py"""
 import json, re, string, numpy as np
 from pathlib import Path
-RES = Path("results/exp35_qa_accuracy")
+DATASETS = {"squad (exp35, single-hop)": Path("results/exp35_qa_accuracy"),
+            "hotpot (exp36, multi-hop 2-para gold)": Path("results/exp36_qa_accuracy_hotpot")}
 
 def norm(x):
     x = x.lower(); x = "".join(c for c in x if c not in set(string.punctuation))
@@ -19,27 +20,29 @@ def f(t): return f"{100*t[0]:+.1f}[{100*t[1]:+.1f},{100*t[2]:+.1f}]" + ("*" if (
 CONDS = ["bare", "prime_full", "sel_plain", "sel_primed"]
 
 print("="*94)
-print("exp35 DOWNSTREAM QA-ACCURACY (SQuAD, N=200). CONTAINS = verbosity-robust answer recall (primary).")
+print("DOWNSTREAM QA-ACCURACY (N=200 each). CONTAINS = verbosity-robust answer recall (primary).")
 print("  conditioning = prime_full - bare ; selection = sel_plain - bare ; COND|sel = sel_primed - sel_plain")
 print("="*94)
-for m in ["gemma3_12b", "qwen25_7b", "qwen25_1_5b"]:
-    p = RES / m / "results.json"
-    if not p.exists(): print(f"\n{m}: (missing)"); continue
-    S = json.loads(p.read_text())["samples"]
-    for s in S:
-        for c in CONDS:
-            s[f"{c}__contains"] = contains(s[f"{c}__pred"], s["golds"])
-            s[f"{c}__len"] = len(s[f"{c}__pred"].split())
-    A = lambda c, k: np.mean([s[f"{c}__{k}"] for s in S])
-    print(f"\n## {m} (n={len(S)})")
-    print(f"  gen length (words):  " + "  ".join(f"{c}={A(c,'len'):.1f}" for c in CONDS))
-    for k in ["contains", "f1", "em"]:
-        tag = " <- primary (correctness)" if k == "contains" else ""
-        print(f"  {k.upper():9s} %:  " + "  ".join(f"{c}={100*A(c,k):.1f}" for c in CONDS) + tag)
-        print(f"      conditioning={f(boot([s[f'prime_full__{k}']-s[f'bare__{k}'] for s in S]))}  "
-              f"selection={f(boot([s[f'sel_plain__{k}']-s[f'bare__{k}'] for s in S]))}  "
-              f"COND|sel={f(boot([s[f'sel_primed__{k}']-s[f'sel_plain__{k}'] for s in S]))}")
+for dname, RES in DATASETS.items():
+    print(f"\n{'#'*94}\n# {dname}\n{'#'*94}")
+    for m in ["gemma3_12b", "qwen25_7b", "qwen25_1_5b"]:
+        p = RES / m / "results.json"
+        if not p.exists(): print(f"\n{m}: (missing)"); continue
+        S = json.loads(p.read_text())["samples"]
+        for s in S:
+            for c in CONDS:
+                s[f"{c}__contains"] = contains(s[f"{c}__pred"], s["golds"])
+                s[f"{c}__len"] = len(s[f"{c}__pred"].split())
+        A = lambda c, k: np.mean([s[f"{c}__{k}"] for s in S])
+        print(f"\n## {m} (n={len(S)})")
+        print(f"  gen length (words):  " + "  ".join(f"{c}={A(c,'len'):.1f}" for c in CONDS))
+        for k in ["contains", "f1", "em"]:
+            tag = " <- primary (correctness)" if k == "contains" else ""
+            print(f"  {k.upper():9s} %:  " + "  ".join(f"{c}={100*A(c,k):.1f}" for c in CONDS) + tag)
+            print(f"      conditioning={f(boot([s[f'prime_full__{k}']-s[f'bare__{k}'] for s in S]))}  "
+                  f"selection={f(boot([s[f'sel_plain__{k}']-s[f'bare__{k}'] for s in S]))}  "
+                  f"COND|sel={f(boot([s[f'sel_primed__{k}']-s[f'sel_plain__{k}'] for s in S]))}")
 print("\n" + "="*94)
-print("Takeaway: SELECTION hurts answer correctness (CONTAINS) — large on Qwen (-24..-36pt), sig on Gemma")
-print("(-8.5pt). CONDITIONING does NOT change correctness (CONTAINS n.s. all models); its EM/F1 shift is")
-print("a verbosity/calibration effect, not whether the answer is found.")
+print("SQuAD takeaway: SELECTION hurts answer correctness (CONTAINS -8.5*/-24*/-36*); CONDITIONING does")
+print("not (n.s. all models) — its EM/F1 shift is verbosity/calibration. Hotpot section tests whether")
+print("this generalizes to multi-hop (prediction: selection worse — k=32 must cover two paragraphs).")
