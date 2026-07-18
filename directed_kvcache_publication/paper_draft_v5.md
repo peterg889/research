@@ -30,9 +30,10 @@ reasoning-distilled Qwen that stays null, localize it to training).
 **conditioning** nor a SnapKV-style task-aware **selection** baseline dominates the answer-NLL for
 extraction, and which wins does *not* reduce to any trait (r=0.29 with imprintability) — you must
 probe per model. The one systematic effect is a risk, and it holds in **downstream accuracy**:
-aggressive query-aware selection drops answer-recall by 24–36 points on Qwen (8.5 on Gemma), whereas
-conditioning leaves correctness unchanged — so conditioning is the safer construction operation,
-though its own effect is on answer calibration, not accuracy. Most context value (~65%+) is
+aggressive query-aware selection drops answer-recall by 24–41 points on Qwen across single- and
+multi-hop QA (and hurts Gemma too on multi-hop), whereas conditioning leaves correctness unchanged —
+so conditioning is the safer construction operation, though its own effect is on answer calibration,
+not accuracy. Most context value (~65%+) is
 structurally un-bankable. The durable contributions are the content-imprint
 characterization (magnitude, and the token-presence/structure correction), the evaluation methodology
 that exposes it, and an honest map of what zero-retention cache construction can and cannot do.
@@ -73,8 +74,9 @@ this paper.** We make four contributions:
    models, neither dominates (conditioning helps four, hurts four) and which wins does **not** reduce
    to a single trait (r=0.29 with imprintability) — so the honest prescription is *probe both per
    model*, not "prime the cache." The one systematic effect is that aggressive query-aware selection
-   hurts the entire Qwen family and Mistral (least, and only in accuracy, on Gemma) — an effect that
-   holds in downstream answer-recall (§7.2), not just NLL.
+   hurts the entire Qwen family and Mistral — an effect that holds in downstream answer-recall across
+   single- and multi-hop QA (§7.2), not just NLL, and reaches Gemma too once the task needs
+   multi-paragraph context.
 4. **The ceiling and the negatives (§5, §8).** Context value is large (−2.8 nats when retained)
    but mostly un-bankable; we report every controlled claim that failed (contrastive priming is
    inert, a representation-level "coherence" mechanism is a positional artifact, and five
@@ -566,36 +568,41 @@ matters is model-specific.**
 
 ### 7.2 Do the effects translate to downstream *accuracy*?
 The results so far are in answer-NLL. To test whether they move task accuracy, we **generate** the
-answer greedily from each constructed cache and score SQuAD (N=200; Gemma-12B, Qwen-7B, Qwen-1.5B).
-One caveat governs the metric: generation-based **EM/F1 is confounded by answer verbosity** — the
-interventions change *how* a model answers (conditioning, in particular, makes Gemma-12B answer
-discursively: mean answer length 3.6→7.4 words), and span-match metrics penalize a correct-but-verbose
-answer. We therefore treat a verbosity-robust **answer-contained recall** (does the generation
-contain the gold span?) as the correctness metric, and report EM/F1 alongside.
+answer greedily from each constructed cache and score two QA tasks (N=200 each; Gemma-12B, Qwen-7B,
+Qwen-1.5B): single-hop **SQuAD** and multi-hop **HotpotQA** (whose gold context is two supporting
+paragraphs). One caveat governs the metric: generation-based **EM/F1 is confounded by answer
+verbosity** — the interventions change *how* a model answers (conditioning, in particular, makes
+Gemma-12B answer discursively: mean answer length 3.6→7.4 words on SQuAD), and span-match metrics
+penalize a correct-but-verbose answer. We therefore treat a verbosity-robust **answer-contained
+recall** (does the generation contain the gold span?) as the correctness metric, and report EM/F1
+alongside.
 
-| model | selection: Δ answer-recall | conditioning: Δ answer-recall |
-|---|---|---|
-| Gemma-12B | **−8.5\*** | −1.5 (n.s.) |
-| Qwen-7B | **−24.0\*** | +0.0 (n.s.) |
-| Qwen-1.5B | **−36.0\*** | +2.5 (n.s.) |
+| | selection: Δ answer-recall | | conditioning: Δ answer-recall | |
+| model | SQuAD | HotpotQA | SQuAD | HotpotQA |
+|---|---|---|---|---|
+| Gemma-12B | **−8.5\*** | **−31.5\*** | −1.5 | −1.0 |
+| Qwen-7B | **−24.0\*** | **−34.0\*** | +0.0 | +3.0 |
+| Qwen-1.5B | **−36.0\*** | **−41.0\*** | +2.5 | +1.0 |
 
-Two findings, one confirming and one deflating:
+Two findings, one confirming and one deflating, and both replicate across the two tasks:
 
 - **Selection genuinely hurts answer correctness**, and the §7.1 risk is real at the task level:
-  top-`k`=32 pruning drops answer-recall by **24–36 points on the Qwen models** and a significant
-  8.5 points on Gemma. (Selection's own generations are *shorter*, which biases answer-recall
-  *upward* for it — so this correctness drop is if anything understated.) So aggressive query-aware
-  pruning is a real accuracy hazard, worst on Qwen but not zero on Gemma.
-- **Conditioning does *not* change answer correctness.** Answer-recall is flat under conditioning
-  for all three models (n.s.), even though its NLL and EM/F1 shift substantially — the model still
-  finds the answer at the same rate; conditioning changes answer *calibration and verbosity*, not
-  whether the answer is there. We therefore do **not** claim conditioning has downstream accuracy
-  value. Its practical role is the negative one above: unlike selection, it does not *destroy*
-  answer-bearing tokens, so it is the safer construction operation on models where selection hurts.
+  top-`k`=32 pruning drops answer-recall by 24–41 points on the Qwen models. (Selection's own
+  generations are *shorter*, which biases answer-recall *upward* for it — so the drop is if anything
+  understated.) The harm is **larger in multi-hop**, where the answer's evidence is spread across two
+  paragraphs that `k`=32 cannot span: Gemma's drop grows from a modest 8.5 (SQuAD) to 31.5 points
+  (HotpotQA). So aggressive query-aware pruning is a real, cross-task accuracy hazard — most acute on
+  Qwen, but *not* Gemma-immune once the task needs more than a sentence of context.
+- **Conditioning does *not* change answer correctness.** Answer-recall is flat under conditioning for
+  all three models on *both* tasks (all n.s.), even though its NLL and EM/F1 shift substantially — the
+  model still finds the answer at the same rate; conditioning changes answer *calibration and
+  verbosity*, not whether the answer is there. We therefore do **not** claim conditioning has
+  downstream accuracy value. Its practical role is the negative one above: unlike selection, it does
+  not *destroy* answer-bearing tokens, so it is the safer construction operation where selection hurts.
 
-(EM/F1 tell the same story once verbosity is accounted for: they show a large "conditioning hurts
-Gemma" effect that is entirely the verbosity penalty — answer-recall is unchanged — and they confirm
-the selection drop on Qwen. The N=200 generation study is powered to detect the large selection
+(EM/F1 tell the same story once verbosity is accounted for: they show a "conditioning hurts Gemma"
+effect that is entirely the verbosity penalty — answer-recall is unchanged — and they confirm the
+selection drop on both tasks. The N=200 generation study is powered to detect the large selection
 effect but not few-point differences; the correctness verdicts rest on answer-recall.)
 
 ---
@@ -632,10 +639,11 @@ effect but not few-point differences; the correctness verdicts rest on answer-re
    imprintability or size (§7.1; conditioning helps most on Gemma-1B yet hurts on Qwen-14B, at nearly
    equal imprintability). The one systematic, confound-controlled effect is a risk, not a rule:
    aggressive query-aware **selection** (SnapKV-style top-k) hurts the *entire Qwen family* and
-   Mistral in NLL, and in *downstream accuracy* drops answer-recall by 24–36 points on Qwen (and a
-   smaller 8.5 on Gemma; §7.2) — so a selection-only pipeline is unsafe, most acutely on Qwen, and
-   conditioning is the safer construction operation (it leaves answer correctness intact). Otherwise,
-   run one cheap sweep and keep the winner.
+   Mistral in NLL, and in *downstream accuracy* drops answer-recall by 24–41 points on Qwen across
+   single- and multi-hop QA — and hurts Gemma too once the task needs multi-paragraph context (−31.5
+   on HotpotQA; §7.2). So a selection-only pipeline is unsafe (most acutely on Qwen), and conditioning
+   is the safer construction operation (it leaves answer correctness intact). Otherwise, run one cheap
+   sweep and keep the winner.
 4. **Do not expect a free lunch.** ~65%+ of context value is un-bankable; the construction step is
    mildly lossy. The gains are real but bounded, model-specific, and task-specific.
 
@@ -660,12 +668,12 @@ effect but not few-point differences; the correctness verdicts rest on answer-re
   (Gemma-1B matches the Qwens' survival yet is unharmed), but a fuller selector/budget sweep and
   non-extractive tasks would strengthen it. The Qwen-14B conditioning penalty (+2.4) is unusually
   large and co-occurs with a high prime+strip machinery cost (§7), which we do not fully explain.
-- Downstream value is shown on reranking and extractive QA; broader task coverage is future work.
-  The QA-accuracy study (§7.2) is a greedy-generation setup at N=200 — powered to detect the large
-  selection effect (answer-recall −24 to −36 on Qwen) but not few-point differences, and its span-match
-  metrics require the verbosity-robust answer-recall control we report. Conditioning's effect on
-  answer *correctness* is null there; we only claim it avoids selection's correctness cost, not that
-  it adds accuracy.
+- Downstream value is shown on reranking and QA (single-hop SQuAD and multi-hop HotpotQA); broader
+  task coverage is future work. The QA-accuracy study (§7.2) is a greedy-generation setup at N=200 per
+  task — powered to detect the large selection effect (answer-recall −24 to −41 on Qwen) but not
+  few-point differences, and its span-match metrics require the verbosity-robust answer-recall control
+  we report. Conditioning's effect on answer *correctness* is null on both tasks; we only claim it
+  avoids selection's correctness cost, not that it adds accuracy.
 - Banking probes use controlled synthetic facts (decisive content in filler) at N=150; behavioral
   results use N=300–900. The synthetic design maximizes cleanliness at some cost to ecological
   validity.
@@ -733,6 +741,7 @@ Qwen-1.5B/3B/7B/14B +0.88\*/+1.89\*/+1.00\*/+0.88\*, Mistral +0.50\*, Gemma-1B �
 Qwen-1.5B/3B/7B −0.27\*/−0.84\*/−0.63\* (helps), Qwen-14B +2.37\* / Gemma-4B/12B +1.05\*/+0.52\* /
 Mistral +0.34\* (hurts), Gemma-1B −1.91\* (helps). r(imprintability, conditioning)=0.29 → no trait law.
 Answer-span survival under top-k selection 0.42–0.70 across models (Gemma-1B 0.47 ≈ Qwens).
-*QA accuracy (§7.2) exp35, N=200 SQuAD, verbosity-robust answer-recall:* selection Δ Gemma-12B −8.5\*,
-Qwen-7B −24.0\*, Qwen-1.5B −36.0\*; conditioning Δ −1.5/+0.0/+2.5 (all n.s.) — selection hurts
-correctness, conditioning does not (its EM/F1 shift is a verbosity/calibration effect).
+*QA accuracy (§7.2), N=200/task, verbosity-robust answer-recall:* SELECTION Δ (SQuAD/HotpotQA)
+Gemma-12B −8.5\*/−31.5\*, Qwen-7B −24.0\*/−34.0\*, Qwen-1.5B −36.0\*/−41.0\* (exp35 single-hop,
+exp36 multi-hop); CONDITIONING Δ all n.s. on both tasks — selection hurts correctness across QA
+regimes (worse multi-hop), conditioning does not (its EM/F1 shift is a verbosity/calibration effect).
