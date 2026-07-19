@@ -1,0 +1,44 @@
+============================================================================================
+RERANKING ACCURACY (top-1 / hit@3), vs MRR. keyword priming (tfidf) vs bare, MS MARCO N=900.
+============================================================================================
+
+## gemma3_4b  (n=900)
+  TOP1 : bare=26.1  generic=21.8  plain=26.8  shuffled=26.2
+  HIT3 : bare=58.4  generic=53.1  plain=59.8  shuffled=60.8
+  MRR  : bare=47.4  generic=43.6  plain=48.3  shuffled=48.0
+    keyword−bare:  top1=+0.67[-2.00,+3.33]   hit3=+1.33[-1.78,+4.56]   mrr=+0.89[-0.86,+2.68] 
+    shuffled−bare: top1=+0.11[-2.44,+2.67]   (keyword benefit survives token shuffling → token presence, §6.5)
+
+## gemma3_12b  (n=900)
+  TOP1 : bare=23.9  generic=20.3  plain=27.9  shuffled=28.6
+  HIT3 : bare=56.7  generic=54.0  plain=62.1  shuffled=60.3
+  MRR  : bare=45.7  generic=42.9  plain=49.3  shuffled=49.6
+    keyword−bare:  top1=+4.00[+1.11,+6.89]*  hit3=+5.44[+2.11,+8.67]*  mrr=+3.59[+1.70,+5.48]*
+    shuffled−bare: top1=+4.67[+1.78,+7.44]*  (keyword benefit survives token shuffling → token presence, §6.5)
+
+## gemma3_27b  (n=900)
+  TOP1 : bare=23.3  generic=21.1  plain=27.3  shuffled=30.2
+  HIT3 : bare=56.4  generic=52.1  plain=61.0  shuffled=61.0
+  MRR  : bare=45.3  generic=42.8  plain=48.9  shuffled=50.7
+    keyword−bare:  top1=+4.00[+1.11,+6.89]*  hit3=+4.56[+1.22,+7.89]*  mrr=+3.60[+1.63,+5.53]*
+    shuffled−bare: top1=+6.89[+3.89,+9.89]*  (keyword benefit survives token shuffling → token presence, §6.5)
+
+## qwen25_7b  (n=900)
+  TOP1 : bare=29.8  generic=28.8  plain=29.0
+  HIT3 : bare=62.9  generic=60.4  plain=61.9
+  MRR  : bare=51.0  generic=49.6  plain=50.3
+    keyword−bare:  top1=-0.78[-3.67,+2.11]   hit3=-1.00[-4.11,+2.11]   mrr=-0.70[-2.62,+1.25] 
+
+## qwen25_14b  (n=900)
+  TOP1 : bare=31.0  generic=30.1  plain=29.8
+  HIT3 : bare=64.6  generic=62.6  plain=64.0
+  MRR  : bare=51.9  generic=51.2  plain=50.9
+    keyword−bare:  top1=-1.22[-4.22,+1.89]   hit3=-0.56[-3.33,+2.33]   mrr=-0.99[-2.92,+1.02] 
+
+## mistral_7b  (n=900)
+  TOP1 : bare=25.1  generic=24.4  plain=23.9
+  HIT3 : bare=55.2  generic=55.4  plain=57.2
+  MRR  : bare=45.9  generic=45.7  plain=45.6
+    keyword−bare:  top1=-1.22[-3.89,+1.33]   hit3=+2.00[-1.11,+5.00]   mrr=-0.25[-2.04,+1.56] 
+
+============================================================================================
