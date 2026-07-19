@@ -602,6 +602,18 @@ Two findings, one confirming and one deflating, and both replicate across the tw
   downstream accuracy value. Its practical role is the negative one above: unlike selection, it does
   not *destroy* answer-bearing tokens, so it is the safer construction operation where selection hurts.
 
+The selection harm is not an artifact of the specific `k`=32 budget: a **dose-response sweep**
+(k ∈ {8…256}, SQuAD, Qwen-1.5B/7B) shows answer-recall degrading *smoothly* as pruning tightens and
+recovering to the full-document baseline only near the document length (~128 tokens). Even keeping
+*half* the tokens (k=64) costs a significant 8–18 points, and every k≤64 budget is significantly
+below bare — so for these ~130-token passages, any real query-aware compression trades answer
+accuracy on Qwen (Figure 9).
+
+![Figure 9](figures/fig14_ksweep.png)
+*Figure 9: Selection dose-response (SQuAD, N=200). Answer-recall vs. selection budget k; dotted lines
+are the full-document (bare) baselines. Pruning hurts Qwen accuracy at every budget below the
+document length and recovers only at k≈full doc. Bars are bootstrap 95% CIs.*
+
 (EM/F1 tell the same story once verbosity is accounted for: they show a "conditioning hurts Gemma"
 effect that is entirely the verbosity penalty — answer-recall is unchanged — and they confirm the
 selection drop on both tasks. The N=200 generation study is powered to detect the large selection
@@ -748,3 +760,6 @@ Answer-span survival under top-k selection 0.42–0.70 across models (Gemma-1B 0
 Gemma-12B −8.5\*/−31.5\*, Qwen-7B −24.0\*/−34.0\*, Qwen-1.5B −36.0\*/−41.0\* (exp35 single-hop,
 exp36 multi-hop); CONDITIONING Δ all n.s. on both tasks — selection hurts correctness across QA
 regimes (worse multi-hop), conditioning does not (its EM/F1 shift is a verbosity/calibration effect).
+*k-sweep (§7.2 Fig 9) exp37, SQuAD N=200:* selection answer-recall Δ vs bare at k=8/16/32/64/128 —
+Qwen-1.5B −67.5\*/−55\*/−36\*/−18\*/−0.5, Qwen-7B −62.5\*/−45.5\*/−24\*/−8\*/−0.5 (mean doc ≈128 tok):
+smooth dose-response, every k≤64 significantly below bare, recovers only at k≈full doc.
