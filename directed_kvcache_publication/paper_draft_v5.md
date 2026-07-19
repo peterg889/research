@@ -469,12 +469,14 @@ that shows the deployable rule is *measure per model*, not a mode shortcut.
 
 **Relevance (reranking).** Priming each MS MARCO passage with its own keywords improves
 query-likelihood reranking, beating *no* priming on the larger, higher-imprintability models:
-**+0.036 MRR on Gemma 12B and 27B** (CIs exclude 0), null on Gemma 4B and on Qwen/Mistral. This
-benefit is **token presence**, consistent with §6.5: shuffling the keyword tokens before priming
-leaves it intact (N=900, sample-paired, 0 alignment mismatches) — preserved on Gemma-12B (+0.036\*
-ordered vs. +0.039\* shuffled, difference n.s.) and *strengthened* on Gemma-27B (+0.036\* vs.
-+0.054\*, difference +0.018\*). Keyword imprinting re-weights *which of the passage's own tokens are
-salient* — exactly what relevance scoring rewards — without needing the keywords in any order.
+**+0.036 MRR on Gemma 12B and 27B** (CIs exclude 0), null on Gemma 4B and on Qwen/Mistral. The gain
+is not a soft-metric artifact — it holds on hard **top-1 rank accuracy** (does the relevant passage
+reach rank 1?): **+4.0 points on both Gemma-12B and 27B** (23.9→27.9%, 23.3→27.3%; hit@3 +5.4\*/+4.6\*),
+null elsewhere. The benefit is **token presence**, consistent with §6.5: shuffling the keyword tokens
+before priming leaves it intact (N=900, sample-paired) — on Gemma-12B MRR +0.036\* ordered vs.
++0.039\* shuffled (n.s. difference), and top-1 accuracy is likewise preserved/strengthened under
+shuffling (+4.7\*/+6.9\* on 12B/27B). Keyword imprinting re-weights *which of the passage's own
+tokens are salient* — what relevance scoring rewards — without needing the keywords in any order.
 
 **Extraction (QA).** Priming a passage with the *question*, then stripping it, and answering
 (machinery-controlled content effect, pos = hurts; we also shuffle the question's tokens to test
@@ -721,7 +723,8 @@ from `results/*.json` by `make_numbers.py` and `make_taskaware_numbers.py`. Boot
 resamples); fixed seeds; 20-sample checkpoints.
 
 **B. Key statistics.** Entropy confound (§4) exp05; keyword-vs-bare reranking (§7) exp14b/exp14c
-(N=900): gemma12b/27b +0.036\*, others n.s.; *reranking shuffle (§7) exp34, N=900 sample-paired:*
+(N=900): gemma12b/27b +0.036\* MRR, and **+4.0\* top-1 rank-accuracy** points (hit@3 +5.4\*/+4.6\*),
+others n.s.; *reranking shuffle (§7) exp34, N=900 sample-paired:*
 keyword-over-bare preserved under keyword-token shuffling — Gemma-12B +0.036\*/+0.039\* (ordered/
 shuffled, diff n.s.), Gemma-27B +0.036\*/+0.054\* (diff +0.018\*, shuffle helps more), Gemma-4B null;
 imprintability×banking-magnitude r=0.94 (exp26);
