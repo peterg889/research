@@ -13,11 +13,13 @@ shows the loss growing smoothly as pruning tightens — even keeping half the to
 significant 8 to 18 points, with accuracy recovering only when the budget approaches the full
 document. The cost is caused by removing answer-bearing tokens, not by conditioning on the query:
 a control that keeps every token but reshapes them using the query leaves answer accuracy unchanged.
-Crucially, this cost is invisible to the metrics compression is usually tuned against — it does not
-appear in answer perplexity, and span-match metrics (EM/F1) obscure it because the interventions also
-change *how verbosely* a model answers; a verbosity-robust answer-recall metric is required to see
-it. Our results are a caution for query-aware KV pruning and a reminder that likelihood or
-span-overlap improvements on a compressed cache need not mean the model still answers correctly.
+Crucially, this cost is easy to miss with the metrics compression is usually tuned against: answer
+likelihood is an unreliable proxy for answer correctness — a query-conditioning that leaves
+correctness unchanged shifts likelihood substantially — and span-match metrics (EM/F1) distort the
+picture because the interventions also change *how verbosely* a model answers. A verbosity-robust
+answer-recall metric is required to see the cost clearly. Our results are a caution for query-aware
+KV pruning and a reminder that likelihood or span-overlap improvements on a compressed cache need not
+mean the model still answers correctly.
 
 ---
 
@@ -46,9 +48,10 @@ document and discarding it. Comparing (i)–(iii) on extractive QA yields three 
    build time but keeps every token — leaves answer accuracy unchanged. Only the operation that
    *removes* tokens hurts (§6).
 
-3. **The cost is hidden by the usual metrics.** It does not appear in answer perplexity, and
-   span-match EM/F1 obscure it because the interventions change answer verbosity; a verbosity-robust
-   answer-recall metric is needed to measure correctness fairly (§4, §7).
+3. **Likelihood and span-overlap are unreliable guides.** Answer likelihood tracks the cost poorly
+   for these interventions — conditioning shifts it substantially without changing correctness — and
+   span-match EM/F1 distort the picture via a verbosity confound; a verbosity-robust answer-recall
+   metric is needed to measure correctness fairly (§4, §7).
 
 The practical message for query-aware KV compression is that aggressive pruning trades downstream
 accuracy in a way that model developers tuning against perplexity or retrieval will not see, and that
@@ -206,18 +209,18 @@ proportion to how many answer-bearing tokens the budget discards.
 
 ---
 
-## 7. Why Perplexity Hides the Cost
+## 7. Likelihood Is an Unreliable Guide to Correctness
 
-The reason this cost is easy to miss is that it does not surface in the quantities compression is
-usually optimized against.
+The cost is easy to miss because the quantities compression is usually tuned against do not track it
+reliably.
 
-**It is not in answer perplexity.** Scored as answer negative log-likelihood, the selection-versus-
-conditioning picture is muddy and model-specific: across eight models the two operations trade places
-with no consistent winner, and which is better does not reduce to any model trait we measured
-(correlation with a generic-prefix "imprintability" trait r=0.29). More fundamentally, likelihood
-moves without correctness moving: conditioning shifts answer NLL substantially on every model, yet —
-as §6 shows — does not change whether the answer is produced. Answer-likelihood is simply the wrong
-target for a question about answer correctness.
+**Answer likelihood dissociates from correctness.** The clearest evidence is conditioning: it shifts
+answer negative log-likelihood substantially on every model, yet — as §6 shows — does not change
+whether the answer is produced. The selection-versus-conditioning comparison is likewise unreliable
+in likelihood: over a broader set of eight models the two operations trade places with no consistent
+winner, and which is better does not reduce to model size or to a model's sensitivity to a generic
+prefix (r=0.29). Answer likelihood is simply the wrong target for a question about answer
+correctness.
 
 **It is obscured by span-match metrics.** EM/F1 on generated answers do register the selection drop,
 but they also report a large spurious "conditioning hurts Gemma" effect (−22 F1) that is entirely the
@@ -228,7 +231,8 @@ true shape and attribute phantom costs to a harmless operation.
 
 The upshot is methodological as well as empirical: evaluating cache compression for question
 answering requires generating answers and scoring correctness with a verbosity-robust metric.
-Perplexity and span-overlap, the defaults, respectively hide and distort the effect.
+Answer likelihood and span-overlap, the defaults, respectively track the effect unreliably and
+distort it.
 
 ---
 
@@ -256,8 +260,8 @@ its answer needs. Generating answers from pruned caches shows the premise is onl
 to the query's top attended tokens degrades answer accuracy in a smooth, dose-dependent, model- and
 task-specific way — severe for the Qwen models and for multi-hop questions, milder but real for
 Gemma — and even generous budgets that keep half the tokens pay a significant cost. The loss comes
-specifically from discarding tokens, not from conditioning on the query, and it is invisible to the
-perplexity and span-overlap metrics against which compression is usually tuned. Practitioners
+specifically from discarding tokens, not from conditioning on the query, and it is easily missed by
+the likelihood and span-overlap metrics against which compression is usually tuned. Practitioners
 deploying query-aware KV compression for question answering should measure downstream answer
 correctness directly, with a verbosity-robust metric, and budget for an accuracy cost that grows with
 how aggressively the cache is pruned.

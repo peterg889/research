@@ -58,7 +58,7 @@ The question we answer is: **what does a discarded prefix leave behind?** We fin
    which content type is banked (§6).
 
 We bound the effect (most context value is unbankable into zero retention; §7.1), localize it (a
-distributed, late-layer property; §7.2), and show it is downstream-relevant (it governs a
+distributed, late-layer property; §7.2), and show it is downstream-relevant (it predicts a
 query-likelihood reranking benefit; §8). Together these give a compact account of how instruction
 tuning shapes what a model writes into its KV cache — with a direct implication for cache
 compression, since what a method can preserve on a given model depends on that model's imprinting
@@ -94,8 +94,8 @@ result: instruction tuning sets which content type a model imprints into its cac
 
 **Long-context evaluation.** Studies of long-context behavior show that placement and surface
 statistics strongly shape outcomes and that likelihood need not track task quality [@lostinmiddle].
-We adopt evaluation controls in this spirit: an entropy-robust contrastive margin and a
-content-free "machinery" baseline that isolates the reshaping cost from the prefix's content (§3).
+We adopt an evaluation control in this spirit: a content-free "machinery" baseline that separates the
+prefix's *content* effect from the mechanical cost of the reshaping itself (§3).
 
 ---
 
@@ -116,13 +116,6 @@ reposition-and-normalize step itself perturbs the cache, we subtract a **machine
 the same pipeline run with a content-free, length-matched prefix (newlines). The banking magnitude
 is `strip(F) − strip(neutral)`; negative means the fact is banked. All differences are reported with
 bootstrap 95% confidence intervals (4000 resamples).
-
-**Contrastive margin for discrimination.** Absolute NLL conflates two effects of a prefix:
-sharpening the output distribution (lower entropy) and improving *discrimination* of the correct
-answer. Where we assess discrimination (§8), we score an entropy-robust contrastive margin
-— `mean(NLL_distractor) − NLL(correct)`, invariant to a uniform additive shift — alongside rank and
-top-1 accuracy, and verify that gains reflect the correct answer's likelihood rising rather than
-distractors' falling in lockstep.
 
 **The shuffle probe.** To ask *what kind* of content a prefix banks, we prime with the same tokens in
 natural order versus a deterministic shuffle that preserves the token multiset but destroys word
@@ -154,7 +147,7 @@ Across eight models spanning the imprintability range, imprintability predicts b
 almost perfectly (Pearson **r = 0.94**; Figure 1). It is a property of the model, not the family:
 Mistral (imprintability 0.55) banks substantially and sits on the same line as the Gemma models. In
 the Gemma family, banking magnitude also rises monotonically with scale, recovering up to about a
-third of a semantic context's value from the stripped cache at 12–27B.
+third of a meaningful context's value from the stripped cache at 12–27B.
 
 ![Figure 1](figures/fig7_imprintability_unification.png)
 *Figure 1: A single trait — imprintability (mean |Δ query-NLL| from a generic prefix) — predicts how
@@ -242,8 +235,8 @@ instruction-tuned versions on the banking probe (Table 2) shows two things. Firs
 base model banks the meaningful-content target* (−0.7 to −1.1 nats) — content imprinting is a
 universal property of pretrained language models, not a quirk of one family. Second, *instruction
 tuning changes which content type is banked*, and can invert it: Qwen 2.5's alignment destroys the
-meaningful-content banking (−0.72 → +0.14) and creates surface/code banking (+0.17 → −0.37), while
-Gemma's and Mistral's tuning preserve and amplify content banking. The banked content type is thus a
+meaningful-content banking (−0.72 → +0.14) and creates literal-code banking (+0.17 → −0.37), while
+Gemma's and Mistral's tuning preserve and amplify meaningful-content banking. The banked content type is thus a
 trainable property, set in alignment — which is exactly why every architectural ablation failed.
 
 | | code banking | meaningful-content banking |
@@ -261,7 +254,7 @@ content type banked. \* = CI excludes zero.*
 
 ![Figure 3](figures/fig11_base_vs_instruct.png)
 *Figure 3: Every pretrained base model (gray) banks the meaningful-content target; instruction tuning
-amplifies it for Gemma and Mistral but, for Qwen 2.5, destroys it (left) and creates surface/code
+amplifies it for Gemma and Mistral but, for Qwen 2.5, destroys it (left) and creates literal-code
 banking (right) — a change in the banked content type.*
 
 ---
@@ -278,14 +271,14 @@ imprint remains. This is a principled ceiling on how much any method can fold a 
 document's cache without retaining tokens.
 
 **7.2 Where the imprint lives.** Layer-wise KV patching localizes the imprint to a model's *late*
-layers: on a high-imprintability model, full-cache recovery is +4.1 nats while single-layer patches
-sum to only +0.9, and the peak is near layer 44 of 48 — the imprint is a distributed, late-stage
-property of the cached representation rather than a single localized edit. Weak imprinters show no
-such recovery.
+layers: on a high-imprintability Gemma model, full-cache recovery is +4.1 nats while single-layer
+patches sum to only +0.9, and the peak is near layer 44 of 48 — the imprint is a distributed,
+late-stage property of the cached representation rather than a single localized edit. Weak imprinters
+show no such recovery.
 
 ---
 
-## 8. Consequence: The Imprinting Style Governs a Reranking Benefit
+## 8. Consequence: The Imprinting Style Predicts a Reranking Benefit
 
 The imprinting style is not merely diagnostic; it predicts a downstream effect. In query-likelihood
 reranking on MS MARCO, priming each candidate passage with its *own* top keywords significantly
@@ -309,7 +302,10 @@ methods validated on one model family may not transfer.
 The token-presence-vs-structure split rests on two shuffle probes over eleven models with multiple
 families on each side, but we do not yet explain *why* a given family lands where it does — the
 causal analysis (§6) localizes the effect to instruction tuning without identifying which alignment
-objective is responsible; a controlled fine-tuning study is future work. OLMo-2's structure
+objective is responsible; a controlled fine-tuning study is future work. The magnitude–imprintability
+correlation (r=0.94) is measured on the eight models for which we ran the imprintability probe;
+extending it to all eleven — in particular to the added token-presence exemplars Falcon-3 and Yi —
+would further strengthen the magnitude claim. OLMo-2's structure
 classification rests on the single-fact probe, since it is too weak an imprinter to bind two facts.
 The banking probes use controlled synthetic facts embedded in filler at N=150, a design that
 maximizes cleanliness at some cost to ecological validity; the reranking evaluation uses
